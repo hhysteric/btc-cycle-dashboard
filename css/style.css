@@ -1,0 +1,66 @@
+:root {
+    --gold: #f7931a;
+    --green: #00d395;
+    --red: #ff4757;
+    --dark-900: #0f0f23;
+    --dark-800: #1a1a2e;
+    --dark-700: #252547;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.chart-period-btn {
+    background: var(--dark-700);
+    color: #9ca3af;
+    transition: all 0.2s;
+}
+
+.chart-period-btn:hover {
+    background: #333366;
+    color: white;
+}
+
+.chart-period-btn.active {
+    background: var(--gold);
+    color: black;
+    font-weight: 600;
+}
+
+#report-modal .prose {
+    color: #d1d5db;
+}
+
+#report-modal .prose h3 {
+    color: var(--gold);
+    font-size: 1rem;
+    font-weight: 600;
+    margin-top: 1rem;
+}
+
+#report-modal .prose p {
+    margin: 0.25rem 0;
+}
+
+@keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 5px rgba(247, 147, 26, 0.3); }
+    50% { box-shadow: 0 0 20px rgba(247, 147, 26, 0.6); }
+}
+
+.glow-gold {
+    animation: pulse-glow 2s infinite;
+}
+
+canvas {
+    width: 100% !important;
+}
+
+@media (max-width: 768px) {
+    header h1 {
+        font-size: 1rem;
+    }
+    #btn-export-report span {
+        display: none;
+    }
+}

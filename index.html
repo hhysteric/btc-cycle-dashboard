@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BTC 周期分析 Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <link rel="stylesheet" href="css/style.css">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        dark: { 800: '#1a1a2e', 900: '#0f0f23', 700: '#252547' },
+                        accent: { gold: '#f7931a', green: '#00d395', red: '#ff4757' }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-dark-900 text-gray-100 min-h-screen">
+    <!-- Header -->
+    <header class="bg-dark-800 border-b border-gray-700 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 bg-accent-gold rounded-full flex items-center justify-center font-bold text-black text-sm">B</div>
+                <h1 class="text-xl font-bold">BTC 周期分析 Dashboard</h1>
+            </div>
+            <div class="flex items-center gap-4">
+                <span id="last-update" class="text-xs text-gray-400"></span>
+                <button id="btn-export-report" class="bg-accent-gold hover:bg-yellow-500 text-black font-semibold px-4 py-2 rounded-lg transition flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    导出周报
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 py-6 space-y-6" id="dashboard-content">
+        <!-- Overview Cards -->
+        <section id="overview" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="bg-dark-800 rounded-xl p-5 border border-gray-700">
+                <p class="text-gray-400 text-sm">BTC 当前价格</p>
+                <p id="current-price" class="text-2xl font-bold text-accent-gold mt-1">--</p>
+                <p id="price-change" class="text-sm mt-1">--</p>
+            </div>
+            <div class="bg-dark-800 rounded-xl p-5 border border-gray-700">
+                <p class="text-gray-400 text-sm">市值</p>
+                <p id="market-cap" class="text-2xl font-bold mt-1">--</p>
+                <p class="text-gray-500 text-sm mt-1">Market Cap</p>
+            </div>
+            <div class="bg-dark-800 rounded-xl p-5 border border-gray-700">
+                <p class="text-gray-400 text-sm">四年周期阶段</p>
+                <p id="cycle-phase" class="text-2xl font-bold text-accent-green mt-1">--</p>
+                <p id="cycle-detail" class="text-sm text-gray-400 mt-1">--</p>
+            </div>
+            <div class="bg-dark-800 rounded-xl p-5 border border-gray-700">
+                <p class="text-gray-400 text-sm">距下次减半</p>
+                <p id="next-halving" class="text-2xl font-bold mt-1">--</p>
+                <p class="text-gray-500 text-sm mt-1">预计 2028年</p>
+            </div>
+        </section>
+
+        <!-- Cycle Progress Bar -->
+        <section class="bg-dark-800 rounded-xl p-5 border border-gray-700">
+            <h2 class="text-lg font-semibold mb-3">四年周期进度</h2>
+            <div class="relative">
+                <div class="h-3 bg-dark-700 rounded-full overflow-hidden">
+                    <div id="cycle-progress-bar" class="h-full bg-gradient-to-r from-accent-green via-accent-gold to-accent-red rounded-full transition-all" style="width: 0%"></div>
+                </div>
+                <div class="flex justify-between mt-2 text-xs text-gray-400">
+                    <span>减半 (2024.04)</span>
+                    <span>牛市初期</span>
+                    <span>牛市中期</span>
+                    <span>顶部区域</span>
+                    <span>下次减半 (~2028)</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Price Chart with MA -->
+        <section class="bg-dark-800 rounded-xl p-5 border border-gray-700">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold">BTC 价格与均线</h2>
+                <div class="flex gap-2">
+                    <button class="chart-period-btn active px-3 py-1 rounded text-sm" data-period="365">1Y</button>
+                    <button class="chart-period-btn px-3 py-1 rounded text-sm" data-period="730">2Y</button>
+                    <button class="chart-period-btn px-3 py-1 rounded text-sm" data-period="1460">4Y</button>
+                    <button class="chart-period-btn px-3 py-1 rounded text-sm" data-period="all">全部</button>
+                </div>
+            </div>
+            <div class="h-80">
+                <canvas id="price-chart"></canvas>
+            </div>
+        </section>
+
+        <!-- Four Year Cycle -->
+        <section class="bg-dark-800 rounded-xl p-5 border border-gray-700">
+            <h2 class="text-lg font-semibold mb-4">四年大周期对比</h2>
+            <div class="h-80">
+                <canvas id="cycle-chart"></canvas>
+            </div>
+            <div class="mt-3 flex gap-4 text-xs text-gray-400">
+                <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-blue-400 inline-block"></span> 周期1 (2012-2016)</span>
+                <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-green-400 inline-block"></span> 周期2 (2016-2020)</span>
+                <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-yellow-400 inline-block"></span> 周期3 (2020-2024)</span>
+                <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-red-400 inline-block"></span> 周期4 (2024-至今)</span>
+            </div>
+        </section>
+
+        <!-- Killa Weekday Analysis -->
+        <section class="bg-dark-800 rounded-xl p-5 border border-gray-700">
+            <h2 class="text-lg font-semibold mb-2">Killa 短周期分析 - 星期涨跌概率</h2>
+            <p class="text-gray-400 text-sm mb-4">基于历史数据统计每周各天的涨跌概率（参考 <a href="https://x.com/KillaXBT" class="text-accent-gold hover:underline" target="_blank">@KillaXBT</a>）</p>
+            <div class="h-64">
+                <canvas id="weekday-chart"></canvas>
+            </div>
+        </section>
+
+        <!-- Technical Indicators -->
+        <section class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div class="bg-dark-800 rounded-xl p-5 border border-gray-700">
+                <h2 class="text-lg font-semibold mb-4">RSI 指标</h2>
+                <div class="h-48">
+                    <canvas id="rsi-chart"></canvas>
+                </div>
+            </div>
+            <div class="bg-dark-800 rounded-xl p-5 border border-gray-700">
+                <h2 class="text-lg font-semibold mb-4">MVRV 比率（模拟）</h2>
+                <div class="h-48">
+                    <canvas id="mvrv-chart"></canvas>
+                </div>
+                <p class="text-xs text-gray-500 mt-2">基于简化模型计算，仅供参考。详细数据请参考 <a href="https://cryptoquant.com" class="text-accent-gold hover:underline" target="_blank">CryptoQuant</a></p>
+            </div>
+        </section>
+
+        <!-- Volume Analysis -->
+        <section class="bg-dark-800 rounded-xl p-5 border border-gray-700">
+            <h2 class="text-lg font-semibold mb-4">成交量分析</h2>
+            <div class="h-48">
+                <canvas id="volume-chart"></canvas>
+            </div>
+        </section>
+
+        <!-- Futures & Capital Flow Panels -->
+        <section class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div class="bg-dark-800 rounded-xl p-5 border border-gray-700">
+                <h2 class="text-lg font-semibold mb-3">期货/衍生品</h2>
+                <div class="space-y-3">
+                    <div class="flex justify-between items-center p-3 bg-dark-700 rounded-lg">
+                        <span class="text-gray-300">Open Interest</span>
+                        <span id="oi-value" class="text-accent-gold font-semibold">--</span>
+                    </div>
+                    <div class="flex justify-between items-center p-3 bg-dark-700 rounded-lg">
+                        <span class="text-gray-300">期现溢价</span>
+                        <span id="basis-value" class="font-semibold">--</span>
+                    </div>
+                    <div class="flex justify-between items-center p-3 bg-dark-700 rounded-lg">
+                        <span class="text-gray-300">资金费率</span>
+                        <span id="funding-rate" class="font-semibold">--</span>
+                    </div>
+                </div>
+                <p class="text-xs text-gray-500 mt-3">数据来源: CoinGlass / Binance API</p>
+            </div>
+            <div class="bg-dark-800 rounded-xl p-5 border border-gray-700">
+                <h2 class="text-lg font-semibold mb-3">增量资金</h2>
+                <div class="space-y-3">
+                    <div class="flex justify-between items-center p-3 bg-dark-700 rounded-lg">
+                        <span class="text-gray-300">ETF 净流入 (日)</span>
+                        <span id="etf-flow" class="text-accent-green font-semibold">--</span>
+                    </div>
+                    <div class="flex justify-between items-center p-3 bg-dark-700 rounded-lg">
+                        <span class="text-gray-300">USDT 市值</span>
+                        <span id="usdt-mcap" class="font-semibold">--</span>
+                    </div>
+                    <div class="flex justify-between items-center p-3 bg-dark-700 rounded-lg">
+                        <span class="text-gray-300">稳定币总供应</span>
+                        <span id="stablecoin-supply" class="font-semibold">--</span>
+                    </div>
+                </div>
+                <p class="text-xs text-gray-500 mt-3">数据来源: CoinGecko / DefiLlama</p>
+            </div>
+        </section>
+
+        <!-- Cointime Price Section -->
+        <section class="bg-dark-800 rounded-xl p-5 border border-gray-700">
+            <h2 class="text-lg font-semibold mb-2">Cointime Price 概念</h2>
+            <p class="text-gray-400 text-sm mb-3">时间成交量加权后的实现价格，公式: subset(f2/cumsum(f1), "2010-09-01")</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div class="p-3 bg-dark-700 rounded-lg">
+                    <p class="text-accent-gold font-semibold">f2: 累计已实现的销毁币块总价值</p>
+                    <p class="text-gray-400 mt-1">= cumsum(BTC price × Coin Blocks Destroyed)</p>
+                </div>
+                <div class="p-3 bg-dark-700 rounded-lg">
+                    <p class="text-accent-gold font-semibold">f1: 累计的存储币块总量</p>
+                    <p class="text-gray-400 mt-1">= Coin Blocks Created - Coin Blocks Destroyed</p>
+                </div>
+            </div>
+            <p class="text-xs text-gray-500 mt-3">详细图表: <a href="https://charts.checkonchain.com/btconchain/cointime/pricing_mvrv_cointime_0/pricing_mvrv_cointime_0_light.html" class="text-accent-gold hover:underline" target="_blank">CheckOnChain Cointime MVRV</a></p>
+        </section>
+
+        <!-- Analysis Summary -->
+        <section id="analysis-summary" class="bg-dark-800 rounded-xl p-5 border border-gray-700">
+            <h2 class="text-lg font-semibold mb-4">周期分析总结</h2>
+            <div id="summary-content" class="space-y-3 text-sm text-gray-300">
+                <p>加载中...</p>
+            </div>
+        </section>
+    </main>
+
+    <!-- Report Modal -->
+    <div id="report-modal" class="fixed inset-0 bg-black/70 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-dark-800 rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-auto p-6 border border-gray-600">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold">BTC 周报</h2>
+                <button id="close-modal" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+            </div>
+            <div id="report-content" class="prose prose-invert text-sm space-y-3"></div>
+            <div class="flex gap-3 mt-6">
+                <button id="btn-download-pdf" class="bg-accent-gold hover:bg-yellow-500 text-black font-semibold px-4 py-2 rounded-lg transition">下载 PDF</button>
+                <button id="btn-copy-text" class="bg-gray-600 hover:bg-gray-500 text-white font-semibold px-4 py-2 rounded-lg transition">复制文本</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-dark-800 border-t border-gray-700 mt-8 py-4">
+        <div class="max-w-7xl mx-auto px-4 text-center text-gray-500 text-sm">
+            <p>BTC 周期分析 Dashboard | 数据来源: CoinMarketCap Historical Data + CoinGecko API</p>
+            <p class="mt-1">仅供学习研究，不构成投资建议</p>
+        </div>
+    </footer>
+
+    <script src="js/data.js"></script>
+    <script src="js/charts.js"></script>
+    <script src="js/report.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

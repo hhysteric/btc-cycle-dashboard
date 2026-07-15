@@ -307,16 +307,16 @@
 
     <!-- Report Modal -->
     <div id="report-modal" class="fixed inset-0 bg-black/70 z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-dark-800 rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-auto p-6 border border-gray-600">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-xl font-bold">BTC 周报</h2>
-                <button id="close-modal" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+        <div class="bg-dark-800 rounded-2xl max-w-4xl w-full max-h-[88vh] overflow-auto p-6 border border-gray-600">
+            <div class="flex justify-between items-center mb-4 sticky top-0 bg-dark-800 pb-2">
+                <h2 class="text-xl font-bold">BTC 周报预览</h2>
+                <div class="flex gap-3 items-center">
+                    <button id="btn-download-png" class="bg-accent-gold hover:bg-yellow-500 text-black font-semibold px-4 py-2 rounded-lg transition">下载 PNG</button>
+                    <button id="btn-copy-text" class="bg-gray-600 hover:bg-gray-500 text-white font-semibold px-4 py-2 rounded-lg transition">复制文本</button>
+                    <button id="close-modal" class="text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
+                </div>
             </div>
-            <div id="report-content" class="prose prose-invert text-sm space-y-3"></div>
-            <div class="flex gap-3 mt-6">
-                <button id="btn-download-pdf" class="bg-accent-gold hover:bg-yellow-500 text-black font-semibold px-4 py-2 rounded-lg transition">下载 PDF</button>
-                <button id="btn-copy-text" class="bg-gray-600 hover:bg-gray-500 text-white font-semibold px-4 py-2 rounded-lg transition">复制文本</button>
-            </div>
+            <div id="report-content"></div>
         </div>
     </div>
 

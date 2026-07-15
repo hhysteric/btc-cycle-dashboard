@@ -169,7 +169,13 @@ function setupEventListeners(data, priceInfo, cycleInfo) {
     document.getElementById('btn-export-report').addEventListener('click', () => {
         const weekdayStats = DataModule.getWeekdayStats();
         currentReport = ReportModule.generateReport(appState.priceInfo, cycleInfo, weekdayStats, data);
-        document.getElementById('report-content').innerHTML = ReportModule.renderReportHTML(currentReport);
+        const content = document.getElementById('report-content');
+        content.innerHTML = '';
+        const el = ReportModule.buildReportElement(currentReport);
+        el.style.width = '100%';
+        el.style.padding = '0';
+        el.style.background = 'transparent';
+        content.appendChild(el);
         document.getElementById('report-modal').classList.remove('hidden');
     });
 
@@ -183,8 +189,20 @@ function setupEventListeners(data, priceInfo, cycleInfo) {
         }
     });
 
-    document.getElementById('btn-download-pdf').addEventListener('click', () => {
-        if (currentReport) ReportModule.downloadPDF(currentReport);
+    document.getElementById('btn-download-png').addEventListener('click', async () => {
+        if (!currentReport) return;
+        const btn = document.getElementById('btn-download-png');
+        const orig = btn.textContent;
+        btn.textContent = '生成中...';
+        btn.disabled = true;
+        try {
+            await ReportModule.downloadPNG(currentReport);
+        } catch (e) {
+            console.error('PNG 导出失败', e);
+            alert('PNG 导出失败: ' + e.message);
+        }
+        btn.textContent = orig;
+        btn.disabled = false;
     });
 
     document.getElementById('btn-copy-text').addEventListener('click', () => {

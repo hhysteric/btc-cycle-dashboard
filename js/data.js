@@ -284,6 +284,165 @@ const DataModule = {
         return { aboveMA200: price > ma200, aboveMA50: price > ma50, ma50, ma200, price };
     },
 
+    // 工具：把 Date 加 n 天并格式化为 "YYYY年M月D日"
+    fmtDate(date) {
+        return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+    },
+    addDays(date, n) {
+        const d = new Date(date);
+        d.setDate(d.getDate() + n);
+        return d;
+    },
+
+    // ===== 周报前瞻分析引擎：每个指标产出 {title, position, outlook} =====
+
+    // 四年周期：当前距高点天数/跌幅，对比历史 → 推算本轮最低点日期与价格区间
+    analyzeCycle() {
+        const cycles = this.getCycleData();
+        if (cycles.length < 2) return null;
+        const latest = this.getLatest();
+
+        // 前 3 轮（已完成）的最低点：天数 + 跌幅
+        const past = cycles.slice(0, 3).map(c => {
+            let low = c.data[0];
+            for (const p of c.data) if (p.normalized < low.normalized) low = p;
+            return { day: low.day, drawdown: (1 - low.normalized) * 100 };
+        });
+        const cur = cycles[cycles.length - 1];
+        let curLow = cur.data[0];
+        for (const p of cur.data) if (p.normalized < curLow.normalized) curLow = p;
+        const curDay = cur.data[cur.data.length - 1].day; // 距高点已过天数
+        const curDrawdown = (1 - curLow.normalized) * 100;
+
+        // 本轮高点日期与价格
+        const peakDate = this.addDays(latest.date, -curDay);
+        // 峰值价：curLow.normalized 是相对峰值，反推峰值
+        const peakPrice = curLow.normalized > 0 ? (latest.close / (cur.data[cur.data.length - 1].normalized)) : null;
+
+        const dayMin = Math.min(...past.map(p => p.day));
+        const dayMax = Math.max(...past.map(p => p.day));
+        const ddMin = Math.min(...past.map(p => p.drawdown));
+        const ddMax = Math.max(...past.map(p => p.drawdown));
+
+        const lowDateStart = this.fmtDate(this.addDays(peakDate, dayMin));
+        const lowDateEnd = this.fmtDate(this.addDays(peakDate, dayMax));
+        const priceLow = peakPrice * (1 - ddMax / 100);
+        const priceHigh = peakPrice * (1 - ddMin / 100);
+
+        const position = `当前距本轮高点已下跌 ${curDay} 天，期间最大跌幅 ${curDrawdown.toFixed(1)}%（最低出现在第 ${curLow.day} 天）。此前 3 轮周期见底耗时 ${dayMin}–${dayMax} 天，跌幅 ${ddMin.toFixed(1)}%–${ddMax.toFixed(1)}%。`;
+
+        let outlook;
+        if (curDay >= dayMax) {
+            outlook = `本轮下跌天数已超过历史区间上限（${dayMax} 天），若历史规律仍成立，周期底部大概率已在近期出现或临近，可重点关注筑底信号。`;
+        } else {
+            outlook = `若按历史区间推演，本轮低点可能落在 ${lowDateStart} 至 ${lowDateEnd}，对应价格约 $${Math.round(priceLow).toLocaleString()}–$${Math.round(priceHigh).toLocaleString()}。当前跌幅 ${curDrawdown.toFixed(1)}% 仍浅于历史（${ddMin.toFixed(1)}%+），需警惕进一步下探。`;
+        }
+        return { key: 'cycle', title: '四年大周期对比（从各轮最高点对齐）', position, outlook };
+    },
+
+    // MA 分析：当前价相对 MA50/200/365 的位置；若维持当前价震荡，推算何时上穿/下穿最近的关键均线
+    analyzeMA() {
+        const data = this.processedData;
+        if (data.length < 365) return null;
+        const price = data[data.length - 1].close;
+        const maVals = {};
+        for (const p of [50, 200, 365]) {
+            const arr = this.calculateMA(data.slice(-p), p);
+            maVals[p] = arr[arr.length - 1];
+        }
+
+        const pos = [];
+        for (const p of [50, 200, 365]) {
+            pos.push(`MA${p} $${Math.round(maVals[p]).toLocaleString()}（价格${price > maVals[p] ? '上方' : '下方'}）`);
+        }
+        const position = `当前价 $${Math.round(price).toLocaleString()}。${pos.join('，')}。`;
+
+        // 找一条价格尚未突破、且最接近的关键均线，估算"若价格维持震荡"何时穿越
+        // 用 MA 近 N 日斜率外推：MA 会朝价格收敛。取 MA200 举例（最有周期意义）
+        const proj = [];
+        for (const p of [200, 365]) {
+            const ma = maVals[p];
+            const gap = price - ma; // 正=价在均线上方
+            // MA 每日变化 ≈ (今日价 - period 天前的价) / period；用"维持当前价"假设：
+            // 若未来每天都收在 price，则 MA 每天变化 = (price - 被移出的那天旧价)/period
+            const oldPrices = data.slice(-p).map(d => d.close); // 最近 p 天，将逐日被 price 替换
+            // 估算跨越所需天数：模拟维持 price 时 MA 的走向
+            let simMa = ma;
+            let cross = null;
+            const window = oldPrices.slice(); // 复制
+            for (let day = 1; day <= 400; day++) {
+                // 移出最旧一天，加入 price
+                const removed = window.shift();
+                window.push(price);
+                simMa += (price - removed) / p;
+                if ((gap > 0 && price < simMa) || (gap < 0 && price > simMa) ||
+                    Math.abs(price - simMa) / price < 0.005) {
+                    cross = day;
+                    break;
+                }
+            }
+            if (cross) {
+                const d = this.fmtDate(this.addDays(data[data.length - 1].date, cross));
+                proj.push(`若维持当前价格震荡，约 ${cross} 天后（${d}）价格将与 MA${p} 收敛${gap > 0 ? '（均线上移逼近）' : '（有望上穿）'}`);
+            }
+        }
+        const outlook = proj.length ? proj.join('；') + '。' :
+            '当前价格与主要均线偏离较大，短期内难以收敛，趋势延续为主。';
+        return { key: 'ma', title: 'MA 均线分析', position, outlook };
+    },
+
+    // Mayer Multiple 分析
+    analyzeMayer() {
+        const m = this.getMayerMultiple();
+        if (m == null) return null;
+        const data = this.processedData;
+        const price = data[data.length - 1].close;
+        const ma200arr = this.calculateMA(data.slice(-200), 200);
+        const ma200 = ma200arr[ma200arr.length - 1];
+
+        const position = `当前 Mayer Multiple = ${m.toFixed(2)}（价格 $${Math.round(price).toLocaleString()} / MA200 $${Math.round(ma200).toLocaleString()}）。历史上 >2.4 为过热顶部区，<1 为价值/底部区。`;
+        let outlook;
+        if (m > 2.4) outlook = `已进入历史过热区间，向上空间受限，需警惕均值回归带来的回调压力。`;
+        else if (m < 1) outlook = `价格位于 MA200 下方（Mayer <1），历史上此区间多为中长期价值区，但也可能在熊市中继续磨底，需结合周期位置判断。`;
+        else outlook = `处于 1–2.4 的中性区间，方向性不强，跟随大周期与均线趋势运行。`;
+        return { key: 'mayer', title: 'Mayer Multiple（价格/MA200）', position, outlook };
+    },
+
+    // RSI 分析（日线 + 周线）
+    analyzeRSI() {
+        const data = this.processedData;
+        const dRsiArr = this.calculateRSI(data.slice(-60));
+        const dRsi = dRsiArr[dRsiArr.length - 1];
+        const weekly = this.aggregateWeekly(data);
+        const wRsiArr = this.calculateRSI(weekly.slice(-60));
+        const wRsi = wRsiArr[wRsiArr.length - 1];
+
+        const position = `日线 RSI-14 = ${dRsi ? dRsi.toFixed(1) : 'N/A'}，周线 RSI-14 = ${wRsi ? wRsi.toFixed(1) : 'N/A'}。（>70 超买，<30 超卖）`;
+        let outlook;
+        if (wRsi < 30) outlook = `周线 RSI 已进入超卖区，历史上常对应周期性底部，若出现价格新低而 RSI 不创新低的背离，是较强的反转信号。`;
+        else if (wRsi > 70) outlook = `周线 RSI 超买，中期过热，上行动能可能衰减，注意高位波动放大。`;
+        else outlook = `RSI 处于中性区间，短期动能不极端，趋势由更高级别的周期/均线主导。`;
+        return { key: 'rsi', title: 'RSI 强弱指标', position, outlook };
+    },
+
+    // Cointime / 链上成本线（本地无数据，做定性思路描述）
+    analyzeCointime() {
+        const position = `Cointime Price / 已实现价格是全市场时间加权持币成本线（本地无该链上数据，图见嵌入的 CheckOnChain 官方图表）。`;
+        const outlook = `历史上每轮周期最低点都曾跌破 Cointime Price / 已实现价格。当前若 BTC 持续在成本线上方震荡，成本线会随时间缓慢抬升；若价格横盘而成本线上移并最终交叉，往往意味着市场进入亏损主导、逼近周期底部区域。建议对照嵌入图观察价格与成本线的相对位置与斜率。`;
+        return { key: 'cointime', title: 'Cointime Price / 链上成本线', position, outlook };
+    },
+
+    // 汇总所有分析
+    getReportAnalysis() {
+        return [
+            this.analyzeCycle(),
+            this.analyzeMA(),
+            this.analyzeMayer(),
+            this.analyzeRSI(),
+            this.analyzeCointime(),
+        ].filter(Boolean);
+    },
+
     async fetchStablecoinSupply() {
         try {
             const resp = await fetch('https://stablecoins.llama.fi/stablecoins?includePrices=false');

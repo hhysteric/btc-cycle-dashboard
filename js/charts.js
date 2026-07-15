@@ -485,5 +485,162 @@ const ChartsModule = {
                 }
             }
         });
+    },
+
+    // ===== 周报用：离屏渲染每个指标的重点图，返回 PNG dataURL =====
+    _offscreenChart(config, w = 920, h = 420) {
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        // 深色背景插件
+        const bgPlugin = {
+            id: 'bg',
+            beforeDraw: (c) => {
+                const ctx = c.canvas.getContext('2d');
+                ctx.save();
+                ctx.fillStyle = '#0f0f23';
+                ctx.fillRect(0, 0, c.width, c.height);
+                ctx.restore();
+            }
+        };
+        config.options = config.options || {};
+        config.options.responsive = false;
+        config.options.animation = false;
+        config.options.devicePixelRatio = 2;
+        const chart = new Chart(canvas.getContext('2d'), { ...config, plugins: [bgPlugin, ...(config.plugins || [])] });
+        chart.update();
+        const url = canvas.toDataURL('image/png');
+        chart.destroy();
+        return url;
+    },
+
+    reportCycleImage() {
+        const cycles = DataModule.getCycleData();
+        const datasets = [];
+        const ann = {};
+        cycles.forEach((cy, i) => {
+            const color = CHART_COLORS.cycleColors[i];
+            datasets.push({ label: cy.label, data: cy.data.map(d => ({ x: d.day, y: d.normalized })),
+                borderColor: color, borderWidth: 1.4, pointRadius: 0, tension: 0.1 });
+            let low = cy.data[0];
+            for (const p of cy.data) if (p.normalized < low.normalized) low = p;
+            const dd = (1 - low.normalized) * 100;
+            ann['l' + i] = { type: 'label', xValue: low.day, yValue: low.normalized,
+                content: `${cy.label.replace(/ .*/, '')}: -${dd.toFixed(1)}% (第${low.day}天)`,
+                color: '#fff', font: { size: 12, weight: 'bold' }, xAdjust: 46, yAdjust: -8 - i * 18,
+                backgroundColor: color, borderRadius: 3, padding: 4 };
+        });
+        return this._offscreenChart({
+            type: 'line',
+            data: { datasets },
+            options: {
+                plugins: {
+                    legend: { labels: { color: '#cbd5e1', font: { size: 11 } } },
+                    annotation: { annotations: ann }
+                },
+                scales: {
+                    x: { type: 'linear', title: { display: true, text: '距该轮最高点天数', color: '#94a3b8' }, ticks: { color: '#94a3b8' }, grid: { color: '#1f2937' } },
+                    y: { type: 'logarithmic', title: { display: true, text: '相对最高点(倍)', color: '#94a3b8' }, ticks: { color: '#94a3b8', callback: v => v.toFixed(2) + 'x' }, grid: { color: '#1f2937' } }
+                }
+            }
+        });
+    },
+
+    reportMAImage() {
+        const data = DataModule.processedData.slice(-730);
+        const full = DataModule.processedData;
+        const s = full.length - data.length;
+        const ma50 = DataModule.calculateMA(full, 50).slice(s);
+        const ma200 = DataModule.calculateMA(full, 200).slice(s);
+        const ma365 = DataModule.calculateMA(full, 365).slice(s);
+        return this._offscreenChart({
+            type: 'line',
+            data: {
+                labels: data.map(d => d.date),
+                datasets: [
+                    { label: 'BTC', data: data.map(d => d.close), borderColor: CHART_COLORS.gold, borderWidth: 1.6, pointRadius: 0 },
+                    { label: 'MA50', data: ma50, borderColor: CHART_COLORS.ma50, borderWidth: 1, pointRadius: 0, borderDash: [3, 3] },
+                    { label: 'MA200', data: ma200, borderColor: CHART_COLORS.ma200, borderWidth: 1, pointRadius: 0, borderDash: [5, 5] },
+                    { label: 'MA365', data: ma365, borderColor: CHART_COLORS.ma365, borderWidth: 1, pointRadius: 0 },
+                ]
+            },
+            options: {
+                plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 11 } } } },
+                scales: {
+                    x: { type: 'time', time: { unit: 'quarter' }, ticks: { color: '#94a3b8' }, grid: { color: '#1f2937' } },
+                    y: { ticks: { color: '#94a3b8', callback: v => '$' + (v / 1000).toFixed(0) + 'k' }, grid: { color: '#1f2937' } }
+                }
+            }
+        });
+    },
+
+    reportMayerImage() {
+        const full = DataModule.processedData;
+        const data = full.slice(-1460);
+        const s = full.length - data.length;
+        const ma200Full = DataModule.calculateMA(full, 200);
+        const mayer = data.map((d, i) => { const ma = ma200Full[s + i]; return ma ? d.close / ma : null; });
+        return this._offscreenChart({
+            data: {
+                labels: data.map(d => d.date),
+                datasets: [
+                    { type: 'line', label: 'BTC', data: data.map(d => d.close), borderColor: 'rgba(247,147,26,0.5)', borderWidth: 1, pointRadius: 0, yAxisID: 'yP' },
+                    { type: 'line', label: 'Mayer', data: mayer, borderColor: CHART_COLORS.blue, borderWidth: 1.5, pointRadius: 0, yAxisID: 'y' },
+                ]
+            },
+            options: {
+                plugins: {
+                    legend: { labels: { color: '#cbd5e1', font: { size: 11 } } },
+                    annotation: { annotations: {
+                        hi: { type: 'line', yMin: 2.4, yMax: 2.4, yScaleID: 'y', borderColor: 'rgba(255,71,87,0.5)', borderDash: [3, 3], borderWidth: 1 },
+                        lo: { type: 'line', yMin: 1, yMax: 1, yScaleID: 'y', borderColor: 'rgba(0,211,149,0.5)', borderDash: [3, 3], borderWidth: 1 }
+                    } }
+                },
+                scales: {
+                    x: { type: 'time', time: { unit: 'year' }, ticks: { color: '#94a3b8' }, grid: { color: '#1f2937' } },
+                    y: { position: 'left', title: { display: true, text: 'Mayer', color: '#6366f1' }, ticks: { color: '#94a3b8', callback: v => v.toFixed(1) + 'x' }, grid: { color: '#1f2937' } },
+                    yP: { position: 'right', type: 'logarithmic', ticks: { color: '#f7931a', callback: v => '$' + (v / 1000).toFixed(0) + 'k' }, grid: { drawOnChartArea: false } }
+                }
+            }
+        });
+    },
+
+    reportRSIImage() {
+        const full = DataModule.processedData;
+        const weekly = DataModule.aggregateWeekly(full);
+        const rsi = DataModule.calculateRSI(weekly);
+        return this._offscreenChart({
+            data: {
+                labels: weekly.map(d => d.date),
+                datasets: [
+                    { type: 'line', label: 'BTC价格', data: weekly.map(d => d.close), borderColor: 'rgba(247,147,26,0.5)', borderWidth: 1, pointRadius: 0, yAxisID: 'yP' },
+                    { type: 'line', label: '周线RSI-14', data: rsi, borderColor: CHART_COLORS.purple, borderWidth: 1.5, pointRadius: 0, yAxisID: 'y' },
+                ]
+            },
+            options: {
+                plugins: {
+                    legend: { labels: { color: '#cbd5e1', font: { size: 11 } } },
+                    annotation: { annotations: {
+                        ob: { type: 'line', yMin: 70, yMax: 70, yScaleID: 'y', borderColor: 'rgba(255,71,87,0.5)', borderDash: [3, 3], borderWidth: 1 },
+                        os: { type: 'line', yMin: 30, yMax: 30, yScaleID: 'y', borderColor: 'rgba(0,211,149,0.5)', borderDash: [3, 3], borderWidth: 1 }
+                    } }
+                },
+                scales: {
+                    x: { type: 'time', time: { unit: 'year' }, ticks: { color: '#94a3b8' }, grid: { color: '#1f2937' } },
+                    y: { position: 'left', min: 0, max: 100, title: { display: true, text: 'RSI', color: '#a855f7' }, ticks: { color: '#94a3b8' }, grid: { color: '#1f2937' } },
+                    yP: { position: 'right', type: 'logarithmic', ticks: { color: '#f7931a', callback: v => '$' + (v / 1000).toFixed(0) + 'k' }, grid: { drawOnChartArea: false } }
+                }
+            }
+        });
+    },
+
+    // 返回 {cycle,ma,mayer,rsi} 的 dataURL 映射
+    reportImages() {
+        return {
+            cycle: this.reportCycleImage(),
+            ma: this.reportMAImage(),
+            mayer: this.reportMayerImage(),
+            rsi: this.reportRSIImage(),
+        };
     }
 };

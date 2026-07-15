@@ -7,6 +7,15 @@ const HALVING_DATES = [
 
 const NEXT_HALVING_ESTIMATE = new Date('2028-04-01');
 
+// 四年大周期 = 3年涨 + 1年跌 的日历年模型（参考文档四年大周期图）
+// year % 4: 0 = 减半年/首轮牛, 1 = 次轮牛(顶部年), 2 = 熊年, 3 = 预备牛
+const CYCLE_YEAR_PHASES = {
+    0: { key: '1st-bull', name: '首轮牛市', color: '#14b8a6', desc: '减半年，牛市启动，趋势通常向上' },
+    1: { key: '2nd-bull', name: '次轮牛市/顶部', color: '#22c55e', desc: '牛市延续与见顶年，注意周期顶部风险' },
+    2: { key: 'bear', name: '熊市回调', color: '#ef4444', desc: '主要下跌年，历史上此阶段承压筑底' },
+    3: { key: 'pre-bull', name: '预备牛市', color: '#3b82f6', desc: '筑底与复苏年，为下一轮减半牛蓄势' },
+};
+
 const DataModule = {
     rawData: [],
     processedData: [],
@@ -75,6 +84,29 @@ const DataModule = {
         return result;
     },
 
+    // 把日线聚合成周线（以周一为起点）
+    aggregateWeekly(data) {
+        const weeks = new Map();
+        for (const d of data) {
+            const dt = new Date(d.date);
+            const day = dt.getDay();
+            const diff = (day === 0 ? 6 : day - 1); // 周一为一周起点
+            const weekStart = new Date(dt);
+            weekStart.setDate(dt.getDate() - diff);
+            const key = weekStart.toISOString().slice(0, 10);
+            if (!weeks.has(key)) {
+                weeks.set(key, { date: new Date(key), open: d.open, high: d.high, low: d.low, close: d.close, volume: d.volume });
+            } else {
+                const w = weeks.get(key);
+                w.high = Math.max(w.high, d.high);
+                w.low = Math.min(w.low, d.low);
+                w.close = d.close;
+                w.volume += d.volume;
+            }
+        }
+        return Array.from(weeks.values()).sort((a, b) => a.date - b.date);
+    },
+
     calculateRSI(data, period = 14) {
         const result = [];
         for (let i = 0; i < period; i++) result.push(null);
@@ -105,25 +137,18 @@ const DataModule = {
         return result;
     },
 
-    calculateSimpleMVRV(data) {
-        const result = [];
-        let realizedSum = 0;
-        let supplyTracked = 0;
+    // 链上指标（MVRV/NUPL/已实现价格）经实测无法从浏览器直连免费 API
+    // （CORS 拦截 + 严格限流），故在页面中改为嵌入官方图表（iframe）。
+    // 这里保留基于 CSV 可稳定计算的市场结构指标供概览与周报使用。
 
-        for (let i = 0; i < data.length; i++) {
-            supplyTracked = data[i].supply || supplyTracked;
-            const dailyMoved = data[i].volume / data[i].close * 0.01;
-            realizedSum += dailyMoved * data[i].close;
-
-            if (i > 30 && supplyTracked > 0) {
-                const realizedPrice = realizedSum / supplyTracked;
-                const mvrv = data[i].close / realizedPrice;
-                result.push(Math.min(Math.max(mvrv, 0), 10));
-            } else {
-                result.push(null);
-            }
-        }
-        return result;
+    // Mayer Multiple = 价格 / MA200，历史上 >2.4 偏高(顶部风险)，<1 偏低(价值区)
+    getMayerMultiple() {
+        const data = this.processedData;
+        if (data.length < 200) return null;
+        const ma200arr = this.calculateMA(data.slice(-200), 200);
+        const ma200 = ma200arr[ma200arr.length - 1];
+        if (!ma200) return null;
+        return data[data.length - 1].close / ma200;
     },
 
     getWeekdayStats() {
@@ -139,18 +164,26 @@ const DataModule = {
         return stats;
     },
 
+    // 按"减半周期"分组，用于四年周期叠加对比图。每个周期从减半年1月1日起，横轴对齐为"周期内第几天"
     getCycleData() {
+        const cycleStarts = [
+            { year: 2012, label: '周期1 (2012减半)' },
+            { year: 2016, label: '周期2 (2016减半)' },
+            { year: 2020, label: '周期3 (2020减半)' },
+            { year: 2024, label: '周期4 (2024减半·当前)' },
+        ];
         const cycles = [];
-        for (let i = 0; i < HALVING_DATES.length; i++) {
-            const start = HALVING_DATES[i];
-            const end = HALVING_DATES[i + 1] || new Date();
+        for (let i = 0; i < cycleStarts.length; i++) {
+            const startYear = cycleStarts[i].year;
+            const start = new Date(`${startYear}-01-01`);
+            const end = new Date(`${startYear + 4}-01-01`);
             const cycleData = this.processedData.filter(d => d.date >= start && d.date < end);
             if (cycleData.length === 0) continue;
             const startPrice = cycleData[0].close;
             cycles.push({
-                label: `周期${i + 1} (${start.getFullYear()}-${end.getFullYear()})`,
-                data: cycleData.map((d, idx) => ({
-                    day: idx,
+                label: cycleStarts[i].label,
+                data: cycleData.map(d => ({
+                    day: Math.floor((d.date - start) / (1000 * 60 * 60 * 24)),
                     normalized: d.close / startPrice
                 }))
             });
@@ -158,20 +191,74 @@ const DataModule = {
         return cycles;
     },
 
+    // 四年大周期定位：基于日历年（3涨1跌模型），语气结合价格与均线趋势
     getCyclePhase() {
-        const now = new Date();
-        const lastHalving = HALVING_DATES[HALVING_DATES.length - 1];
-        const daysSinceHalving = Math.floor((now - lastHalving) / (1000 * 60 * 60 * 24));
-        const cycleLengthDays = Math.floor((NEXT_HALVING_ESTIMATE - lastHalving) / (1000 * 60 * 60 * 24));
-        const progress = daysSinceHalving / cycleLengthDays;
+        const latest = this.getLatest();
+        const now = latest ? latest.date : new Date();
+        const year = now.getFullYear();
+        const phaseInfo = CYCLE_YEAR_PHASES[year % 4];
 
-        let phase, detail;
-        if (progress < 0.25) { phase = '积累期'; detail = '减半后早期积累阶段'; }
-        else if (progress < 0.5) { phase = '牛市初期'; detail = '上升趋势确立中'; }
-        else if (progress < 0.75) { phase = '牛市中后期'; detail = '注意风险管理'; }
-        else { phase = '周期尾声'; detail = '历史高点区域，保持警惕'; }
+        // 计算年内进度
+        const yearStart = new Date(`${year}-01-01`);
+        const yearEnd = new Date(`${year + 1}-01-01`);
+        const yearProgress = (now - yearStart) / (yearEnd - yearStart);
 
-        return { phase, detail, progress: Math.min(progress, 1), daysSinceHalving, daysToNext: cycleLengthDays - daysSinceHalving };
+        // 结合价格趋势判断（是否站上 MA200）以调整语气
+        const trend = this.getTrendState();
+
+        // 整体四年进度：以最近一次减半年为起点
+        const cycleAnchorYear = year - (year % 4); // 减半年
+        const cycleStart = new Date(`${cycleAnchorYear}-01-01`);
+        const cycleEnd = new Date(`${cycleAnchorYear + 4}-01-01`);
+        const cycleProgress = (now - cycleStart) / (cycleEnd - cycleStart);
+
+        let tone = phaseInfo.desc;
+        if (phaseInfo.key === 'bear' && trend.aboveMA200) {
+            tone = '按日历年模型属回调年，但当前价格仍在 MA200 上方，趋势尚未完全转弱';
+        } else if ((phaseInfo.key === '1st-bull' || phaseInfo.key === '2nd-bull') && !trend.aboveMA200) {
+            tone = phaseInfo.desc + '；但当前价格已跌破 MA200，需警惕趋势背离';
+        }
+
+        return {
+            year,
+            phase: phaseInfo.name,
+            phaseKey: phaseInfo.key,
+            phaseColor: phaseInfo.color,
+            detail: tone,
+            yearProgress: Math.min(Math.max(yearProgress, 0), 1),
+            progress: Math.min(Math.max(cycleProgress, 0), 1),
+            cycleAnchorYear,
+        };
+    },
+
+    getTrendState() {
+        const data = this.processedData;
+        if (data.length < 200) return { aboveMA200: false, aboveMA50: false, ma50: null, ma200: null };
+        const ma50arr = this.calculateMA(data.slice(-50), 50);
+        const ma200arr = this.calculateMA(data.slice(-200), 200);
+        const ma50 = ma50arr[ma50arr.length - 1];
+        const ma200 = ma200arr[ma200arr.length - 1];
+        const price = data[data.length - 1].close;
+        return { aboveMA200: price > ma200, aboveMA50: price > ma50, ma50, ma200, price };
+    },
+
+    async fetchStablecoinSupply() {
+        try {
+            const resp = await fetch('https://stablecoins.llama.fi/stablecoins?includePrices=false');
+            const json = await resp.json();
+            const list = json.peggedAssets || [];
+            let total = 0, usdt = 0;
+            for (const a of list) {
+                const cur = a.circulating && (a.circulating.peggedUSD || 0);
+                if (!cur) continue;
+                total += cur;
+                if (a.symbol === 'USDT') usdt = cur;
+            }
+            return { total, usdt };
+        } catch (e) {
+            console.warn('Stablecoin fetch failed:', e.message);
+            return null;
+        }
     },
 
     async fetchLivePrice() {

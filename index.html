@@ -57,29 +57,52 @@
             </div>
             <div class="bg-dark-800 rounded-xl p-5 border border-gray-700">
                 <p class="text-gray-400 text-sm">四年周期阶段</p>
-                <p id="cycle-phase" class="text-2xl font-bold text-accent-green mt-1">--</p>
-                <p id="cycle-detail" class="text-sm text-gray-400 mt-1">--</p>
+                <p id="cycle-phase" class="text-2xl font-bold mt-1">--</p>
+                <p id="cycle-year" class="text-sm text-gray-400 mt-1">--</p>
             </div>
             <div class="bg-dark-800 rounded-xl p-5 border border-gray-700">
                 <p class="text-gray-400 text-sm">距下次减半</p>
                 <p id="next-halving" class="text-2xl font-bold mt-1">--</p>
-                <p class="text-gray-500 text-sm mt-1">预计 2028年</p>
+                <p class="text-gray-500 text-sm mt-1">预计 2028年4月</p>
             </div>
         </section>
 
-        <!-- Cycle Progress Bar -->
+        <!-- Four-Year Calendar Cycle Model -->
         <section class="bg-dark-800 rounded-xl p-5 border border-gray-700">
-            <h2 class="text-lg font-semibold mb-3">四年周期进度</h2>
-            <div class="relative">
+            <h2 class="text-lg font-semibold mb-1">四年大周期模型（3年涨 + 1年跌）</h2>
+            <p class="text-gray-400 text-sm mb-4">基于日历年规律：减半年启动牛市，次年见顶，随后回调筑底。<span id="cycle-year-note"></span></p>
+            <div class="grid grid-cols-4 gap-2" id="cycle-phase-grid">
+                <div class="phase-cell rounded-lg p-3 text-center border-2 border-transparent" data-phase="1st-bull" style="background:rgba(20,184,166,0.12)">
+                    <p class="text-xs text-gray-400">减半年 (÷4=0)</p>
+                    <p class="font-semibold" style="color:#14b8a6">首轮牛市</p>
+                    <p class="text-xs text-gray-500 mt-1">2016·2020·2024·2028</p>
+                </div>
+                <div class="phase-cell rounded-lg p-3 text-center border-2 border-transparent" data-phase="2nd-bull" style="background:rgba(34,197,94,0.12)">
+                    <p class="text-xs text-gray-400">次年 (÷4=1)</p>
+                    <p class="font-semibold" style="color:#22c55e">次轮牛市/顶部</p>
+                    <p class="text-xs text-gray-500 mt-1">2017·2021·2025·2029</p>
+                </div>
+                <div class="phase-cell rounded-lg p-3 text-center border-2 border-transparent" data-phase="bear" style="background:rgba(239,68,68,0.12)">
+                    <p class="text-xs text-gray-400">第三年 (÷4=2)</p>
+                    <p class="font-semibold" style="color:#ef4444">熊市回调</p>
+                    <p class="text-xs text-gray-500 mt-1">2014·2018·2022·2026</p>
+                </div>
+                <div class="phase-cell rounded-lg p-3 text-center border-2 border-transparent" data-phase="pre-bull" style="background:rgba(59,130,246,0.12)">
+                    <p class="text-xs text-gray-400">第四年 (÷4=3)</p>
+                    <p class="font-semibold" style="color:#3b82f6">预备牛市</p>
+                    <p class="text-xs text-gray-500 mt-1">2015·2019·2023·2027</p>
+                </div>
+            </div>
+            <div class="relative mt-4">
                 <div class="h-3 bg-dark-700 rounded-full overflow-hidden">
-                    <div id="cycle-progress-bar" class="h-full bg-gradient-to-r from-accent-green via-accent-gold to-accent-red rounded-full transition-all" style="width: 0%"></div>
+                    <div id="cycle-progress-bar" class="h-full bg-gradient-to-r from-teal-500 via-green-500 to-red-500 rounded-full transition-all" style="width: 0%"></div>
                 </div>
                 <div class="flex justify-between mt-2 text-xs text-gray-400">
-                    <span>减半 (2024.04)</span>
-                    <span>牛市初期</span>
-                    <span>牛市中期</span>
-                    <span>顶部区域</span>
-                    <span>下次减半 (~2028)</span>
+                    <span id="cycle-start-label">减半年初</span>
+                    <span>首轮牛</span>
+                    <span>次轮牛/顶</span>
+                    <span>熊市</span>
+                    <span id="cycle-end-label">下次减半</span>
                 </div>
             </div>
         </section>
@@ -102,15 +125,10 @@
 
         <!-- Four Year Cycle -->
         <section class="bg-dark-800 rounded-xl p-5 border border-gray-700">
-            <h2 class="text-lg font-semibold mb-4">四年大周期对比</h2>
+            <h2 class="text-lg font-semibold mb-1">四年大周期对比（按减半年对齐）</h2>
+            <p class="text-gray-400 text-sm mb-4">每条曲线为一个减半周期内的归一化涨幅（以周期首日为1），横轴为周期内天数，对数坐标</p>
             <div class="h-80">
                 <canvas id="cycle-chart"></canvas>
-            </div>
-            <div class="mt-3 flex gap-4 text-xs text-gray-400">
-                <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-blue-400 inline-block"></span> 周期1 (2012-2016)</span>
-                <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-green-400 inline-block"></span> 周期2 (2016-2020)</span>
-                <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-yellow-400 inline-block"></span> 周期3 (2020-2024)</span>
-                <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-red-400 inline-block"></span> 周期4 (2024-至今)</span>
             </div>
         </section>
 
@@ -126,18 +144,61 @@
         <!-- Technical Indicators -->
         <section class="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div class="bg-dark-800 rounded-xl p-5 border border-gray-700">
-                <h2 class="text-lg font-semibold mb-4">RSI 指标</h2>
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-semibold">RSI 指标</h2>
+                    <div class="flex gap-2">
+                        <button class="rsi-period-btn active px-3 py-1 rounded text-sm" data-tf="daily">日线</button>
+                        <button class="rsi-period-btn px-3 py-1 rounded text-sm" data-tf="weekly">周线</button>
+                    </div>
+                </div>
                 <div class="h-48">
                     <canvas id="rsi-chart"></canvas>
                 </div>
+                <p class="text-xs text-gray-500 mt-2">周线 RSI-14 &lt;30 常对应周期性底部（参考 CheckOnChain）；&gt;70 为超买</p>
             </div>
             <div class="bg-dark-800 rounded-xl p-5 border border-gray-700">
-                <h2 class="text-lg font-semibold mb-4">MVRV 比率（模拟）</h2>
-                <div class="h-48">
-                    <canvas id="mvrv-chart"></canvas>
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-semibold">Mayer Multiple（价格/MA200）</h2>
+                    <span id="mayer-current" class="text-sm text-accent-gold font-semibold">--</span>
                 </div>
-                <p class="text-xs text-gray-500 mt-2">基于简化模型计算，仅供参考。详细数据请参考 <a href="https://cryptoquant.com" class="text-accent-gold hover:underline" target="_blank">CryptoQuant</a></p>
+                <div class="h-48">
+                    <canvas id="mayer-chart"></canvas>
+                </div>
+                <p class="text-xs text-gray-500 mt-2">基于 CSV 稳定计算。历史上 &gt;2.4 偏高（顶部风险），&lt;1 偏低（价值区）</p>
             </div>
+        </section>
+
+        <!-- On-chain embedded charts (official sources) -->
+        <section class="bg-dark-800 rounded-xl p-5 border border-gray-700">
+            <h2 class="text-lg font-semibold mb-1">链上估值指标（官方图表嵌入）</h2>
+            <p class="text-gray-400 text-sm mb-4">MVRV / 已实现价格 / NUPL 等链上数据无法从浏览器免费直连，以下嵌入官方实时图表。若因第三方策略无法加载，请点击标题链接查看。</p>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div>
+                    <a href="https://charts.checkonchain.com/btconchain/pricing/pricing_mvrv_all/pricing_mvrv_all_light.html" target="_blank" class="text-sm font-semibold text-accent-gold hover:underline">MVRV & Realized Price（CheckOnChain）↗</a>
+                    <div class="mt-2 rounded-lg overflow-hidden bg-white" style="height:340px">
+                        <iframe src="https://charts.checkonchain.com/btconchain/pricing/pricing_mvrv_all/pricing_mvrv_all_light.html" style="width:100%;height:100%;border:0" loading="lazy" referrerpolicy="no-referrer"></iframe>
+                    </div>
+                </div>
+                <div>
+                    <a href="https://charts.checkonchain.com/btconchain/unrealised/nupl_all/nupl_all_light.html" target="_blank" class="text-sm font-semibold text-accent-gold hover:underline">NUPL 净未实现盈亏（CheckOnChain）↗</a>
+                    <div class="mt-2 rounded-lg overflow-hidden bg-white" style="height:340px">
+                        <iframe src="https://charts.checkonchain.com/btconchain/unrealised/nupl_all/nupl_all_light.html" style="width:100%;height:100%;border:0" loading="lazy" referrerpolicy="no-referrer"></iframe>
+                    </div>
+                </div>
+                <div>
+                    <a href="https://charts.checkonchain.com/btconchain/cointime/pricing_mvrv_cointime_0/pricing_mvrv_cointime_0_light.html" target="_blank" class="text-sm font-semibold text-accent-gold hover:underline">Cointime Price（CheckOnChain）↗</a>
+                    <div class="mt-2 rounded-lg overflow-hidden bg-white" style="height:340px">
+                        <iframe src="https://charts.checkonchain.com/btconchain/cointime/pricing_mvrv_cointime_0/pricing_mvrv_cointime_0_light.html" style="width:100%;height:100%;border:0" loading="lazy" referrerpolicy="no-referrer"></iframe>
+                    </div>
+                </div>
+                <div>
+                    <a href="https://charts.checkonchain.com/btconchain/realised/realisedprice_all/realisedprice_all_light.html" target="_blank" class="text-sm font-semibold text-accent-gold hover:underline">已实现价格成本线（CheckOnChain）↗</a>
+                    <div class="mt-2 rounded-lg overflow-hidden bg-white" style="height:340px">
+                        <iframe src="https://charts.checkonchain.com/btconchain/realised/realisedprice_all/realisedprice_all_light.html" style="width:100%;height:100%;border:0" loading="lazy" referrerpolicy="no-referrer"></iframe>
+                    </div>
+                </div>
+            </div>
+            <p class="text-xs text-gray-500 mt-3">图表来源: <a href="https://charts.checkonchain.com" class="text-accent-gold hover:underline" target="_blank">CheckOnChain</a> · <a href="https://cryptoquant.com/asset/btc/chart/market-indicator/mvrv-ratio" class="text-accent-gold hover:underline" target="_blank">CryptoQuant MVRV</a></p>
         </section>
 
         <!-- Volume Analysis -->

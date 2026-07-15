@@ -15,6 +15,10 @@ const ReportModule = {
         const rsi = DataModule.calculateRSI(data.slice(-30));
         const currentRSI = rsi[rsi.length - 1];
 
+        const weekly = DataModule.aggregateWeekly(data);
+        const weeklyRSIarr = DataModule.calculateRSI(weekly.slice(-40));
+        const weeklyRSI = weeklyRSIarr[weeklyRSIarr.length - 1];
+
         const bestDay = weekdayStats.reduce((best, s, i) => {
             const rate = s.total > 0 ? s.up / s.total : 0;
             return rate > best.rate ? { day: i, rate } : best;
@@ -48,13 +52,12 @@ const ReportModule = {
                     ]
                 },
                 {
-                    title: '周期分析',
+                    title: '四年周期分析',
                     content: [
-                        `当前阶段: ${cycleInfo.phase}`,
+                        `当前年份: ${cycleInfo.year} 年（${cycleInfo.year}÷4 余 ${cycleInfo.year % 4}）`,
+                        `周期阶段: ${cycleInfo.phase}（3年涨+1年跌日历年模型）`,
                         `周期进度: ${(cycleInfo.progress * 100).toFixed(1)}%`,
-                        `距上次减半: ${cycleInfo.daysSinceHalving} 天`,
-                        `距下次减半: ~${cycleInfo.daysToNext} 天`,
-                        `阶段描述: ${cycleInfo.detail}`,
+                        `周期定位: ${cycleInfo.detail}`,
                     ]
                 },
                 {
@@ -62,10 +65,11 @@ const ReportModule = {
                     content: [
                         `MA50: $${currentMa50 ? currentMa50.toFixed(0) : 'N/A'} | MA200: $${currentMa200 ? currentMa200.toFixed(0) : 'N/A'}`,
                         `趋势信号: ${trendSignal}`,
-                        `RSI(14): ${currentRSI ? currentRSI.toFixed(1) : 'N/A'}`,
-                        `RSI 信号: ${rsiSignal}`,
+                        `日线 RSI(14): ${currentRSI ? currentRSI.toFixed(1) : 'N/A'} — ${rsiSignal}`,
+                        `周线 RSI(14): ${weeklyRSI ? weeklyRSI.toFixed(1) : 'N/A'}${weeklyRSI < 30 ? ' — 周线超卖，历史底部信号' : weeklyRSI > 70 ? ' — 周线超买' : ''}`,
                     ]
                 },
+                this.buildOnchainSection(data),
                 {
                     title: 'Killa 短周期提示',
                     content: [
@@ -75,36 +79,60 @@ const ReportModule = {
                 },
                 {
                     title: '观点与提示',
-                    content: this.generateInsights(cycleInfo, trendSignal, rsiSignal, weekChange, monthChange)
+                    content: this.generateInsights(cycleInfo, trendSignal, weekChange, weeklyRSI)
                 }
-            ]
+            ].filter(Boolean)
         };
 
         return report;
     },
 
-    generateInsights(cycleInfo, trendSignal, rsiSignal, weekChange, monthChange) {
+    buildOnchainSection(data) {
+        const mayer = DataModule.getMayerMultiple();
+        const content = [];
+        if (mayer != null) {
+            content.push(`Mayer Multiple (价格/MA200): ${mayer.toFixed(2)}${mayer > 2.4 ? '（偏高，历史顶部风险区）' : mayer < 1 ? '（低于1，价格低于MA200，价值区）' : '（中性区间）'}`);
+        }
+        content.push('链上估值指标（MVRV/NUPL/已实现价格）见页面嵌入的 CheckOnChain 官方图表');
+        return { title: '市场结构指标', content };
+    },
+
+    generateInsights(cycleInfo, trendSignal, weekChange, weeklyRSI) {
         const insights = [];
 
-        if (cycleInfo.progress < 0.5) {
-            insights.push('当前处于减半后前半段，历史上此阶段为主要上升期');
-        } else {
-            insights.push('当前处于减半后后半段，需关注周期顶部风险');
+        // 基于日历年周期模型
+        const phaseHint = {
+            '1st-bull': '减半年（÷4=0），历史上牛市在此阶段启动，中长期倾向偏多，但注意年初常有反复',
+            '2nd-bull': '减半次年（÷4=1），历史多为主升与见顶年，涨幅可观但需警惕周期顶部',
+            'bear': '减半第三年（÷4=2），历史上为主要下跌/筑底年，倾向防守，逢深跌分批布局',
+            'pre-bull': '减半第四年（÷4=3），历史多为筑底复苏年，为下一轮减半牛蓄势',
+        };
+        insights.push(phaseHint[cycleInfo.phaseKey] || cycleInfo.detail);
+
+        // 价格趋势与周期是否一致
+        if (cycleInfo.phaseKey === 'bear' && trendSignal.includes('多头')) {
+            insights.push('注意：日历年模型指向回调年，但当前均线仍多头排列，说明本轮节奏可能偏离历史，需以价格趋势为准');
+        } else if ((cycleInfo.phaseKey === '1st-bull' || cycleInfo.phaseKey === '2nd-bull') && trendSignal.includes('空头')) {
+            insights.push('注意：日历年模型指向牛市年，但当前均线空头排列，存在背离，需控制仓位');
         }
 
-        if (trendSignal.includes('多头')) {
-            insights.push('均线多头排列，趋势健康，回调可关注 MA50 支撑');
-        } else if (trendSignal.includes('空头')) {
-            insights.push('均线空头排列，建议控制仓位，等待趋势反转信号');
+        if (trendSignal.includes('多头')) insights.push('均线多头排列，回调可关注 MA50/MA200 支撑');
+        else if (trendSignal.includes('空头')) insights.push('均线空头排列，反弹关注均线压力，等待趋势反转');
+
+        if (weeklyRSI != null && weeklyRSI < 30) insights.push('周线 RSI 超卖，历史上常对应周期性底部区域，可关注背离信号');
+        else if (weeklyRSI != null && weeklyRSI > 70) insights.push('周线 RSI 超买，中期过热，注意获利了结节奏');
+
+        // Mayer Multiple 补充
+        const mayer = DataModule.getMayerMultiple();
+        if (mayer != null) {
+            if (mayer > 2.4) insights.push('Mayer Multiple 偏高，价格远高于 MA200，历史上属过热区');
+            else if (mayer < 1) insights.push('Mayer Multiple <1，价格低于 MA200，历史上属价值/底部区');
         }
 
-        if (parseFloat(weekChange) > 10) {
-            insights.push('本周涨幅较大，短期需注意获利回吐压力');
-        } else if (parseFloat(weekChange) < -10) {
-            insights.push('本周跌幅较大，可能存在超跌反弹机会');
-        }
+        if (parseFloat(weekChange) > 10) insights.push('本周涨幅较大，短期注意获利回吐压力');
+        else if (parseFloat(weekChange) < -10) insights.push('本周跌幅较大，可能存在超跌反弹机会');
 
-        insights.push('注意: 以上分析基于历史数据模型，不构成投资建议');
+        insights.push('注意: 以上分析基于历史周期模型与链上数据，不构成投资建议');
         return insights;
     },
 

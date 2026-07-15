@@ -36,9 +36,15 @@ const ChartsModule = {
 
     renderPriceChart(data, period = 365) {
         this.destroyChart('price');
-        const chartData = period === 'all' ? data : data.slice(-period);
-        const ma50 = DataModule.calculateMA(chartData, 50);
-        const ma200 = DataModule.calculateMA(chartData, 200);
+        // MA 需要完整历史做前置窗口，再截取显示区间，避免开头一段为 null
+        const ma50Full = DataModule.calculateMA(data, 50);
+        const ma200Full = DataModule.calculateMA(data, 200);
+        const ma365Full = DataModule.calculateMA(data, 365);
+        const startIdx = period === 'all' ? 0 : Math.max(0, data.length - period);
+        const chartData = data.slice(startIdx);
+        const ma50 = ma50Full.slice(startIdx);
+        const ma200 = ma200Full.slice(startIdx);
+        const ma365 = ma365Full.slice(startIdx);
 
         const ctx = document.getElementById('price-chart').getContext('2d');
         this.charts['price'] = new Chart(ctx, {
@@ -70,6 +76,13 @@ const ChartsModule = {
                         borderWidth: 1,
                         pointRadius: 0,
                         borderDash: [5, 5]
+                    },
+                    {
+                        label: 'MA365',
+                        data: ma365,
+                        borderColor: CHART_COLORS.ma365,
+                        borderWidth: 1,
+                        pointRadius: 0
                     }
                 ]
             },
@@ -164,18 +177,26 @@ const ChartsModule = {
         });
     },
 
-    renderRSIChart(data) {
+    renderRSIChart(data, timeframe = 'daily') {
         this.destroyChart('rsi');
-        const recent = data.slice(-180);
-        const rsi = DataModule.calculateRSI(recent);
+        let series, unit;
+        if (timeframe === 'weekly') {
+            const weekly = DataModule.aggregateWeekly(data);
+            series = weekly.slice(-260); // ~5年周线
+            unit = 'year';
+        } else {
+            series = data.slice(-180);
+            unit = 'month';
+        }
+        const rsi = DataModule.calculateRSI(series);
         const ctx = document.getElementById('rsi-chart').getContext('2d');
 
         this.charts['rsi'] = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: recent.map(d => d.date),
+                labels: series.map(d => d.date),
                 datasets: [{
-                    label: 'RSI (14)',
+                    label: `RSI-14 (${timeframe === 'weekly' ? '周线' : '日线'})`,
                     data: rsi,
                     borderColor: CHART_COLORS.purple,
                     borderWidth: 1.5,
@@ -188,22 +209,15 @@ const ChartsModule = {
                 scales: {
                     x: {
                         type: 'time',
-                        time: { unit: 'month' },
+                        time: { unit },
                         ticks: { color: '#6b7280' },
                         grid: { color: '#1f2937' }
                     },
                     y: {
                         min: 0, max: 100,
                         ticks: { color: '#6b7280' },
-                        grid: { color: '#1f2937' }
-                    }
-                },
-                plugins: {
-                    ...CHART_DEFAULTS.plugins,
-                    annotation: {
-                        annotations: {
-                            overbought: { type: 'line', yMin: 70, yMax: 70, borderColor: CHART_COLORS.red, borderDash: [3, 3], borderWidth: 1 },
-                            oversold: { type: 'line', yMin: 30, yMax: 30, borderColor: CHART_COLORS.green, borderDash: [3, 3], borderWidth: 1 }
+                        grid: {
+                            color: (c) => (c.tick.value === 70 || c.tick.value === 30) ? '#4b5563' : '#1f2937'
                         }
                     }
                 }
@@ -211,19 +225,24 @@ const ChartsModule = {
         });
     },
 
-    renderMVRVChart(data) {
-        this.destroyChart('mvrv');
+    // Mayer Multiple = 价格 / MA200，基于 CSV 稳定计算
+    renderMayerChart(data) {
+        this.destroyChart('mayer');
         const recent = data.slice(-730);
-        const mvrv = DataModule.calculateSimpleMVRV(recent);
-        const ctx = document.getElementById('mvrv-chart').getContext('2d');
-
-        this.charts['mvrv'] = new Chart(ctx, {
+        const ma200Full = DataModule.calculateMA(data, 200);
+        const startIdx = data.length - recent.length;
+        const mayer = recent.map((d, i) => {
+            const ma = ma200Full[startIdx + i];
+            return ma ? d.close / ma : null;
+        });
+        const ctx = document.getElementById('mayer-chart').getContext('2d');
+        this.charts['mayer'] = new Chart(ctx, {
             type: 'line',
             data: {
                 labels: recent.map(d => d.date),
                 datasets: [{
-                    label: 'MVRV (模拟)',
-                    data: mvrv,
+                    label: 'Mayer Multiple',
+                    data: mayer,
                     borderColor: CHART_COLORS.blue,
                     borderWidth: 1.5,
                     pointRadius: 0,
@@ -234,15 +253,12 @@ const ChartsModule = {
             options: {
                 ...CHART_DEFAULTS,
                 scales: {
-                    x: {
-                        type: 'time',
-                        time: { unit: 'quarter' },
-                        ticks: { color: '#6b7280' },
-                        grid: { color: '#1f2937' }
-                    },
+                    x: { type: 'time', time: { unit: 'quarter' }, ticks: { color: '#6b7280' }, grid: { color: '#1f2937' } },
                     y: {
-                        ticks: { color: '#6b7280' },
-                        grid: { color: '#1f2937' }
+                        ticks: { color: '#6b7280', callback: v => v.toFixed(1) + 'x' },
+                        grid: {
+                            color: (c) => (Math.abs(c.tick.value - 2.4) < 0.05 || Math.abs(c.tick.value - 1) < 0.05) ? '#4b5563' : '#1f2937'
+                        }
                     }
                 }
             }

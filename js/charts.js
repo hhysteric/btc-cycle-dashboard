@@ -109,20 +109,63 @@ const ChartsModule = {
         this.destroyChart('cycle');
         const ctx = document.getElementById('cycle-chart').getContext('2d');
 
-        const datasets = cycles.map((cycle, i) => ({
-            label: cycle.label,
-            data: cycle.data.map(d => ({ x: d.day, y: d.normalized })),
-            borderColor: CHART_COLORS.cycleColors[i],
-            borderWidth: 1.5,
-            pointRadius: 0,
-            tension: 0.1
-        }));
+        const datasets = [];
+        const lowAnnotations = {};
+        cycles.forEach((cycle, i) => {
+            const color = CHART_COLORS.cycleColors[i];
+            datasets.push({
+                label: cycle.label,
+                data: cycle.data.map(d => ({ x: d.day, y: d.normalized })),
+                borderColor: color,
+                borderWidth: 1.5,
+                pointRadius: 0,
+                tension: 0.1
+            });
+
+            // 找该轮最低点并用散点+标签标注
+            let low = cycle.data[0];
+            for (const p of cycle.data) if (p.normalized < low.normalized) low = p;
+            datasets.push({
+                label: cycle.label + ' 最低点',
+                data: [{ x: low.day, y: low.normalized }],
+                borderColor: color,
+                backgroundColor: color,
+                pointRadius: 5,
+                pointStyle: 'triangle',
+                rotation: 180,
+                showLine: false,
+                pointHoverRadius: 6
+            });
+            lowAnnotations['low' + i] = {
+                type: 'label',
+                xValue: low.day,
+                yValue: low.normalized,
+                content: `${(low.normalized * 100).toFixed(0)}% (第${low.day}天)`,
+                color: color,
+                font: { size: 10, weight: 'bold' },
+                position: 'center',
+                yAdjust: 16,
+                backgroundColor: 'rgba(15,15,35,0.7)',
+                padding: 2
+            };
+        });
 
         this.charts['cycle'] = new Chart(ctx, {
             type: 'line',
             data: { datasets },
             options: {
                 ...CHART_DEFAULTS,
+                plugins: {
+                    ...CHART_DEFAULTS.plugins,
+                    legend: {
+                        labels: {
+                            color: '#9ca3af',
+                            font: { size: 11 },
+                            filter: (item) => !item.text.includes('最低点') // 图例隐藏散点系列
+                        }
+                    },
+                    annotation: { annotations: lowAnnotations }
+                },
                 scales: {
                     x: {
                         type: 'linear',
@@ -145,19 +188,33 @@ const ChartsModule = {
         this.destroyChart('weekday');
         const ctx = document.getElementById('weekday-chart').getContext('2d');
         const days = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-        const upRates = stats.map(s => s.total > 0 ? (s.up / s.total * 100).toFixed(1) : 0);
+        const upRates = stats.map(s => +(s.upRate * 100).toFixed(1));
+        const avgRets = stats.map(s => +(s.avgRet * 100).toFixed(3));
 
         this.charts['weekday'] = new Chart(ctx, {
-            type: 'bar',
             data: {
                 labels: days,
-                datasets: [{
-                    label: '上涨概率 (%)',
-                    data: upRates,
-                    backgroundColor: upRates.map(r => r >= 50 ? 'rgba(0, 211, 149, 0.7)' : 'rgba(255, 71, 87, 0.7)'),
-                    borderColor: upRates.map(r => r >= 50 ? '#00d395' : '#ff4757'),
-                    borderWidth: 1
-                }]
+                datasets: [
+                    {
+                        type: 'bar',
+                        label: '上涨概率 (%)',
+                        data: upRates,
+                        backgroundColor: upRates.map(r => r >= 50 ? 'rgba(0, 211, 149, 0.7)' : 'rgba(255, 71, 87, 0.7)'),
+                        borderColor: upRates.map(r => r >= 50 ? '#00d395' : '#ff4757'),
+                        borderWidth: 1,
+                        yAxisID: 'y'
+                    },
+                    {
+                        type: 'line',
+                        label: '平均涨幅 (%)',
+                        data: avgRets,
+                        borderColor: CHART_COLORS.gold,
+                        backgroundColor: CHART_COLORS.gold,
+                        borderWidth: 2,
+                        pointRadius: 3,
+                        yAxisID: 'y1'
+                    }
+                ]
             },
             options: {
                 ...CHART_DEFAULTS,
@@ -165,13 +222,41 @@ const ChartsModule = {
                     ...CHART_DEFAULTS.plugins,
                     annotation: {
                         annotations: {
-                            line50: { type: 'line', yMin: 50, yMax: 50, borderColor: '#6b7280', borderDash: [5, 5] }
+                            line50: { type: 'line', yMin: 50, yMax: 50, yScaleID: 'y', borderColor: '#6b7280', borderDash: [5, 5], borderWidth: 1 }
                         }
                     }
                 },
                 scales: {
                     x: { ticks: { color: '#6b7280' }, grid: { display: false } },
-                    y: { min: 40, max: 60, ticks: { color: '#6b7280', callback: v => v + '%' }, grid: { color: '#1f2937' } }
+                    y: { position: 'left', min: 40, max: 60, title: { display: true, text: '上涨概率', color: '#6b7280' }, ticks: { color: '#6b7280', callback: v => v + '%' }, grid: { color: '#1f2937' } },
+                    y1: { position: 'right', title: { display: true, text: '平均涨幅', color: '#f7931a' }, ticks: { color: '#f7931a', callback: v => v + '%' }, grid: { drawOnChartArea: false } }
+                }
+            }
+        });
+    },
+
+    // 近半年 K 线（收盘价折线），标注最强/最弱星期出现的位置
+    renderWeekdayPriceChart(data, pattern) {
+        this.destroyChart('weekdayPrice');
+        const recent = data.slice(-180);
+        const ctx = document.getElementById('weekday-price-chart').getContext('2d');
+
+        const bestPts = recent.filter(d => d.date.getDay() === pattern.bestDay).map(d => ({ x: d.date, y: d.close }));
+        const worstPts = recent.filter(d => d.date.getDay() === pattern.worstDay).map(d => ({ x: d.date, y: d.close }));
+
+        this.charts['weekdayPrice'] = new Chart(ctx, {
+            data: {
+                datasets: [
+                    { type: 'line', label: 'BTC 收盘价', data: recent.map(d => ({ x: d.date, y: d.close })), borderColor: CHART_COLORS.gray, borderWidth: 1, pointRadius: 0 },
+                    { type: 'scatter', label: `最强 ${pattern.dayNames[pattern.bestDay]}`, data: bestPts, backgroundColor: CHART_COLORS.green, pointRadius: 3, pointStyle: 'triangle' },
+                    { type: 'scatter', label: `最弱 ${pattern.dayNames[pattern.worstDay]}`, data: worstPts, backgroundColor: CHART_COLORS.red, pointRadius: 3, pointStyle: 'triangle', rotation: 180 }
+                ]
+            },
+            options: {
+                ...CHART_DEFAULTS,
+                scales: {
+                    x: { type: 'time', time: { unit: 'month' }, ticks: { color: '#6b7280' }, grid: { color: '#1f2937' } },
+                    y: { ticks: { color: '#6b7280', callback: v => '$' + (v / 1000).toFixed(0) + 'k' }, grid: { color: '#1f2937' } }
                 }
             }
         });
@@ -192,20 +277,40 @@ const ChartsModule = {
         const ctx = document.getElementById('rsi-chart').getContext('2d');
 
         this.charts['rsi'] = new Chart(ctx, {
-            type: 'line',
             data: {
                 labels: series.map(d => d.date),
-                datasets: [{
-                    label: `RSI-14 (${timeframe === 'weekly' ? '周线' : '日线'})`,
-                    data: rsi,
-                    borderColor: CHART_COLORS.purple,
-                    borderWidth: 1.5,
-                    pointRadius: 0,
-                    fill: false
-                }]
+                datasets: [
+                    {
+                        type: 'line',
+                        label: 'BTC 价格',
+                        data: series.map(d => d.close),
+                        borderColor: 'rgba(247,147,26,0.5)',
+                        borderWidth: 1,
+                        pointRadius: 0,
+                        yAxisID: 'yPrice'
+                    },
+                    {
+                        type: 'line',
+                        label: `RSI-14 (${timeframe === 'weekly' ? '周线' : '日线'})`,
+                        data: rsi,
+                        borderColor: CHART_COLORS.purple,
+                        borderWidth: 1.5,
+                        pointRadius: 0,
+                        yAxisID: 'y'
+                    }
+                ]
             },
             options: {
                 ...CHART_DEFAULTS,
+                plugins: {
+                    ...CHART_DEFAULTS.plugins,
+                    annotation: {
+                        annotations: {
+                            ob: { type: 'line', yMin: 70, yMax: 70, yScaleID: 'y', borderColor: 'rgba(255,71,87,0.5)', borderDash: [3, 3], borderWidth: 1 },
+                            os: { type: 'line', yMin: 30, yMax: 30, yScaleID: 'y', borderColor: 'rgba(0,211,149,0.5)', borderDash: [3, 3], borderWidth: 1 }
+                        }
+                    }
+                },
                 scales: {
                     x: {
                         type: 'time',
@@ -214,11 +319,20 @@ const ChartsModule = {
                         grid: { color: '#1f2937' }
                     },
                     y: {
+                        position: 'left',
                         min: 0, max: 100,
+                        title: { display: true, text: 'RSI', color: '#a855f7' },
                         ticks: { color: '#6b7280' },
                         grid: {
                             color: (c) => (c.tick.value === 70 || c.tick.value === 30) ? '#4b5563' : '#1f2937'
                         }
+                    },
+                    yPrice: {
+                        position: 'right',
+                        type: 'logarithmic',
+                        title: { display: true, text: 'BTC', color: '#f7931a' },
+                        ticks: { color: '#f7931a', callback: v => '$' + (v / 1000).toFixed(0) + 'k' },
+                        grid: { drawOnChartArea: false }
                     }
                 }
             }
@@ -237,28 +351,58 @@ const ChartsModule = {
         });
         const ctx = document.getElementById('mayer-chart').getContext('2d');
         this.charts['mayer'] = new Chart(ctx, {
-            type: 'line',
             data: {
                 labels: recent.map(d => d.date),
-                datasets: [{
-                    label: 'Mayer Multiple',
-                    data: mayer,
-                    borderColor: CHART_COLORS.blue,
-                    borderWidth: 1.5,
-                    pointRadius: 0,
-                    backgroundColor: 'rgba(99, 102, 241, 0.1)',
-                    fill: true
-                }]
+                datasets: [
+                    {
+                        type: 'line',
+                        label: 'BTC 价格',
+                        data: recent.map(d => d.close),
+                        borderColor: 'rgba(247,147,26,0.5)',
+                        borderWidth: 1,
+                        pointRadius: 0,
+                        yAxisID: 'yPrice'
+                    },
+                    {
+                        type: 'line',
+                        label: 'Mayer Multiple',
+                        data: mayer,
+                        borderColor: CHART_COLORS.blue,
+                        borderWidth: 1.5,
+                        pointRadius: 0,
+                        backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                        fill: true,
+                        yAxisID: 'y'
+                    }
+                ]
             },
             options: {
                 ...CHART_DEFAULTS,
+                plugins: {
+                    ...CHART_DEFAULTS.plugins,
+                    annotation: {
+                        annotations: {
+                            hi: { type: 'line', yMin: 2.4, yMax: 2.4, yScaleID: 'y', borderColor: 'rgba(255,71,87,0.5)', borderDash: [3, 3], borderWidth: 1 },
+                            lo: { type: 'line', yMin: 1, yMax: 1, yScaleID: 'y', borderColor: 'rgba(0,211,149,0.5)', borderDash: [3, 3], borderWidth: 1 }
+                        }
+                    }
+                },
                 scales: {
                     x: { type: 'time', time: { unit: 'quarter' }, ticks: { color: '#6b7280' }, grid: { color: '#1f2937' } },
                     y: {
+                        position: 'left',
+                        title: { display: true, text: 'Mayer', color: '#6366f1' },
                         ticks: { color: '#6b7280', callback: v => v.toFixed(1) + 'x' },
                         grid: {
                             color: (c) => (Math.abs(c.tick.value - 2.4) < 0.05 || Math.abs(c.tick.value - 1) < 0.05) ? '#4b5563' : '#1f2937'
                         }
+                    },
+                    yPrice: {
+                        position: 'right',
+                        type: 'logarithmic',
+                        title: { display: true, text: 'BTC', color: '#f7931a' },
+                        ticks: { color: '#f7931a', callback: v => '$' + (v / 1000).toFixed(0) + 'k' },
+                        grid: { drawOnChartArea: false }
                     }
                 }
             }

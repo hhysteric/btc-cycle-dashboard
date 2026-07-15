@@ -152,16 +152,44 @@ const DataModule = {
     },
 
     getWeekdayStats() {
-        const stats = Array.from({ length: 7 }, () => ({ up: 0, down: 0, total: 0 }));
+        const stats = Array.from({ length: 7 }, () => ({ up: 0, down: 0, total: 0, sumRet: 0 }));
         for (let i = 1; i < this.processedData.length; i++) {
             const d = this.processedData[i];
             const prev = this.processedData[i - 1];
             const day = d.date.getDay();
+            const ret = (d.close - prev.close) / prev.close;
             stats[day].total++;
+            stats[day].sumRet += ret;
             if (d.close > prev.close) stats[day].up++;
             else stats[day].down++;
         }
+        for (const s of stats) {
+            s.upRate = s.total ? s.up / s.total : 0;
+            s.avgRet = s.total ? s.sumRet / s.total : 0;
+        }
         return stats;
+    },
+
+    // 分析短周期规律：找出上涨概率最高/最低的星期，生成可读结论
+    getWeekdayPattern() {
+        const stats = this.getWeekdayStats();
+        const dayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+        let best = 0, worst = 0;
+        for (let i = 1; i < 7; i++) {
+            if (stats[i].upRate > stats[best].upRate) best = i;
+            if (stats[i].upRate < stats[worst].upRate) worst = i;
+        }
+        return {
+            stats,
+            dayNames,
+            bestDay: best,
+            worstDay: worst,
+            bestRate: stats[best].upRate,
+            worstRate: stats[worst].upRate,
+            bestAvgRet: stats[best].avgRet,
+            worstAvgRet: stats[worst].avgRet,
+            summary: `历史数据显示：${dayNames[best]}上涨概率最高（${(stats[best].upRate * 100).toFixed(1)}%，平均 ${(stats[best].avgRet * 100).toFixed(2)}%），${dayNames[worst]}最弱（${(stats[worst].upRate * 100).toFixed(1)}%，平均 ${(stats[worst].avgRet * 100).toFixed(2)}%）。`
+        };
     },
 
     // 四年周期叠加对比图：每条曲线从该轮周期的最高点(day 0, 归一化=1)开始绘制，

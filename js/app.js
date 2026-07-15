@@ -83,7 +83,13 @@ function highlightCurrentPhase(cycleInfo) {
 function renderPriceCharts(data) {
     ChartsModule.renderPriceChart(data, 365);
     ChartsModule.renderCycleChart(DataModule.getCycleData());
-    ChartsModule.renderWeekdayChart(DataModule.getWeekdayStats());
+
+    const pattern = DataModule.getWeekdayPattern();
+    ChartsModule.renderWeekdayChart(pattern.stats);
+    ChartsModule.renderWeekdayPriceChart(data, pattern);
+    const wsEl = document.getElementById('weekday-summary');
+    if (wsEl) wsEl.textContent = pattern.summary;
+
     ChartsModule.renderRSIChart(data, 'daily');
     ChartsModule.renderVolumeChart(data);
     ChartsModule.renderMayerChart(data);

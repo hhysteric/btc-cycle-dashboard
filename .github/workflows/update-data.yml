@@ -1,0 +1,42 @@
+name: Update BTC data
+
+# 每天 UTC 01:07 自动增量更新行情数据（错开整点，减轻数据源压力）
+# 也可在 Actions 页面手动触发
+on:
+  schedule:
+    - cron: "7 1 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-data
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run incremental update
+        run: python scripts/update_data.py
+
+      - name: Commit changes if any
+        run: |
+          if [ -n "$(git status --porcelain data/btc_historical.csv)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add data/btc_historical.csv
+            git commit -m "data: auto-update BTC daily data [skip ci]"
+            git push
+          else
+            echo "No new data; nothing to commit."
+          fi

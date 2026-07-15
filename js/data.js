@@ -164,28 +164,42 @@ const DataModule = {
         return stats;
     },
 
-    // 按"减半周期"分组，用于四年周期叠加对比图。每个周期从减半年1月1日起，横轴对齐为"周期内第几天"
+    // 四年周期叠加对比图：每条曲线从该轮周期的最高点(day 0, 归一化=1)开始绘制，
+    // 展示见顶后的回撤与恢复过程。横轴为"距该轮最高点的天数"，纵轴为相对最高点的倍数（对数）。
     getCycleData() {
-        const cycleStarts = [
-            { year: 2012, label: '周期1 (2012减半)' },
-            { year: 2016, label: '周期2 (2016减半)' },
-            { year: 2020, label: '周期3 (2020减半)' },
-            { year: 2024, label: '周期4 (2024减半·当前)' },
+        // 各减半周期区间，用于在区间内定位历史最高点
+        const cycleRanges = [
+            { start: '2011-01-01', end: '2015-01-01', label: '周期1 (2013顶)' },
+            { start: '2015-01-01', end: '2019-01-01', label: '周期2 (2017顶)' },
+            { start: '2019-01-01', end: '2023-01-01', label: '周期3 (2021顶)' },
+            { start: '2023-01-01', end: '2027-01-01', label: '周期4 (当前)' },
         ];
         const cycles = [];
-        for (let i = 0; i < cycleStarts.length; i++) {
-            const startYear = cycleStarts[i].year;
-            const start = new Date(`${startYear}-01-01`);
-            const end = new Date(`${startYear + 4}-01-01`);
-            const cycleData = this.processedData.filter(d => d.date >= start && d.date < end);
-            if (cycleData.length === 0) continue;
-            const startPrice = cycleData[0].close;
+        for (const r of cycleRanges) {
+            const start = new Date(r.start);
+            const end = new Date(r.end);
+            const inRange = this.processedData.filter(d => d.date >= start && d.date < end);
+            if (inRange.length === 0) continue;
+
+            // 找该区间内最高收盘价的位置作为起点
+            let peakIdx = 0;
+            for (let i = 1; i < inRange.length; i++) {
+                if (inRange[i].close > inRange[peakIdx].close) peakIdx = i;
+            }
+            const peakDate = inRange[peakIdx].date;
+            const peakPrice = inRange[peakIdx].close;
+
+            // 从最高点开始，向后取全部数据（跨到下一区间也继续，直到数据结束或到达约1600天）
+            const fromPeak = this.processedData.filter(d => d.date >= peakDate);
+            const maxDays = 1600;
             cycles.push({
-                label: cycleStarts[i].label,
-                data: cycleData.map(d => ({
-                    day: Math.floor((d.date - start) / (1000 * 60 * 60 * 24)),
-                    normalized: d.close / startPrice
-                }))
+                label: r.label,
+                data: fromPeak
+                    .map(d => ({
+                        day: Math.floor((d.date - peakDate) / (1000 * 60 * 60 * 24)),
+                        normalized: d.close / peakPrice
+                    }))
+                    .filter(p => p.day <= maxDays)
             });
         }
         return cycles;

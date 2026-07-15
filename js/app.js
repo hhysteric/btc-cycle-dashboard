@@ -4,7 +4,7 @@ let appState = { data: null, priceInfo: null, cycleInfo: null };
 async function init() {
     const data = await DataModule.loadCSV();
     if (!data.length) {
-        document.getElementById('summary-content').innerHTML = '<p class="text-red-400">数据加载失败，请确保 data/btc_historical.csv 文件存在</p>';
+        console.error('数据加载失败，请确保 data/btc_historical.csv 文件存在');
         return;
     }
 
@@ -22,7 +22,6 @@ async function init() {
     updateOverview(priceInfo, cycleInfo);
     highlightCurrentPhase(cycleInfo);
     renderPriceCharts(data);
-    updateAnalysisSummary(priceInfo, cycleInfo, data);
     setupEventListeners(data, priceInfo, cycleInfo);
 
     document.getElementById('last-update').textContent = '更新: ' + new Date().toLocaleTimeString('zh-CN');
@@ -103,47 +102,6 @@ async function loadCapitalFlowSection() {
         document.getElementById('usdt-mcap').textContent = '$' + (sc.usdt / 1e9).toFixed(1) + 'B';
         document.getElementById('stablecoin-supply').textContent = '$' + (sc.total / 1e9).toFixed(1) + 'B';
     }
-}
-
-function updateAnalysisSummary(priceInfo, cycleInfo, data) {
-    const trend = DataModule.getTrendState();
-    const latest = data[data.length - 1];
-
-    let trendLabel = '中性';
-    let trendColor = 'text-gray-300';
-    if (trend.aboveMA50 && trend.aboveMA200 && trend.ma50 > trend.ma200) {
-        trendLabel = '多头排列'; trendColor = 'text-accent-green';
-    } else if (!trend.aboveMA50 && !trend.aboveMA200 && trend.ma50 < trend.ma200) {
-        trendLabel = '空头排列'; trendColor = 'text-accent-red';
-    } else if (trend.aboveMA200) {
-        trendLabel = '中期偏多'; trendColor = 'text-accent-green';
-    }
-
-    const html = `
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div class="p-3 bg-dark-700 rounded-lg">
-                <p class="text-gray-400 text-xs">趋势判断（均线）</p>
-                <p class="font-semibold ${trendColor}">${trendLabel}</p>
-            </div>
-            <div class="p-3 bg-dark-700 rounded-lg">
-                <p class="text-gray-400 text-xs">四年周期年份（${cycleInfo.year}）</p>
-                <p class="font-semibold" style="color:${cycleInfo.phaseColor}">${cycleInfo.phase}</p>
-            </div>
-            <div class="p-3 bg-dark-700 rounded-lg">
-                <p class="text-gray-400 text-xs">周期进度</p>
-                <p class="font-semibold">${(cycleInfo.progress * 100).toFixed(1)}%</p>
-            </div>
-        </div>
-        <div class="mt-3 p-3 bg-dark-700 rounded-lg">
-            <p class="text-gray-400 text-xs mb-1">周期定位</p>
-            <p>${cycleInfo.detail}</p>
-        </div>
-        <div class="mt-3 p-3 bg-dark-700 rounded-lg">
-            <p class="text-gray-400 text-xs mb-1">均线水平</p>
-            <p>MA50: $${trend.ma50 ? trend.ma50.toFixed(0) : 'N/A'} · MA200: $${trend.ma200 ? trend.ma200.toFixed(0) : 'N/A'} · 现价: $${latest.close.toFixed(0)}</p>
-        </div>
-    `;
-    document.getElementById('summary-content').innerHTML = html;
 }
 
 function setupEventListeners(data, priceInfo, cycleInfo) {

@@ -126,14 +126,14 @@ const ChartsModule = {
                 scales: {
                     x: {
                         type: 'linear',
-                        title: { display: true, text: '减半后天数', color: '#6b7280' },
+                        title: { display: true, text: '距该轮最高点天数', color: '#6b7280' },
                         ticks: { color: '#6b7280' },
                         grid: { color: '#1f2937' }
                     },
                     y: {
                         type: 'logarithmic',
-                        title: { display: true, text: '相对涨幅 (倍)', color: '#6b7280' },
-                        ticks: { color: '#6b7280', callback: v => v.toFixed(1) + 'x' },
+                        title: { display: true, text: '相对最高点 (倍)', color: '#6b7280' },
+                        ticks: { color: '#6b7280', callback: v => v.toFixed(2) + 'x' },
                         grid: { color: '#1f2937' }
                     }
                 }

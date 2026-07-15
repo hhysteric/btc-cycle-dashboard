@@ -45,6 +45,17 @@ body {
     font-weight: 600;
 }
 
+.zoom-reset-btn {
+    background: var(--dark-700);
+    color: #9ca3af;
+    transition: all 0.2s;
+}
+
+.zoom-reset-btn:hover {
+    background: #333366;
+    color: white;
+}
+
 .phase-cell {
     transition: all 0.2s;
 }

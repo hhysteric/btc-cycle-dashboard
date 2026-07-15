@@ -24,6 +24,16 @@ const CHART_DEFAULTS = {
     }
 };
 
+// 通用缩放/平移配置：滚轮+双指缩放、拖动平移
+const ZOOM_CONFIG = {
+    pan: { enabled: true, mode: 'xy', modifierKey: null },
+    zoom: {
+        wheel: { enabled: true },
+        pinch: { enabled: true },
+        mode: 'xy'
+    }
+};
+
 const ChartsModule = {
     charts: {},
 
@@ -32,6 +42,10 @@ const ChartsModule = {
             this.charts[id].destroy();
             delete this.charts[id];
         }
+    },
+
+    resetZoom(id) {
+        if (this.charts[id] && this.charts[id].resetZoom) this.charts[id].resetZoom();
     },
 
     renderPriceChart(data, period = 365) {
@@ -122,31 +136,35 @@ const ChartsModule = {
                 tension: 0.1
             });
 
-            // 找该轮最低点并用散点+标签标注
+            // 找该轮最低点并用散点+标签标注（标注显示"从最高点的跌幅"）
             let low = cycle.data[0];
             for (const p of cycle.data) if (p.normalized < low.normalized) low = p;
+            const drawdown = (1 - low.normalized) * 100; // 跌幅%
             datasets.push({
                 label: cycle.label + ' 最低点',
                 data: [{ x: low.day, y: low.normalized }],
                 borderColor: color,
                 backgroundColor: color,
-                pointRadius: 5,
+                pointRadius: 6,
                 pointStyle: 'triangle',
                 rotation: 180,
                 showLine: false,
-                pointHoverRadius: 6
+                pointHoverRadius: 7
             });
             lowAnnotations['low' + i] = {
                 type: 'label',
                 xValue: low.day,
                 yValue: low.normalized,
-                content: `${(low.normalized * 100).toFixed(0)}% (第${low.day}天)`,
-                color: color,
+                content: `${cycle.label.replace(/ .*/, '')}: -${drawdown.toFixed(1)}% (第${low.day}天)`,
+                color: '#fff',
                 font: { size: 10, weight: 'bold' },
                 position: 'center',
-                yAdjust: 16,
-                backgroundColor: 'rgba(15,15,35,0.7)',
-                padding: 2
+                // 交错纵向偏移，避免周期1/2 在对数轴底部彼此重叠而看不见
+                xAdjust: 40,
+                yAdjust: -8 - i * 16,
+                backgroundColor: color,
+                borderRadius: 3,
+                padding: 3
             };
         });
 
@@ -164,7 +182,8 @@ const ChartsModule = {
                             filter: (item) => !item.text.includes('最低点') // 图例隐藏散点系列
                         }
                     },
-                    annotation: { annotations: lowAnnotations }
+                    annotation: { annotations: lowAnnotations },
+                    zoom: ZOOM_CONFIG
                 },
                 scales: {
                     x: {
@@ -264,14 +283,13 @@ const ChartsModule = {
 
     renderRSIChart(data, timeframe = 'daily') {
         this.destroyChart('rsi');
-        let series, unit;
+        // 显示全历史，配合缩放/平移查看历轮周期
+        let series;
+        const unit = 'year';
         if (timeframe === 'weekly') {
-            const weekly = DataModule.aggregateWeekly(data);
-            series = weekly.slice(-260); // ~5年周线
-            unit = 'year';
+            series = DataModule.aggregateWeekly(data);
         } else {
-            series = data.slice(-180);
-            unit = 'month';
+            series = data;
         }
         const rsi = DataModule.calculateRSI(series);
         const ctx = document.getElementById('rsi-chart').getContext('2d');
@@ -309,7 +327,8 @@ const ChartsModule = {
                             ob: { type: 'line', yMin: 70, yMax: 70, yScaleID: 'y', borderColor: 'rgba(255,71,87,0.5)', borderDash: [3, 3], borderWidth: 1 },
                             os: { type: 'line', yMin: 30, yMax: 30, yScaleID: 'y', borderColor: 'rgba(0,211,149,0.5)', borderDash: [3, 3], borderWidth: 1 }
                         }
-                    }
+                    },
+                    zoom: ZOOM_CONFIG
                 },
                 scales: {
                     x: {
@@ -339,25 +358,23 @@ const ChartsModule = {
         });
     },
 
-    // Mayer Multiple = 价格 / MA200，基于 CSV 稳定计算
+    // Mayer Multiple = 价格 / MA200，基于 CSV 稳定计算（全历史，可缩放）
     renderMayerChart(data) {
         this.destroyChart('mayer');
-        const recent = data.slice(-730);
         const ma200Full = DataModule.calculateMA(data, 200);
-        const startIdx = data.length - recent.length;
-        const mayer = recent.map((d, i) => {
-            const ma = ma200Full[startIdx + i];
+        const mayer = data.map((d, i) => {
+            const ma = ma200Full[i];
             return ma ? d.close / ma : null;
         });
         const ctx = document.getElementById('mayer-chart').getContext('2d');
         this.charts['mayer'] = new Chart(ctx, {
             data: {
-                labels: recent.map(d => d.date),
+                labels: data.map(d => d.date),
                 datasets: [
                     {
                         type: 'line',
                         label: 'BTC 价格',
-                        data: recent.map(d => d.close),
+                        data: data.map(d => d.close),
                         borderColor: 'rgba(247,147,26,0.5)',
                         borderWidth: 1,
                         pointRadius: 0,
@@ -385,10 +402,11 @@ const ChartsModule = {
                             hi: { type: 'line', yMin: 2.4, yMax: 2.4, yScaleID: 'y', borderColor: 'rgba(255,71,87,0.5)', borderDash: [3, 3], borderWidth: 1 },
                             lo: { type: 'line', yMin: 1, yMax: 1, yScaleID: 'y', borderColor: 'rgba(0,211,149,0.5)', borderDash: [3, 3], borderWidth: 1 }
                         }
-                    }
+                    },
+                    zoom: ZOOM_CONFIG
                 },
                 scales: {
-                    x: { type: 'time', time: { unit: 'quarter' }, ticks: { color: '#6b7280' }, grid: { color: '#1f2937' } },
+                    x: { type: 'time', time: { unit: 'year' }, ticks: { color: '#6b7280' }, grid: { color: '#1f2937' } },
                     y: {
                         position: 'left',
                         title: { display: true, text: 'Mayer', color: '#6366f1' },

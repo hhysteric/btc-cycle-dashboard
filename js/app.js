@@ -128,6 +128,10 @@ function setupEventListeners(data, priceInfo, cycleInfo) {
         });
     });
 
+    document.querySelectorAll('.zoom-reset-btn').forEach(btn => {
+        btn.addEventListener('click', () => ChartsModule.resetZoom(btn.dataset.chart));
+    });
+
     document.getElementById('btn-export-report').addEventListener('click', () => {
         const weekdayStats = DataModule.getWeekdayStats();
         currentReport = ReportModule.generateReport(appState.priceInfo, cycleInfo, weekdayStats, data);

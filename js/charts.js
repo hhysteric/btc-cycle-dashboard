@@ -25,16 +25,23 @@ const CHART_DEFAULTS = {
 };
 
 // 通用缩放/平移配置：
-//  - 滚轮：默认只缩放横轴（时间/横轴），手感稳定不"乱跳"
-//  - 按住 Shift 滚轮：只缩放纵轴（需要精调纵轴时用）
-//  - 拖动：平移 xy
-//  - 双指：xy 缩放
+//  - 滚轮：默认横纵轴同时缩放（纵轴也能调）
+//  - 按住 Shift 滚轮：只缩放纵轴
+//  - 按住 Ctrl/Alt 滚轮：只缩放横轴
+//  - 拖动：平移 xy；双指：xy 缩放
+// mode 用函数实现：按修饰键动态切换缩放轴，默认 xy
+const wheelMode = (ctx) => {
+    const ev = ctx && ctx.event && ctx.event.native;
+    if (ev && ev.shiftKey) return 'y';
+    if (ev && (ev.ctrlKey || ev.altKey)) return 'x';
+    return 'xy';
+};
 const ZOOM_CONFIG = {
     pan: { enabled: true, mode: 'xy', modifierKey: null },
     zoom: {
-        wheel: { enabled: true, modifierKey: null },
+        wheel: { enabled: true },
         pinch: { enabled: true },
-        mode: 'x'
+        mode: wheelMode
     }
 };
 

@@ -128,7 +128,7 @@
             <div class="chart-canvas-wrap h-80">
                 <canvas id="price-chart"></canvas>
             </div>
-            <p class="text-xs text-gray-500 mt-2">滚轮缩放横轴，拖动平移；「对数」切换纵轴刻度，「全屏」放大整图便于精调</p>
+            <p class="text-xs text-gray-500 mt-2">滚轮缩放（横纵同时），Shift+滚轮只缩纵轴、Ctrl+滚轮只缩横轴，拖动平移；「对数」切换纵轴刻度，「全屏」放大整图便于精调</p>
         </section>
 
         <!-- Four Year Cycle -->
@@ -141,7 +141,7 @@
                     <button class="chart-tool-btn fullscreen-btn px-3 py-1 rounded text-sm" data-target="card-cycle">全屏</button>
                 </div>
             </div>
-            <p class="text-gray-400 text-sm mb-4">每条曲线从该轮周期的历史最高点开始（起点=1.0），展示见顶后的回撤与恢复。横轴为距最高点天数，纵轴为相对最高点倍数</p>
+            <p class="text-gray-400 text-sm mb-4">每条曲线从该轮周期的历史最高点开始（起点=1.0），展示见顶后的回撤与恢复。横轴为距最高点天数，纵轴为相对最高点倍数。滚轮缩放（横纵同时），Shift+滚轮只缩纵轴，拖动平移</p>
             <div class="chart-canvas-wrap h-80">
                 <canvas id="cycle-chart"></canvas>
             </div>
@@ -187,7 +187,7 @@
                 <div class="chart-canvas-wrap h-80">
                     <canvas id="rsi-chart"></canvas>
                 </div>
-                <p class="text-xs text-gray-500 mt-2">滚轮缩放横轴、拖动平移，可查看历轮周期。周线 RSI-14 &lt;30 常对应周期底部；&gt;70 为超买</p>
+                <p class="text-xs text-gray-500 mt-2">滚轮缩放（横纵同时）、Shift+滚轮只缩纵轴、拖动平移，可查看历轮周期。周线 RSI-14 &lt;30 常对应周期底部；&gt;70 为超买</p>
             </div>
             <div id="card-mayer" class="chart-card bg-dark-800 rounded-xl p-5 border border-gray-700">
                 <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
@@ -203,7 +203,7 @@
                 <div class="chart-canvas-wrap h-80">
                     <canvas id="mayer-chart"></canvas>
                 </div>
-                <p class="text-xs text-gray-500 mt-2">滚轮缩放横轴、拖动平移。历史上 &gt;2.4 偏高（顶部风险），&lt;1 偏低（价值区）</p>
+                <p class="text-xs text-gray-500 mt-2">滚轮缩放（横纵同时）、Shift+滚轮只缩纵轴、拖动平移。历史上 &gt;2.4 偏高（顶部风险），&lt;1 偏低（价值区）</p>
             </div>
         </section>
 
@@ -303,22 +303,6 @@
             </div>
         </section>
 
-        <!-- Cointime Price Section -->
-        <section class="bg-dark-800 rounded-xl p-5 border border-gray-700">
-            <h2 class="text-lg font-semibold mb-2">Cointime Price 概念</h2>
-            <p class="text-gray-400 text-sm mb-3">时间成交量加权后的实现价格，公式: subset(f2/cumsum(f1), "2010-09-01")</p>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                <div class="p-3 bg-dark-700 rounded-lg">
-                    <p class="text-accent-gold font-semibold">f2: 累计已实现的销毁币块总价值</p>
-                    <p class="text-gray-400 mt-1">= cumsum(BTC price × Coin Blocks Destroyed)</p>
-                </div>
-                <div class="p-3 bg-dark-700 rounded-lg">
-                    <p class="text-accent-gold font-semibold">f1: 累计的存储币块总量</p>
-                    <p class="text-gray-400 mt-1">= Coin Blocks Created - Coin Blocks Destroyed</p>
-                </div>
-            </div>
-            <p class="text-xs text-gray-500 mt-3">详细图表: <a href="https://charts.checkonchain.com/btconchain/cointime/pricing_mvrv_cointime_0/pricing_mvrv_cointime_0_light.html" class="text-accent-gold hover:underline" target="_blank">CheckOnChain Cointime MVRV</a></p>
-        </section>
     </main>
 
     <!-- Report Modal -->

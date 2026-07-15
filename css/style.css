@@ -45,15 +45,38 @@ body {
     font-weight: 600;
 }
 
-.zoom-reset-btn {
+.zoom-reset-btn,
+.chart-tool-btn {
     background: var(--dark-700);
     color: #9ca3af;
     transition: all 0.2s;
 }
 
-.zoom-reset-btn:hover {
+.zoom-reset-btn:hover,
+.chart-tool-btn:hover {
     background: #333366;
     color: white;
+}
+
+.chart-tool-btn.active {
+    background: var(--gold);
+    color: black;
+    font-weight: 600;
+}
+
+/* 全屏时把图表卡片铺满视口 */
+.chart-card:fullscreen {
+    background: var(--dark-900);
+    padding: 24px;
+    overflow: auto;
+}
+
+.chart-card:fullscreen .chart-canvas-wrap {
+    height: calc(100vh - 120px) !important;
+}
+
+.chart-card:-webkit-full-screen .chart-canvas-wrap {
+    height: calc(100vh - 120px) !important;
 }
 
 .phase-cell {

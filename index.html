@@ -111,26 +111,38 @@
         </section>
 
         <!-- Price Chart with MA -->
-        <section class="bg-dark-800 rounded-xl p-5 border border-gray-700">
-            <div class="flex items-center justify-between mb-4">
+        <section id="card-price" class="chart-card bg-dark-800 rounded-xl p-5 border border-gray-700">
+            <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
                 <h2 class="text-lg font-semibold">BTC 价格与均线</h2>
-                <div class="flex gap-2">
+                <div class="flex gap-2 flex-wrap items-center">
                     <button class="chart-period-btn active px-3 py-1 rounded text-sm" data-period="365">1Y</button>
                     <button class="chart-period-btn px-3 py-1 rounded text-sm" data-period="730">2Y</button>
                     <button class="chart-period-btn px-3 py-1 rounded text-sm" data-period="1460">4Y</button>
                     <button class="chart-period-btn px-3 py-1 rounded text-sm" data-period="all">全部</button>
+                    <span class="w-px h-5 bg-gray-600 mx-1"></span>
+                    <button class="chart-tool-btn log-btn px-3 py-1 rounded text-sm" data-chart="price" data-axis="y">对数</button>
+                    <button class="zoom-reset-btn px-3 py-1 rounded text-sm" data-chart="price">重置</button>
+                    <button class="chart-tool-btn fullscreen-btn px-3 py-1 rounded text-sm" data-target="card-price">全屏</button>
                 </div>
             </div>
-            <div class="h-80">
+            <div class="chart-canvas-wrap h-80">
                 <canvas id="price-chart"></canvas>
             </div>
+            <p class="text-xs text-gray-500 mt-2">滚轮缩放横轴，拖动平移；「对数」切换纵轴刻度，「全屏」放大整图便于精调</p>
         </section>
 
         <!-- Four Year Cycle -->
-        <section class="bg-dark-800 rounded-xl p-5 border border-gray-700">
-            <h2 class="text-lg font-semibold mb-1">四年大周期对比（从各轮最高点对齐）</h2>
-            <p class="text-gray-400 text-sm mb-4">每条曲线从该轮周期的历史最高点开始（起点=1.0），展示见顶后的回撤与恢复。横轴为距最高点天数，纵轴为相对最高点倍数（对数）</p>
-            <div class="h-80">
+        <section id="card-cycle" class="chart-card bg-dark-800 rounded-xl p-5 border border-gray-700">
+            <div class="flex items-center justify-between mb-1 flex-wrap gap-2">
+                <h2 class="text-lg font-semibold">四年大周期对比（从各轮最高点对齐）</h2>
+                <div class="flex gap-2 items-center">
+                    <button class="chart-tool-btn log-btn active px-3 py-1 rounded text-sm" data-chart="cycle" data-axis="y">对数</button>
+                    <button class="zoom-reset-btn px-3 py-1 rounded text-sm" data-chart="cycle">重置</button>
+                    <button class="chart-tool-btn fullscreen-btn px-3 py-1 rounded text-sm" data-target="card-cycle">全屏</button>
+                </div>
+            </div>
+            <p class="text-gray-400 text-sm mb-4">每条曲线从该轮周期的历史最高点开始（起点=1.0），展示见顶后的回撤与恢复。横轴为距最高点天数，纵轴为相对最高点倍数</p>
+            <div class="chart-canvas-wrap h-80">
                 <canvas id="cycle-chart"></canvas>
             </div>
         </section>
@@ -158,68 +170,89 @@
 
         <!-- Technical Indicators -->
         <section class="space-y-4">
-            <div class="bg-dark-800 rounded-xl p-5 border border-gray-700">
-                <div class="flex items-center justify-between mb-4">
+            <div id="card-rsi" class="chart-card bg-dark-800 rounded-xl p-5 border border-gray-700">
+                <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
                     <h2 class="text-lg font-semibold">RSI 指标（叠加 BTC 全历史行情）</h2>
-                    <div class="flex items-center gap-3">
+                    <div class="flex items-center gap-2 flex-wrap">
                         <div class="flex gap-2">
                             <button class="rsi-period-btn active px-3 py-1 rounded text-sm" data-tf="daily">日线</button>
                             <button class="rsi-period-btn px-3 py-1 rounded text-sm" data-tf="weekly">周线</button>
                         </div>
-                        <button class="zoom-reset-btn px-3 py-1 rounded text-sm" data-chart="rsi">重置缩放</button>
+                        <span class="w-px h-5 bg-gray-600 mx-1"></span>
+                        <button class="chart-tool-btn log-btn active px-3 py-1 rounded text-sm" data-chart="rsi" data-axis="yPrice">价格对数</button>
+                        <button class="zoom-reset-btn px-3 py-1 rounded text-sm" data-chart="rsi">重置</button>
+                        <button class="chart-tool-btn fullscreen-btn px-3 py-1 rounded text-sm" data-target="card-rsi">全屏</button>
                     </div>
                 </div>
-                <div class="h-80">
+                <div class="chart-canvas-wrap h-80">
                     <canvas id="rsi-chart"></canvas>
                 </div>
-                <p class="text-xs text-gray-500 mt-2">滚轮缩放、拖动平移，可查看历轮周期。周线 RSI-14 &lt;30 常对应周期底部；&gt;70 为超买</p>
+                <p class="text-xs text-gray-500 mt-2">滚轮缩放横轴、拖动平移，可查看历轮周期。周线 RSI-14 &lt;30 常对应周期底部；&gt;70 为超买</p>
             </div>
-            <div class="bg-dark-800 rounded-xl p-5 border border-gray-700">
-                <div class="flex items-center justify-between mb-4">
+            <div id="card-mayer" class="chart-card bg-dark-800 rounded-xl p-5 border border-gray-700">
+                <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
                     <h2 class="text-lg font-semibold">Mayer Multiple（价格/MA200，叠加 BTC 全历史行情）</h2>
-                    <div class="flex items-center gap-3">
+                    <div class="flex items-center gap-2 flex-wrap">
                         <span id="mayer-current" class="text-sm text-accent-gold font-semibold">--</span>
-                        <button class="zoom-reset-btn px-3 py-1 rounded text-sm" data-chart="mayer">重置缩放</button>
+                        <span class="w-px h-5 bg-gray-600 mx-1"></span>
+                        <button class="chart-tool-btn log-btn px-3 py-1 rounded text-sm" data-chart="mayer" data-axis="y">Mayer对数</button>
+                        <button class="zoom-reset-btn px-3 py-1 rounded text-sm" data-chart="mayer">重置</button>
+                        <button class="chart-tool-btn fullscreen-btn px-3 py-1 rounded text-sm" data-target="card-mayer">全屏</button>
                     </div>
                 </div>
-                <div class="h-80">
+                <div class="chart-canvas-wrap h-80">
                     <canvas id="mayer-chart"></canvas>
                 </div>
-                <p class="text-xs text-gray-500 mt-2">滚轮缩放、拖动平移。历史上 &gt;2.4 偏高（顶部风险），&lt;1 偏低（价值区）</p>
+                <p class="text-xs text-gray-500 mt-2">滚轮缩放横轴、拖动平移。历史上 &gt;2.4 偏高（顶部风险），&lt;1 偏低（价值区）</p>
             </div>
         </section>
 
         <!-- On-chain embedded charts (official sources) -->
-        <section class="bg-dark-800 rounded-xl p-5 border border-gray-700">
-            <h2 class="text-lg font-semibold mb-1">链上估值指标（官方图表嵌入）</h2>
-            <p class="text-gray-400 text-sm mb-4">MVRV / 已实现价格 / NUPL 等链上数据无法从浏览器免费直连，以下嵌入官方实时图表。若因第三方策略无法加载，请点击标题链接查看。</p>
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div>
-                    <a href="https://charts.checkonchain.com/btconchain/pricing/pricing_mvrv_bands/pricing_mvrv_bands_light.html" target="_blank" class="text-sm font-semibold text-accent-gold hover:underline">MVRV 带状图（CheckOnChain）↗</a>
-                    <div class="mt-2 rounded-lg overflow-hidden bg-white" style="height:480px">
-                        <iframe src="https://charts.checkonchain.com/btconchain/pricing/pricing_mvrv_bands/pricing_mvrv_bands_light.html" style="width:100%;height:100%;border:0" loading="lazy" referrerpolicy="no-referrer"></iframe>
-                    </div>
+        <section class="space-y-4">
+            <div class="bg-dark-800 rounded-xl p-5 border border-gray-700">
+                <h2 class="text-lg font-semibold mb-1">链上估值指标（官方图表嵌入）</h2>
+                <p class="text-gray-400 text-sm">MVRV / 已实现价格 / NUPL 等链上数据无法从浏览器免费直连，以下逐个嵌入官方实时大图。每张图可「全屏」查看，或点标题在新窗口打开。来源: <a href="https://charts.checkonchain.com" class="text-accent-gold hover:underline" target="_blank">CheckOnChain</a> · <a href="https://cryptoquant.com/asset/btc/chart/market-indicator/mvrv-ratio" class="text-accent-gold hover:underline" target="_blank">CryptoQuant</a></p>
+            </div>
+
+            <div id="card-mvrv" class="chart-card bg-dark-800 rounded-xl p-5 border border-gray-700">
+                <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                    <a href="https://charts.checkonchain.com/btconchain/pricing/pricing_mvrv_bands/pricing_mvrv_bands_light.html" target="_blank" class="font-semibold text-accent-gold hover:underline">MVRV 带状图（CheckOnChain）↗</a>
+                    <button class="chart-tool-btn fullscreen-btn px-3 py-1 rounded text-sm" data-target="card-mvrv">全屏</button>
                 </div>
-                <div>
-                    <a href="https://charts.checkonchain.com/btconchain/unrealised/nupl/nupl_light.html" target="_blank" class="text-sm font-semibold text-accent-gold hover:underline">NUPL 净未实现盈亏（CheckOnChain）↗</a>
-                    <div class="mt-2 rounded-lg overflow-hidden bg-white" style="height:480px">
-                        <iframe src="https://charts.checkonchain.com/btconchain/unrealised/nupl/nupl_light.html" style="width:100%;height:100%;border:0" loading="lazy" referrerpolicy="no-referrer"></iframe>
-                    </div>
-                </div>
-                <div>
-                    <a href="https://charts.checkonchain.com/btconchain/cointime/pricing_mvrv_cointime_0/pricing_mvrv_cointime_0_light.html" target="_blank" class="text-sm font-semibold text-accent-gold hover:underline">Cointime Price（CheckOnChain）↗</a>
-                    <div class="mt-2 rounded-lg overflow-hidden bg-white" style="height:480px">
-                        <iframe src="https://charts.checkonchain.com/btconchain/cointime/pricing_mvrv_cointime_0/pricing_mvrv_cointime_0_light.html" style="width:100%;height:100%;border:0" loading="lazy" referrerpolicy="no-referrer"></iframe>
-                    </div>
-                </div>
-                <div>
-                    <a href="https://charts.checkonchain.com/btconchain/pricing/pricing_costbasisoriginals/pricing_costbasisoriginals_light.html" target="_blank" class="text-sm font-semibold text-accent-gold hover:underline">已实现价格/成本基础线（CheckOnChain）↗</a>
-                    <div class="mt-2 rounded-lg overflow-hidden bg-white" style="height:480px">
-                        <iframe src="https://charts.checkonchain.com/btconchain/pricing/pricing_costbasisoriginals/pricing_costbasisoriginals_light.html" style="width:100%;height:100%;border:0" loading="lazy" referrerpolicy="no-referrer"></iframe>
-                    </div>
+                <div class="chart-canvas-wrap rounded-lg overflow-hidden bg-white" style="height:560px">
+                    <iframe src="https://charts.checkonchain.com/btconchain/pricing/pricing_mvrv_bands/pricing_mvrv_bands_light.html" style="width:100%;height:100%;border:0" loading="lazy" referrerpolicy="no-referrer"></iframe>
                 </div>
             </div>
-            <p class="text-xs text-gray-500 mt-3">图表来源: <a href="https://charts.checkonchain.com" class="text-accent-gold hover:underline" target="_blank">CheckOnChain</a> · <a href="https://cryptoquant.com/asset/btc/chart/market-indicator/mvrv-ratio" class="text-accent-gold hover:underline" target="_blank">CryptoQuant MVRV</a></p>
+
+            <div id="card-nupl" class="chart-card bg-dark-800 rounded-xl p-5 border border-gray-700">
+                <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                    <a href="https://charts.checkonchain.com/btconchain/unrealised/nupl/nupl_light.html" target="_blank" class="font-semibold text-accent-gold hover:underline">NUPL 净未实现盈亏（CheckOnChain）↗</a>
+                    <button class="chart-tool-btn fullscreen-btn px-3 py-1 rounded text-sm" data-target="card-nupl">全屏</button>
+                </div>
+                <div class="chart-canvas-wrap rounded-lg overflow-hidden bg-white" style="height:560px">
+                    <iframe src="https://charts.checkonchain.com/btconchain/unrealised/nupl/nupl_light.html" style="width:100%;height:100%;border:0" loading="lazy" referrerpolicy="no-referrer"></iframe>
+                </div>
+            </div>
+
+            <div id="card-cointime" class="chart-card bg-dark-800 rounded-xl p-5 border border-gray-700">
+                <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                    <a href="https://charts.checkonchain.com/btconchain/cointime/pricing_mvrv_cointime_0/pricing_mvrv_cointime_0_light.html" target="_blank" class="font-semibold text-accent-gold hover:underline">Cointime Price（CheckOnChain）↗</a>
+                    <button class="chart-tool-btn fullscreen-btn px-3 py-1 rounded text-sm" data-target="card-cointime">全屏</button>
+                </div>
+                <div class="chart-canvas-wrap rounded-lg overflow-hidden bg-white" style="height:560px">
+                    <iframe src="https://charts.checkonchain.com/btconchain/cointime/pricing_mvrv_cointime_0/pricing_mvrv_cointime_0_light.html" style="width:100%;height:100%;border:0" loading="lazy" referrerpolicy="no-referrer"></iframe>
+                </div>
+            </div>
+
+            <div id="card-costbasis" class="chart-card bg-dark-800 rounded-xl p-5 border border-gray-700">
+                <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                    <a href="https://charts.checkonchain.com/btconchain/pricing/pricing_costbasisoriginals/pricing_costbasisoriginals_light.html" target="_blank" class="font-semibold text-accent-gold hover:underline">已实现价格/成本基础线（CheckOnChain）↗</a>
+                    <button class="chart-tool-btn fullscreen-btn px-3 py-1 rounded text-sm" data-target="card-costbasis">全屏</button>
+                </div>
+                <div class="chart-canvas-wrap rounded-lg overflow-hidden bg-white" style="height:560px">
+                    <iframe src="https://charts.checkonchain.com/btconchain/pricing/pricing_costbasisoriginals/pricing_costbasisoriginals_light.html" style="width:100%;height:100%;border:0" loading="lazy" referrerpolicy="no-referrer"></iframe>
+                </div>
+            </div>
         </section>
 
         <!-- Volume Analysis -->

@@ -132,6 +132,40 @@ function setupEventListeners(data, priceInfo, cycleInfo) {
         btn.addEventListener('click', () => ChartsModule.resetZoom(btn.dataset.chart));
     });
 
+    // 纵轴 线性/对数 切换
+    document.querySelectorAll('.log-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const next = ChartsModule.toggleLogScale(btn.dataset.chart, btn.dataset.axis || 'y');
+            if (next) btn.classList.toggle('active', next === 'logarithmic');
+        });
+    });
+
+    // 全屏 / 退出全屏
+    document.querySelectorAll('.fullscreen-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const el = document.getElementById(btn.dataset.target);
+            if (!el) return;
+            if (document.fullscreenElement) {
+                document.exitFullscreen();
+            } else if (el.requestFullscreen) {
+                el.requestFullscreen();
+            } else if (el.webkitRequestFullscreen) {
+                el.webkitRequestFullscreen();
+            }
+        });
+    });
+
+    // 全屏切换时重绘 Chart.js 图表以适应新尺寸，并更新按钮文案
+    document.addEventListener('fullscreenchange', () => {
+        const fsEl = document.fullscreenElement;
+        document.querySelectorAll('.fullscreen-btn').forEach(b => {
+            b.textContent = (fsEl && fsEl.id === b.dataset.target) ? '退出全屏' : '全屏';
+        });
+        setTimeout(() => {
+            Object.values(ChartsModule.charts).forEach(c => c && c.resize());
+        }, 120);
+    });
+
     document.getElementById('btn-export-report').addEventListener('click', () => {
         const weekdayStats = DataModule.getWeekdayStats();
         currentReport = ReportModule.generateReport(appState.priceInfo, cycleInfo, weekdayStats, data);

@@ -24,13 +24,17 @@ const CHART_DEFAULTS = {
     }
 };
 
-// 通用缩放/平移配置：滚轮+双指缩放、拖动平移
+// 通用缩放/平移配置：
+//  - 滚轮：默认只缩放横轴（时间/横轴），手感稳定不"乱跳"
+//  - 按住 Shift 滚轮：只缩放纵轴（需要精调纵轴时用）
+//  - 拖动：平移 xy
+//  - 双指：xy 缩放
 const ZOOM_CONFIG = {
     pan: { enabled: true, mode: 'xy', modifierKey: null },
     zoom: {
-        wheel: { enabled: true },
+        wheel: { enabled: true, modifierKey: null },
         pinch: { enabled: true },
-        mode: 'xy'
+        mode: 'x'
     }
 };
 
@@ -46,6 +50,17 @@ const ChartsModule = {
 
     resetZoom(id) {
         if (this.charts[id] && this.charts[id].resetZoom) this.charts[id].resetZoom();
+    },
+
+    // 切换某个图指定纵轴的 线性/对数，返回切换后的类型
+    toggleLogScale(id, axis = 'y') {
+        const chart = this.charts[id];
+        if (!chart || !chart.options.scales[axis]) return null;
+        const cur = chart.options.scales[axis].type;
+        const next = cur === 'logarithmic' ? 'linear' : 'logarithmic';
+        chart.options.scales[axis].type = next;
+        chart.update();
+        return next;
     },
 
     renderPriceChart(data, period = 365) {
@@ -102,6 +117,7 @@ const ChartsModule = {
             },
             options: {
                 ...CHART_DEFAULTS,
+                plugins: { ...CHART_DEFAULTS.plugins, zoom: ZOOM_CONFIG },
                 scales: {
                     x: {
                         type: 'time',

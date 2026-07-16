@@ -1,12 +1,33 @@
 let currentReport = null;
 let appState = { data: null, priceInfo: null, cycleInfo: null };
 
+// 主题：默认亮色，读 localStorage。要在渲染任何图表前先确定，保证首屏配色正确。
+function applyInitialTheme() {
+    const saved = localStorage.getItem('theme');
+    const theme = saved === 'dark' ? 'dark' : 'light';
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+    ChartsModule.setTheme(theme);
+    const btn = document.getElementById('btn-theme-toggle');
+    if (btn) btn.textContent = theme === 'dark' ? '☀️' : '🌙';
+}
+
+// 私人周报入口：仅当 URL 含 #report 或 ?report 时显示导出按钮
+function maybeShowReportEntry() {
+    const has = location.hash === '#report' || new URLSearchParams(location.search).has('report');
+    if (has) document.getElementById('btn-export-report').classList.remove('hidden');
+}
+
 async function init() {
+    applyInitialTheme();
+    maybeShowReportEntry();
+
     const data = await DataModule.loadCSV();
     if (!data.length) {
         console.error('数据加载失败，请确保 data/btc_historical.csv 文件存在');
         return;
     }
+    // 链上 CSV 与行情并行加载；失败不阻塞主看板
+    await DataModule.loadOnchainCSV();
 
     // 先用 CSV 数据（本地即可得）立即渲染，不被外部 API 阻塞
     const latest = DataModule.getLatest();
@@ -90,9 +111,10 @@ function renderPriceCharts(data) {
     const wsEl = document.getElementById('weekday-summary');
     if (wsEl) wsEl.textContent = pattern.summary;
 
-    ChartsModule.renderRSIChart(data, 'daily');
+    ChartsModule.renderRSIChart(data, 'weekly');
     ChartsModule.renderVolumeChart(data);
     ChartsModule.renderMayerChart(data);
+    ChartsModule.renderMvrvChart(true);
 
     const mayer = DataModule.getMayerMultiple();
     if (mayer != null) {
@@ -100,6 +122,25 @@ function renderPriceCharts(data) {
         el.textContent = mayer.toFixed(2) + 'x';
         el.style.color = mayer > 2.4 ? '#ff4757' : mayer < 1 ? '#00d395' : '#f7931a';
     }
+
+    const mvrvCur = DataModule.getMvrvCurrent();
+    const mvrvEl = document.getElementById('mvrv-current');
+    if (mvrvCur && mvrvEl) {
+        mvrvEl.textContent = 'MVRV ' + mvrvCur.mvrv.toFixed(2) + '（' + mvrvCur.zone + '）';
+    } else if (mvrvEl) {
+        mvrvEl.textContent = '链上数据未加载';
+    }
+}
+
+// 主题切换：切 class、存 localStorage、更新按钮、重渲染所有交互图（离屏周报图不受影响）
+function toggleTheme() {
+    const toDark = !document.documentElement.classList.contains('dark');
+    document.documentElement.classList.toggle('dark', toDark);
+    localStorage.setItem('theme', toDark ? 'dark' : 'light');
+    ChartsModule.setTheme(toDark ? 'dark' : 'light');
+    const btn = document.getElementById('btn-theme-toggle');
+    if (btn) btn.textContent = toDark ? '☀️' : '🌙';
+    if (appState.data) renderPriceCharts(appState.data);
 }
 
 async function loadCapitalFlowSection() {
@@ -111,6 +152,8 @@ async function loadCapitalFlowSection() {
 }
 
 function setupEventListeners(data, priceInfo, cycleInfo) {
+    document.getElementById('btn-theme-toggle').addEventListener('click', toggleTheme);
+
     document.querySelectorAll('.chart-period-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             document.querySelectorAll('.chart-period-btn').forEach(b => b.classList.remove('active'));
@@ -166,27 +209,27 @@ function setupEventListeners(data, priceInfo, cycleInfo) {
         }, 120);
     });
 
+    // 点私人入口 → 打开配置面板（第一步）
     document.getElementById('btn-export-report').addEventListener('click', () => {
-        const weekdayStats = DataModule.getWeekdayStats();
-        currentReport = ReportModule.generateReport(appState.priceInfo, cycleInfo, weekdayStats, data);
-        const content = document.getElementById('report-content');
-        content.innerHTML = '';
-        const el = ReportModule.buildReportElement(currentReport);
-        el.style.width = '100%';
-        el.style.padding = '0';
-        el.style.background = 'transparent';
-        content.appendChild(el);
-        document.getElementById('report-modal').classList.remove('hidden');
+        openReportConfig(cycleInfo, data);
     });
 
-    document.getElementById('close-modal').addEventListener('click', () => {
-        document.getElementById('report-modal').classList.add('hidden');
+    // 生成预览（第二步）
+    document.getElementById('btn-report-generate').addEventListener('click', () => {
+        buildReportPreview(cycleInfo, data);
     });
+
+    // 返回配置
+    document.getElementById('btn-report-back').addEventListener('click', () => {
+        document.getElementById('report-preview').classList.add('hidden');
+        document.getElementById('report-config').classList.remove('hidden');
+    });
+
+    document.querySelectorAll('.close-modal-btn').forEach(b =>
+        b.addEventListener('click', closeReportModal));
 
     document.getElementById('report-modal').addEventListener('click', (e) => {
-        if (e.target === document.getElementById('report-modal')) {
-            document.getElementById('report-modal').classList.add('hidden');
-        }
+        if (e.target === document.getElementById('report-modal')) closeReportModal();
     });
 
     document.getElementById('btn-download-png').addEventListener('click', async () => {
@@ -215,6 +258,123 @@ function setupEventListeners(data, priceInfo, cycleInfo) {
             });
         }
     });
+}
+
+// ===== 周报配置面板 =====
+const CHARTABLE_KEYS = ['cycle', 'ma', 'mayer', 'mvrv', 'rsi']; // 有图可裁剪的指标
+
+function closeReportModal() {
+    document.getElementById('report-modal').classList.add('hidden');
+    // 清理 mini 图
+    CHARTABLE_KEYS.forEach(k => ChartsModule.destroyMini(k));
+}
+
+// 打开配置面板：为每个可选指标生成勾选框、可编辑观点、可裁剪小图
+function openReportConfig(cycleInfo, data) {
+    const modal = document.getElementById('report-modal');
+    modal.classList.remove('hidden');
+    document.getElementById('report-preview').classList.add('hidden');
+    document.getElementById('report-config').classList.remove('hidden');
+
+    const list = document.getElementById('report-config-list');
+    list.innerHTML = '';
+    const analysis = ReportModule.getAllAnalysis();
+
+    for (const a of analysis) {
+        const hasChart = CHARTABLE_KEYS.includes(a.key);
+        const item = document.createElement('div');
+        item.className = 'border border-gray-700 rounded-lg p-4';
+        item.dataset.key = a.key;
+        item.innerHTML = `
+            <label class="flex items-center gap-2 mb-3 cursor-pointer">
+                <input type="checkbox" class="rpt-sel w-4 h-4 accent-yellow-500" data-key="${a.key}" checked>
+                <span class="font-semibold text-accent-gold">${a.title}</span>
+            </label>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div>
+                    ${hasChart ? `
+                    <div class="h-48 bg-dark-900 rounded mb-2"><canvas class="rpt-mini" data-key="${a.key}"></canvas></div>
+                    <div class="flex gap-2 items-center">
+                        <button class="rpt-crop text-xs bg-gray-600 hover:bg-gray-500 px-2 py-1 rounded" data-key="${a.key}">用当前视图裁剪</button>
+                        <button class="rpt-crop-reset text-xs bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded" data-key="${a.key}">全图</button>
+                        <span class="rpt-crop-state text-xs text-gray-400" data-key="${a.key}">全图</span>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-1">滚轮/Shift+拖框缩放，拖动平移，框好后点「用当前视图裁剪」</p>
+                    ` : `<div class="text-xs text-gray-500 h-48 flex items-center justify-center bg-dark-900 rounded">该指标无本地图表</div>`}
+                </div>
+                <div class="space-y-2">
+                    <div>
+                        <div class="text-xs text-blue-300 mb-1">当前位置</div>
+                        <textarea class="rpt-position w-full bg-dark-900 border border-gray-700 rounded p-2 text-sm text-gray-200" rows="4" data-key="${a.key}">${a.position}</textarea>
+                    </div>
+                    <div>
+                        <div class="text-xs text-yellow-300 mb-1">后市展望</div>
+                        <textarea class="rpt-outlook w-full bg-dark-900 border border-gray-700 rounded p-2 text-sm text-gray-200" rows="4" data-key="${a.key}">${a.outlook}</textarea>
+                    </div>
+                </div>
+            </div>`;
+        list.appendChild(item);
+    }
+
+    // 渲染 mini 图（需等 DOM 插入后）
+    reportCrops = {};
+    setTimeout(() => {
+        document.querySelectorAll('.rpt-mini').forEach(cv => {
+            ChartsModule.renderReportMini(cv.dataset.key, cv);
+        });
+    }, 30);
+
+    // 裁剪按钮
+    list.querySelectorAll('.rpt-crop').forEach(btn => btn.addEventListener('click', () => {
+        const key = btn.dataset.key;
+        const crop = ChartsModule.getMiniCrop(key);
+        if (crop) {
+            reportCrops[key] = crop;
+            setCropState(key, '已裁剪当前视图');
+        }
+    }));
+    list.querySelectorAll('.rpt-crop-reset').forEach(btn => btn.addEventListener('click', () => {
+        const key = btn.dataset.key;
+        delete reportCrops[key];
+        if (ChartsModule.miniCharts[key]) ChartsModule.miniCharts[key].resetZoom();
+        setCropState(key, '全图');
+    }));
+}
+
+let reportCrops = {};
+function setCropState(key, text) {
+    const el = document.querySelector(`.rpt-crop-state[data-key="${key}"]`);
+    if (el) el.textContent = text;
+}
+
+// 读取配置 → 生成周报预览（第二步）
+function buildReportPreview(cycleInfo, data) {
+    const selectedKeys = Array.from(document.querySelectorAll('.rpt-sel'))
+        .filter(cb => cb.checked).map(cb => cb.dataset.key);
+    const edits = {};
+    document.querySelectorAll('.rpt-position').forEach(t => {
+        edits[t.dataset.key] = edits[t.dataset.key] || {};
+        edits[t.dataset.key].position = t.value;
+    });
+    document.querySelectorAll('.rpt-outlook').forEach(t => {
+        edits[t.dataset.key] = edits[t.dataset.key] || {};
+        edits[t.dataset.key].outlook = t.value;
+    });
+
+    const weekdayStats = DataModule.getWeekdayStats();
+    currentReport = ReportModule.generateReport(appState.priceInfo, cycleInfo, weekdayStats, data,
+        { selectedKeys, crops: reportCrops, edits });
+
+    const content = document.getElementById('report-content');
+    content.innerHTML = '';
+    const el = ReportModule.buildReportElement(currentReport);
+    el.style.width = '100%';
+    el.style.padding = '0';
+    el.style.background = 'transparent';
+    content.appendChild(el);
+
+    document.getElementById('report-config').classList.add('hidden');
+    document.getElementById('report-preview').classList.remove('hidden');
 }
 
 document.addEventListener('DOMContentLoaded', init);

@@ -1,13 +1,23 @@
 const ReportModule = {
-    // 生成周报数据：概览 + 每个指标的 {图, 位置分析, 后市展望}
-    generateReport(priceInfo, cycleInfo, weekdayStats, data) {
+    // 供配置面板使用：返回全部可选指标的自动分析（含默认文案）
+    getAllAnalysis() {
+        return DataModule.getReportAnalysis();
+    },
+
+    // 生成周报数据：概览 + 选中指标的 {图, 位置分析, 后市展望}
+    // config: { selectedKeys:[...], crops:{key:{...}}, edits:{key:{position,outlook}} }
+    generateReport(priceInfo, cycleInfo, weekdayStats, data, config = {}) {
         const now = new Date();
         const dateStr = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日`;
 
         const analysis = DataModule.getReportAnalysis();
-        const images = ChartsModule.reportImages();
+        const selected = config.selectedKeys || analysis.map(a => a.key);
+        const crops = config.crops || {};
+        const edits = config.edits || {};
 
-        // 短周期规律（星期效应）以文字附在概览
+        const chosen = analysis.filter(a => selected.includes(a.key));
+        const images = ChartsModule.reportImages(crops);
+
         const pattern = DataModule.getWeekdayPattern();
 
         return {
@@ -22,8 +32,13 @@ const ReportModule = {
                 cycleYear: cycleInfo.year,
                 weekday: pattern.summary,
             },
-            // 图片按 analysis 的 key 对应；cointime 无图
-            sections: analysis.map(a => ({ ...a, image: images[a.key] || null })),
+            // 图片按 key 对应（cointime 无图）；文本用编辑后的（回退到自动文案）
+            sections: chosen.map(a => ({
+                ...a,
+                position: (edits[a.key] && edits[a.key].position != null) ? edits[a.key].position : a.position,
+                outlook: (edits[a.key] && edits[a.key].outlook != null) ? edits[a.key].outlook : a.outlook,
+                image: images[a.key] || null,
+            })),
         };
     },
 
@@ -62,21 +77,28 @@ const ReportModule = {
         `;
 
         for (const s of report.sections) {
-            html += `<div style="background:#1a1a2e;border:1px solid #374151;border-radius:12px;padding:18px;margin-bottom:18px;">
-                <div style="font-size:17px;font-weight:700;color:#f7931a;margin-bottom:12px;">${s.title}</div>`;
-            if (s.image) {
-                html += `<img src="${s.image}" style="width:100%;border-radius:8px;margin-bottom:12px;display:block;">`;
-            }
-            html += `
+            // 图左观点右：有图时两列布局（图 58% / 观点 42%）；无图（如 Cointime）时观点占满
+            const opinionHtml = `
                 <div style="margin-bottom:10px;">
                     <span style="display:inline-block;background:#252547;color:#93c5fd;font-size:12px;padding:2px 8px;border-radius:4px;margin-bottom:4px;">当前位置</span>
-                    <div style="font-size:14px;line-height:1.6;color:#d1d5db;">${s.position}</div>
+                    <div style="font-size:14px;line-height:1.6;color:#d1d5db;white-space:pre-wrap;">${s.position}</div>
                 </div>
                 <div>
                     <span style="display:inline-block;background:#252547;color:#fbbf24;font-size:12px;padding:2px 8px;border-radius:4px;margin-bottom:4px;">后市展望</span>
-                    <div style="font-size:14px;line-height:1.6;color:#d1d5db;">${s.outlook}</div>
-                </div>
-            </div>`;
+                    <div style="font-size:14px;line-height:1.6;color:#d1d5db;white-space:pre-wrap;">${s.outlook}</div>
+                </div>`;
+
+            html += `<div style="background:#1a1a2e;border:1px solid #374151;border-radius:12px;padding:18px;margin-bottom:18px;">
+                <div style="font-size:17px;font-weight:700;color:#f7931a;margin-bottom:12px;">${s.title}</div>`;
+            if (s.image) {
+                html += `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;">
+                    <div style="flex:1 1 58%;min-width:340px;"><img src="${s.image}" style="width:100%;border-radius:8px;display:block;"></div>
+                    <div style="flex:1 1 38%;min-width:220px;">${opinionHtml}</div>
+                </div>`;
+            } else {
+                html += opinionHtml;
+            }
+            html += `</div>`;
         }
 
         html += `<div style="font-size:11px;color:#6b7280;text-align:center;margin-top:8px;">

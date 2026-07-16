@@ -26,16 +26,19 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Run incremental update
+      - name: Run incremental update (行情)
         run: python scripts/update_data.py
+
+      - name: Run incremental update (链上 MVRV / 已实现价格)
+        run: python scripts/update_onchain.py
 
       - name: Commit changes if any
         run: |
-          if [ -n "$(git status --porcelain data/btc_historical.csv)" ]; then
+          if [ -n "$(git status --porcelain data/btc_historical.csv data/mvrv.csv data/realized_price.csv)" ]; then
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add data/btc_historical.csv
-            git commit -m "data: auto-update BTC daily data [skip ci]"
+            git add data/btc_historical.csv data/mvrv.csv data/realized_price.csv
+            git commit -m "data: auto-update BTC daily + on-chain data [skip ci]"
             git push
           else
             echo "No new data; nothing to commit."

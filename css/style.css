@@ -11,53 +11,43 @@ body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
-.chart-period-btn {
-    background: var(--dark-700);
-    color: #9ca3af;
-    transition: all 0.2s;
-}
-
-.chart-period-btn:hover {
-    background: #333366;
-    color: white;
-}
-
-.chart-period-btn.active {
-    background: var(--gold);
-    color: black;
-    font-weight: 600;
-}
-
-.rsi-period-btn {
-    background: var(--dark-700);
-    color: #9ca3af;
-    transition: all 0.2s;
-}
-
-.rsi-period-btn:hover {
-    background: #333366;
-    color: white;
-}
-
-.rsi-period-btn.active {
-    background: var(--gold);
-    color: black;
-    font-weight: 600;
-}
-
+/* ===== 亮色（默认）与暗色两套工具按钮样式 =====
+   默认 = 亮色；html.dark 时用深色。主色 active 态两者一致。 */
+.chart-period-btn,
+.rsi-period-btn,
 .zoom-reset-btn,
 .chart-tool-btn {
-    background: var(--dark-700);
-    color: #9ca3af;
+    background: #e5e7eb;
+    color: #475569;
     transition: all 0.2s;
 }
 
+.chart-period-btn:hover,
+.rsi-period-btn:hover,
 .zoom-reset-btn:hover,
 .chart-tool-btn:hover {
+    background: #d1d5db;
+    color: #111827;
+}
+
+html.dark .chart-period-btn,
+html.dark .rsi-period-btn,
+html.dark .zoom-reset-btn,
+html.dark .chart-tool-btn {
+    background: var(--dark-700);
+    color: #9ca3af;
+}
+
+html.dark .chart-period-btn:hover,
+html.dark .rsi-period-btn:hover,
+html.dark .zoom-reset-btn:hover,
+html.dark .chart-tool-btn:hover {
     background: #333366;
     color: white;
 }
 
+.chart-period-btn.active,
+.rsi-period-btn.active,
 .chart-tool-btn.active {
     background: var(--gold);
     color: black;
@@ -66,9 +56,13 @@ body {
 
 /* 全屏时把图表卡片铺满视口 */
 .chart-card:fullscreen {
-    background: var(--dark-900);
+    background: #ffffff;
     padding: 24px;
     overflow: auto;
+}
+
+html.dark .chart-card:fullscreen {
+    background: var(--dark-900);
 }
 
 .chart-card:fullscreen .chart-canvas-wrap {

@@ -19,6 +19,8 @@ const CYCLE_YEAR_PHASES = {
 const DataModule = {
     rawData: [],
     processedData: [],
+    onchainData: [],   // [{date, mvrv, realizedPrice}] 升序
+    _mvrvBands: null,
 
     async loadCSV() {
         try {
@@ -31,6 +33,47 @@ const DataModule = {
             console.error('Failed to load CSV:', e);
             return [];
         }
+    },
+
+    // 加载链上 CSV（MVRV Ratio + Realized Price），按日期 join。格式：逗号分隔、降序、
+    // 首行表头、日期形如 2026-07-15T00:00:00Z。缺任一值的日期跳过。
+    async loadOnchainCSV() {
+        try {
+            const [mvrvText, rpText] = await Promise.all([
+                fetch('data/mvrv.csv').then(r => r.text()),
+                fetch('data/realized_price.csv').then(r => r.text()),
+            ]);
+            const mvrv = this._parseOnchainCol(mvrvText);
+            const rp = this._parseOnchainCol(rpText);
+            const merged = [];
+            for (const [day, m] of mvrv) {
+                const r = rp.get(day);
+                if (r == null) continue;
+                merged.push({ date: new Date(day), mvrv: m, realizedPrice: r });
+            }
+            this.onchainData = merged.sort((a, b) => a.date - b.date);
+            this._mvrvBands = null; // 失效重算
+            return this.onchainData;
+        } catch (e) {
+            console.warn('Failed to load on-chain CSV:', e.message);
+            this.onchainData = [];
+            return [];
+        }
+    },
+
+    // 解析「Datetime,Value」两列 CSV，返回 Map<YYYY-MM-DD, number>（跳过空值）
+    _parseOnchainCol(text) {
+        const map = new Map();
+        const lines = text.trim().split('\n');
+        for (let i = 1; i < lines.length; i++) {
+            const cols = lines[i].split(',');
+            if (cols.length < 2) continue;
+            const day = cols[0].trim().slice(0, 10);
+            const v = parseFloat(cols[1]);
+            if (!day || isNaN(v)) continue;
+            map.set(day, v);
+        }
+        return map;
     },
 
     parseCSV(text) {
@@ -151,11 +194,62 @@ const DataModule = {
         return data[data.length - 1].close / ma200;
     },
 
+    // ===== MVRV Pricing Bands（本地自绘，数据来自 CryptoQuant 导出的 CSV）=====
+    // 模型：Price ≈ MVRV × RealizedPrice。取全历史 MVRV 的均值/标准差，
+    // 每条 band 的价格 = RealizedPrice × (mean + k·sd)。与 CheckOnChain 的 MVRV
+    // Pricing Bands 图一致。
+    MVRV_BAND_DEFS: [
+        { key: '+2.0sd', k: 2, color: '#ec4899' },
+        { key: '+1.0sd', k: 1, color: '#f43f5e' },
+        { key: '+0.5sd', k: 0.5, color: '#f59e0b' },
+        { key: 'mean', k: 0, color: '#eab308' },
+        { key: '-0.5sd', k: -0.5, color: '#3b82f6' },
+        { key: '-1.0sd', k: -1, color: '#10b981' },
+    ],
+
+    getMvrvBands() {
+        if (this._mvrvBands) return this._mvrvBands;
+        if (!this.onchainData.length) return null;
+        const vals = this.onchainData.map(d => d.mvrv);
+        const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+        const variance = vals.reduce((a, b) => a + (b - mean) ** 2, 0) / vals.length;
+        const sd = Math.sqrt(variance);
+        const bands = this.MVRV_BAND_DEFS.map(def => ({
+            ...def,
+            coef: mean + def.k * sd,
+        }));
+        this._mvrvBands = { mean, sd, bands };
+        return this._mvrvBands;
+    },
+
+    // 最新 MVRV 值 + 落在哪个 band 区间（用于概览/周报）
+    getMvrvCurrent() {
+        if (!this.onchainData.length) return null;
+        const latest = this.onchainData[this.onchainData.length - 1];
+        const bandInfo = this.getMvrvBands();
+        if (!bandInfo) return null;
+        const { bands } = bandInfo;
+        // bands 从高到低排序，找当前 MVRV 所处的相邻两条 band 之间
+        let zone = `低于 ${bands[bands.length - 1].key}`;
+        if (latest.mvrv >= bands[0].coef) zone = `高于 ${bands[0].key}`;
+        else {
+            for (let i = 0; i < bands.length - 1; i++) {
+                if (latest.mvrv < bands[i].coef && latest.mvrv >= bands[i + 1].coef) {
+                    zone = `${bands[i + 1].key} ~ ${bands[i].key} 之间`;
+                    break;
+                }
+            }
+        }
+        return { date: latest.date, mvrv: latest.mvrv, realizedPrice: latest.realizedPrice, zone };
+    },
+
     getWeekdayStats() {
+        // 短周期规律仅分析近 3 个月（约 90 天）——比全历史更贴近当下节奏
+        const recent = this.processedData.slice(-91);
         const stats = Array.from({ length: 7 }, () => ({ up: 0, down: 0, total: 0, sumRet: 0 }));
-        for (let i = 1; i < this.processedData.length; i++) {
-            const d = this.processedData[i];
-            const prev = this.processedData[i - 1];
+        for (let i = 1; i < recent.length; i++) {
+            const d = recent[i];
+            const prev = recent[i - 1];
             const day = d.date.getDay();
             const ret = (d.close - prev.close) / prev.close;
             stats[day].total++;
@@ -188,7 +282,7 @@ const DataModule = {
             worstRate: stats[worst].upRate,
             bestAvgRet: stats[best].avgRet,
             worstAvgRet: stats[worst].avgRet,
-            summary: `历史数据显示：${dayNames[best]}上涨概率最高（${(stats[best].upRate * 100).toFixed(1)}%，平均 ${(stats[best].avgRet * 100).toFixed(2)}%），${dayNames[worst]}最弱（${(stats[worst].upRate * 100).toFixed(1)}%，平均 ${(stats[worst].avgRet * 100).toFixed(2)}%）。`
+            summary: `近 3 个月数据显示：${dayNames[best]}上涨概率最高（${(stats[best].upRate * 100).toFixed(1)}%，平均 ${(stats[best].avgRet * 100).toFixed(2)}%），${dayNames[worst]}最弱（${(stats[worst].upRate * 100).toFixed(1)}%，平均 ${(stats[worst].avgRet * 100).toFixed(2)}%）。`
         };
     },
 
@@ -408,6 +502,27 @@ const DataModule = {
         return { key: 'mayer', title: 'Mayer Multiple（价格/MA200）', position, outlook };
     },
 
+    // MVRV 分析（本地自绘 Pricing Bands）：当前 MVRV 值、所处 band 区间、离顶/底 band 的距离
+    analyzeMvrv() {
+        const cur = this.getMvrvCurrent();
+        if (!cur) return null;
+        const { bands } = this.getMvrvBands();
+        const top = bands[0];          // +2.0sd
+        const bottom = bands[bands.length - 1]; // -1.0sd
+        const impliedPrice = cur.mvrv * cur.realizedPrice;
+        const topPrice = top.coef * cur.realizedPrice;
+        const bottomPrice = bottom.coef * cur.realizedPrice;
+
+        const position = `当前 MVRV = ${cur.mvrv.toFixed(2)}（已实现价格 $${Math.round(cur.realizedPrice).toLocaleString()}，隐含市场均价约 $${Math.round(impliedPrice).toLocaleString()}），处于 ${cur.zone}。历史均值 ${this.getMvrvBands().mean.toFixed(2)}，+2.0sd 顶部带 ${top.coef.toFixed(2)}（≈$${Math.round(topPrice).toLocaleString()}），-1.0sd 底部带 ${bottom.coef.toFixed(2)}（≈$${Math.round(bottomPrice).toLocaleString()}）。`;
+
+        let outlook;
+        if (cur.mvrv >= top.coef) outlook = `MVRV 已触及 +2.0sd 过热带，历史上此区间对应周期顶部风险，链上持币者浮盈丰厚、抛压易积累。`;
+        else if (cur.mvrv <= bottom.coef) outlook = `MVRV 跌破 -1.0sd 底部带，全市场平均处于亏损，历史上是周期底部的价值区，但磨底可能持续。`;
+        else if (cur.mvrv < this.getMvrvBands().mean) outlook = `MVRV 低于历史均值，市场情绪偏冷，向下距 -1.0sd 底部带（≈$${Math.round(bottomPrice).toLocaleString()}）尚有空间，若继续回落将逼近历史价值区。`;
+        else outlook = `MVRV 高于历史均值但未到过热带，中性偏暖，向上距 +2.0sd 顶部带（≈$${Math.round(topPrice).toLocaleString()}）仍有空间。`;
+        return { key: 'mvrv', title: 'MVRV 估值带（本地自绘）', position, outlook };
+    },
+
     // RSI 分析（日线 + 周线）
     analyzeRSI() {
         const data = this.processedData;
@@ -438,6 +553,7 @@ const DataModule = {
             this.analyzeCycle(),
             this.analyzeMA(),
             this.analyzeMayer(),
+            this.analyzeMvrv(),
             this.analyzeRSI(),
             this.analyzeCointime(),
         ].filter(Boolean);

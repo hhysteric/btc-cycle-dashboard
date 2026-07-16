@@ -36,7 +36,7 @@
                 <h1 class="text-xl font-bold">BTC 周期分析 Dashboard</h1>
             </div>
             <div class="flex items-center gap-4">
-                <span id="last-update" class="text-xs text-gray-400"></span>
+                <span id="last-update" class="text-xs text-gray-500 dark:text-gray-400"></span>
                 <button id="btn-theme-toggle" class="w-9 h-9 rounded-lg border border-gray-300 dark:border-gray-600 flex items-center justify-center text-lg hover:bg-gray-200 dark:hover:bg-dark-700 transition" title="切换亮/暗主题">🌙</button>
                 <!-- 私人入口：默认隐藏，仅当 URL 含 #report 或 ?report 时显示 -->
                 <button id="btn-export-report" class="hidden bg-accent-gold hover:bg-yellow-500 text-black font-semibold px-4 py-2 rounded-lg transition flex items-center gap-2">
@@ -51,58 +51,58 @@
         <!-- Overview Cards -->
         <section id="overview" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div class="bg-white dark:bg-dark-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
-                <p class="text-gray-400 text-sm">BTC 当前价格</p>
+                <p class="text-gray-500 dark:text-gray-400 text-sm">BTC 当前价格</p>
                 <p id="current-price" class="text-2xl font-bold text-accent-gold mt-1">--</p>
                 <p id="price-change" class="text-sm mt-1">--</p>
             </div>
             <div class="bg-white dark:bg-dark-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
-                <p class="text-gray-400 text-sm">市值</p>
+                <p class="text-gray-500 dark:text-gray-400 text-sm">市值</p>
                 <p id="market-cap" class="text-2xl font-bold mt-1">--</p>
-                <p class="text-gray-500 text-sm mt-1">Market Cap</p>
+                <p class="text-gray-600 dark:text-gray-500 text-sm mt-1">Market Cap</p>
             </div>
             <div class="bg-white dark:bg-dark-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
-                <p class="text-gray-400 text-sm">四年周期阶段</p>
+                <p class="text-gray-500 dark:text-gray-400 text-sm">四年周期阶段</p>
                 <p id="cycle-phase" class="text-2xl font-bold mt-1">--</p>
-                <p id="cycle-year" class="text-sm text-gray-400 mt-1">--</p>
+                <p id="cycle-year" class="text-sm text-gray-500 dark:text-gray-400 mt-1">--</p>
             </div>
             <div class="bg-white dark:bg-dark-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
-                <p class="text-gray-400 text-sm">距下次减半</p>
+                <p class="text-gray-500 dark:text-gray-400 text-sm">距下次减半</p>
                 <p id="next-halving" class="text-2xl font-bold mt-1">--</p>
-                <p class="text-gray-500 text-sm mt-1">预计 2028年4月</p>
+                <p class="text-gray-600 dark:text-gray-500 text-sm mt-1">预计 2028年4月</p>
             </div>
         </section>
 
         <!-- Four-Year Calendar Cycle Model -->
         <section class="bg-white dark:bg-dark-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
             <h2 class="text-lg font-semibold mb-1">四年大周期模型（3年涨 + 1年跌）</h2>
-            <p class="text-gray-400 text-sm mb-4">基于日历年规律：减半年启动牛市，次年见顶，随后回调筑底。<span id="cycle-year-note"></span></p>
+            <p class="text-gray-500 dark:text-gray-400 text-sm mb-4">基于日历年规律：减半年启动牛市，次年见顶，随后回调筑底。<span id="cycle-year-note"></span></p>
             <div class="grid grid-cols-4 gap-2" id="cycle-phase-grid">
                 <div class="phase-cell rounded-lg p-3 text-center border-2 border-transparent" data-phase="1st-bull" style="background:rgba(20,184,166,0.12)">
-                    <p class="text-xs text-gray-400">减半年 (÷4=0)</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">减半年 (÷4=0)</p>
                     <p class="font-semibold" style="color:#14b8a6">首轮牛市</p>
-                    <p class="text-xs text-gray-500 mt-1">2016·2020·2024·2028</p>
+                    <p class="text-xs text-gray-600 dark:text-gray-500 mt-1">2016·2020·2024·2028</p>
                 </div>
                 <div class="phase-cell rounded-lg p-3 text-center border-2 border-transparent" data-phase="2nd-bull" style="background:rgba(34,197,94,0.12)">
-                    <p class="text-xs text-gray-400">次年 (÷4=1)</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">次年 (÷4=1)</p>
                     <p class="font-semibold" style="color:#22c55e">次轮牛市/顶部</p>
-                    <p class="text-xs text-gray-500 mt-1">2017·2021·2025·2029</p>
+                    <p class="text-xs text-gray-600 dark:text-gray-500 mt-1">2017·2021·2025·2029</p>
                 </div>
                 <div class="phase-cell rounded-lg p-3 text-center border-2 border-transparent" data-phase="bear" style="background:rgba(239,68,68,0.12)">
-                    <p class="text-xs text-gray-400">第三年 (÷4=2)</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">第三年 (÷4=2)</p>
                     <p class="font-semibold" style="color:#ef4444">熊市回调</p>
-                    <p class="text-xs text-gray-500 mt-1">2014·2018·2022·2026</p>
+                    <p class="text-xs text-gray-600 dark:text-gray-500 mt-1">2014·2018·2022·2026</p>
                 </div>
                 <div class="phase-cell rounded-lg p-3 text-center border-2 border-transparent" data-phase="pre-bull" style="background:rgba(59,130,246,0.12)">
-                    <p class="text-xs text-gray-400">第四年 (÷4=3)</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">第四年 (÷4=3)</p>
                     <p class="font-semibold" style="color:#3b82f6">预备牛市</p>
-                    <p class="text-xs text-gray-500 mt-1">2015·2019·2023·2027</p>
+                    <p class="text-xs text-gray-600 dark:text-gray-500 mt-1">2015·2019·2023·2027</p>
                 </div>
             </div>
             <div class="relative mt-4">
                 <div class="h-3 bg-gray-200 dark:bg-dark-700 rounded-full overflow-hidden">
                     <div id="cycle-progress-bar" class="h-full bg-gradient-to-r from-teal-500 via-green-500 to-red-500 rounded-full transition-all" style="width: 0%"></div>
                 </div>
-                <div class="flex justify-between mt-2 text-xs text-gray-400">
+                <div class="flex justify-between mt-2 text-xs text-gray-500 dark:text-gray-400">
                     <span id="cycle-start-label">减半年初</span>
                     <span>首轮牛</span>
                     <span>次轮牛/顶</span>
@@ -130,7 +130,7 @@
             <div class="chart-canvas-wrap h-80">
                 <canvas id="price-chart"></canvas>
             </div>
-            <p class="text-xs text-gray-500 mt-2">滚轮缩放（横纵同时），Shift+滚轮只缩纵轴、Ctrl+滚轮只缩横轴，拖动平移；「对数」切换纵轴刻度，「全屏」放大整图便于精调</p>
+            <p class="text-xs text-gray-600 dark:text-gray-500 mt-2">滚轮缩放（横纵同时），Shift+滚轮只缩纵轴、Ctrl+滚轮只缩横轴，拖动平移；「对数」切换纵轴刻度，「全屏」放大整图便于精调</p>
         </section>
 
         <!-- Four Year Cycle -->
@@ -143,7 +143,7 @@
                     <button class="chart-tool-btn fullscreen-btn px-3 py-1 rounded text-sm" data-target="card-cycle">全屏</button>
                 </div>
             </div>
-            <p class="text-gray-400 text-sm mb-4">每条曲线从该轮周期的历史最高点开始（起点=1.0），展示见顶后的回撤与恢复。横轴为距最高点天数，纵轴为相对最高点倍数。滚轮缩放（横纵同时），Shift+滚轮只缩纵轴，拖动平移</p>
+            <p class="text-gray-500 dark:text-gray-400 text-sm mb-4">每条曲线从该轮周期的历史最高点开始（起点=1.0），展示见顶后的回撤与恢复。横轴为距最高点天数，纵轴为相对最高点倍数。滚轮缩放（横纵同时），Shift+滚轮只缩纵轴，拖动平移</p>
             <div class="chart-canvas-wrap h-80">
                 <canvas id="cycle-chart"></canvas>
             </div>
@@ -152,17 +152,17 @@
         <!-- Short-cycle (weekday) Regularity Analysis -->
         <section class="bg-white dark:bg-dark-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
             <h2 class="text-lg font-semibold mb-2">短周期规律分析 - 星期效应</h2>
-            <p class="text-gray-400 text-sm mb-3">基于全部历史日线，统计每周各天的上涨概率与平均涨幅，找出短周期规律（思路参考 <a href="https://x.com/KillaXBT" class="text-accent-gold hover:underline" target="_blank">@KillaXBT</a>）</p>
-            <div id="weekday-summary" class="p-3 bg-gray-200 dark:bg-dark-700 rounded-lg text-sm mb-4 text-gray-200">分析中...</div>
+            <p class="text-gray-500 dark:text-gray-400 text-sm mb-3">基于全部历史日线，统计每周各天的上涨概率与平均涨幅，找出短周期规律（思路参考 <a href="https://x.com/KillaXBT" class="text-accent-gold hover:underline" target="_blank">@KillaXBT</a>）</p>
+            <div id="weekday-summary" class="p-3 bg-gray-200 dark:bg-dark-700 rounded-lg text-sm mb-4 text-gray-700 dark:text-gray-200">分析中...</div>
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div>
-                    <p class="text-xs text-gray-400 mb-2">各星期上涨概率 / 平均涨幅</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">各星期上涨概率 / 平均涨幅</p>
                     <div class="h-64">
                         <canvas id="weekday-chart"></canvas>
                     </div>
                 </div>
                 <div>
-                    <p class="text-xs text-gray-400 mb-2">近半年 K 线（标注最强/最弱星期）</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">近半年 K 线（标注最强/最弱星期）</p>
                     <div class="h-64">
                         <canvas id="weekday-price-chart"></canvas>
                     </div>
@@ -189,7 +189,7 @@
                 <div class="chart-canvas-wrap h-80">
                     <canvas id="rsi-chart"></canvas>
                 </div>
-                <p class="text-xs text-gray-500 mt-2">滚轮缩放（横纵同时）、Shift+滚轮只缩纵轴、拖动平移，可查看历轮周期。周线 RSI-14 &lt;30 常对应周期底部；&gt;70 为超买</p>
+                <p class="text-xs text-gray-600 dark:text-gray-500 mt-2">滚轮缩放（横纵同时）、Shift+滚轮只缩纵轴、拖动平移，可查看历轮周期。周线 RSI-14 &lt;30 常对应周期底部；&gt;70 为超买</p>
             </div>
             <div id="card-mayer" class="chart-card bg-white dark:bg-dark-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
                 <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
@@ -205,7 +205,7 @@
                 <div class="chart-canvas-wrap h-80">
                     <canvas id="mayer-chart"></canvas>
                 </div>
-                <p class="text-xs text-gray-500 mt-2">滚轮缩放（横纵同时）、Shift+滚轮只缩纵轴、拖动平移。历史上 &gt;2.4 偏高（顶部风险），&lt;1 偏低（价值区）</p>
+                <p class="text-xs text-gray-600 dark:text-gray-500 mt-2">滚轮缩放（横纵同时）、Shift+滚轮只缩纵轴、拖动平移。历史上 &gt;2.4 偏高（顶部风险），&lt;1 偏低（价值区）</p>
             </div>
         </section>
 
@@ -213,7 +213,7 @@
         <section class="space-y-4">
             <div class="bg-white dark:bg-dark-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
                 <h2 class="text-lg font-semibold mb-1">链上估值指标</h2>
-                <p class="text-gray-400 text-sm">MVRV 估值带为本地自绘（数据源 <a href="https://cryptoquant.com/asset/btc/chart/market-indicator/mvrv-ratio" class="text-accent-gold hover:underline" target="_blank">CryptoQuant</a> 导出的 MVRV / 已实现价格，可缩放、对数、全屏、进入周报）；NUPL / Cointime / 成本基础线暂仍嵌入 <a href="https://charts.checkonchain.com" class="text-accent-gold hover:underline" target="_blank">CheckOnChain</a> 官方大图。</p>
+                <p class="text-gray-500 dark:text-gray-400 text-sm">MVRV 估值带为本地自绘（数据源 <a href="https://cryptoquant.com/asset/btc/chart/market-indicator/mvrv-ratio" class="text-accent-gold hover:underline" target="_blank">CryptoQuant</a> 导出的 MVRV / 已实现价格，可缩放、对数、全屏、进入周报）；NUPL / Cointime / 成本基础线暂仍嵌入 <a href="https://charts.checkonchain.com" class="text-accent-gold hover:underline" target="_blank">CheckOnChain</a> 官方大图。</p>
             </div>
 
             <!-- 本地自绘 MVRV 估值带（Pricing Bands），数据来自 data/mvrv.csv + realized_price.csv -->
@@ -223,14 +223,17 @@
                     <div class="flex gap-2 items-center">
                         <span id="mvrv-current" class="text-sm text-accent-gold font-semibold">--</span>
                         <span class="w-px h-5 bg-gray-400 dark:bg-gray-600 mx-1"></span>
-                        <button class="chart-tool-btn log-btn active px-3 py-1 rounded text-sm" data-chart="mvrv" data-axis="y">对数</button>
+                        <button class="chart-tool-btn log-btn active px-3 py-1 rounded text-sm" data-chart="mvrvPrice" data-axis="y">对数</button>
                         <button class="zoom-reset-btn px-3 py-1 rounded text-sm" data-chart="mvrv">重置</button>
                         <button class="chart-tool-btn fullscreen-btn px-3 py-1 rounded text-sm" data-target="card-mvrv-local">全屏</button>
                     </div>
                 </div>
-                <p class="text-gray-400 text-sm mb-3">价格叠加已实现价格与 ±sd 估值带：价格触及 +2.0sd 为过热顶部区，跌破 -1.0sd 为亏损底部区。滚轮缩放（横纵同时）、Shift 只缩纵轴、拖动平移。</p>
-                <div class="chart-canvas-wrap h-96">
-                    <canvas id="mvrv-chart"></canvas>
+                <p class="text-gray-500 dark:text-gray-400 text-sm mb-3">上图价格叠加已实现价格与 ±sd 价格带（价格触及 +2.0sd 为过热顶部区、跌破 -1.0sd 为亏损底部区）；下图为 MVRV Ratio 及其估值带。滚轮缩放、Shift 只缩纵轴、拖动平移，两图各自独立。</p>
+                <div class="chart-canvas-wrap" style="height:340px">
+                    <canvas id="mvrv-price-chart"></canvas>
+                </div>
+                <div class="chart-canvas-wrap mt-2" style="height:180px">
+                    <canvas id="mvrv-ratio-chart"></canvas>
                 </div>
             </div>
 
@@ -301,7 +304,7 @@
                         <span id="funding-rate" class="font-semibold">--</span>
                     </div>
                 </div>
-                <p class="text-xs text-gray-500 mt-3">数据来源: CoinGlass / Binance API</p>
+                <p class="text-xs text-gray-600 dark:text-gray-500 mt-3">数据来源: CoinGlass / Binance API</p>
             </div>
             <div class="bg-white dark:bg-dark-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
                 <h2 class="text-lg font-semibold mb-3">增量资金</h2>
@@ -319,7 +322,7 @@
                         <span id="stablecoin-supply" class="font-semibold">--</span>
                     </div>
                 </div>
-                <p class="text-xs text-gray-500 mt-3">数据来源: CoinGecko / DefiLlama</p>
+                <p class="text-xs text-gray-600 dark:text-gray-500 mt-3">数据来源: CoinGecko / DefiLlama</p>
             </div>
         </section>
 

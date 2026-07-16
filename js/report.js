@@ -26,21 +26,23 @@ const ReportModule = {
 
         const pattern = DataModule.getWeekdayPattern();
 
-        // 内置指标段：上传图优先，否则用自动图（可能为 null）
+        // 内置指标段：上传图优先，否则用自动图（可能为 null）。uploaded 标记用于排版（上传图可能含白底）
         const builtinSections = chosen.map(a => ({
             ...a,
             position: (edits[a.key] && edits[a.key].position != null) ? edits[a.key].position : a.position,
             outlook: (edits[a.key] && edits[a.key].outlook != null) ? edits[a.key].outlook : a.outlook,
             image: uploads[a.key] || images[a.key] || null,
+            uploaded: !!uploads[a.key],
         }));
 
-        // 自定义段：标题/观点/图都来自用户；图可选
+        // 自定义段：标题/观点/图都来自用户；图可选（上传图）
         const customs = customSections.map(c => ({
             key: c.key,
             title: c.title || '自定义指标',
             position: c.position || '',
             outlook: c.outlook || '',
             image: c.image || null,
+            uploaded: !!c.image,
         }));
 
         return {
@@ -108,8 +110,17 @@ const ReportModule = {
             html += `<div style="background:#1a1a2e;border:1px solid #374151;border-radius:12px;padding:18px;margin-bottom:18px;">
                 <div style="font-size:17px;font-weight:700;color:#f7931a;margin-bottom:12px;">${s.title}</div>`;
             if (s.image) {
+                // 上传图可能含白底/透明：放到白色卡片里加内边距，保证白图也可见；
+                // object-fit:contain + max-height 保持原始比例、避免被拉伸或过大。
+                // 自动生成的图表本身是深色成品，直接铺满即可。
+                const imgWrapStyle = s.uploaded
+                    ? 'background:#ffffff;border-radius:8px;padding:8px;box-sizing:border-box;'
+                    : '';
+                const imgStyle = s.uploaded
+                    ? 'width:100%;max-height:360px;object-fit:contain;border-radius:4px;display:block;'
+                    : 'width:100%;border-radius:8px;display:block;';
                 html += `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;">
-                    <div style="flex:1 1 58%;min-width:340px;"><img src="${s.image}" style="width:100%;border-radius:8px;display:block;"></div>
+                    <div style="flex:1 1 58%;min-width:340px;"><div style="${imgWrapStyle}"><img src="${s.image}" style="${imgStyle}"></div></div>
                     <div style="flex:1 1 38%;min-width:220px;">${opinionHtml}</div>
                 </div>`;
             } else {

@@ -152,17 +152,17 @@
         <!-- Short-cycle (weekday) Regularity Analysis -->
         <section class="bg-white dark:bg-dark-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
             <h2 class="text-lg font-semibold mb-2">短周期规律分析 - 星期效应</h2>
-            <p class="text-gray-500 dark:text-gray-400 text-sm mb-3">基于全部历史日线，统计每周各天的上涨概率与平均涨幅，找出短周期规律（思路参考 <a href="https://x.com/KillaXBT" class="text-accent-gold hover:underline" target="_blank">@KillaXBT</a>）</p>
+            <p class="text-gray-500 dark:text-gray-400 text-sm mb-3">基于近 3 个月日线，统计每周各天的涨/跌概率与平均涨幅，找出短周期规律（上涨概率≥50% 记为偏涨、否则偏跌；思路参考 <a href="https://x.com/KillaXBT" class="text-accent-gold hover:underline" target="_blank">@KillaXBT</a>）</p>
             <div id="weekday-summary" class="p-3 bg-gray-200 dark:bg-dark-700 rounded-lg text-sm mb-4 text-gray-700 dark:text-gray-200">分析中...</div>
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div>
-                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">各星期上涨概率 / 平均涨幅</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">各星期涨/跌概率 / 平均涨幅（悬停看下跌概率）</p>
                     <div class="h-64">
                         <canvas id="weekday-chart"></canvas>
                     </div>
                 </div>
                 <div>
-                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">近半年 K 线（标注最强/最弱星期）</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">近 3 个月 K 线（标注最强/最弱星期）</p>
                     <div class="h-64">
                         <canvas id="weekday-price-chart"></canvas>
                     </div>
@@ -223,17 +223,14 @@
                     <div class="flex gap-2 items-center">
                         <span id="mvrv-current" class="text-sm text-accent-gold font-semibold">--</span>
                         <span class="w-px h-5 bg-gray-400 dark:bg-gray-600 mx-1"></span>
-                        <button class="chart-tool-btn log-btn active px-3 py-1 rounded text-sm" data-chart="mvrvPrice" data-axis="y">对数</button>
+                        <button class="chart-tool-btn log-btn active px-3 py-1 rounded text-sm" data-chart="mvrv" data-axis="y">对数</button>
                         <button class="zoom-reset-btn px-3 py-1 rounded text-sm" data-chart="mvrv">重置</button>
                         <button class="chart-tool-btn fullscreen-btn px-3 py-1 rounded text-sm" data-target="card-mvrv-local">全屏</button>
                     </div>
                 </div>
-                <p class="text-gray-500 dark:text-gray-400 text-sm mb-3">上图价格叠加已实现价格与 ±sd 价格带（价格触及 +2.0sd 为过热顶部区、跌破 -1.0sd 为亏损底部区）；下图为 MVRV Ratio 及其估值带。滚轮缩放、Shift 只缩纵轴、拖动平移，两图各自独立。</p>
-                <div class="chart-canvas-wrap" style="height:340px">
-                    <canvas id="mvrv-price-chart"></canvas>
-                </div>
-                <div class="chart-canvas-wrap mt-2" style="height:180px">
-                    <canvas id="mvrv-ratio-chart"></canvas>
+                <p class="text-gray-500 dark:text-gray-400 text-sm mb-3">上栏价格叠加已实现价格与 ±sd 价格估值带（触及 +2.0sd 为过热顶部区、跌破 -1.0sd 为亏损底部区）；下栏为 MVRV Ratio 及其估值带。估值带用逐日累计（expanding）均值/标准差，随时间收敛（曲线）。滚轮缩放、Shift 只缩价格轴、Alt 只缩 MVRV 轴、拖动平移。</p>
+                <div class="chart-canvas-wrap" style="height:540px">
+                    <canvas id="mvrv-chart"></canvas>
                 </div>
             </div>
 

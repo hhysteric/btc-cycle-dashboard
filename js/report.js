@@ -5,7 +5,11 @@ const ReportModule = {
     },
 
     // 生成周报数据：概览 + 选中指标的 {图, 位置分析, 后市展望}
-    // config: { selectedKeys:[...], crops:{key:{...}}, edits:{key:{position,outlook}} }
+    // config: {
+    //   selectedKeys:[...], crops:{key:{...}}, edits:{key:{position,outlook}},
+    //   uploads:{key:dataURL},          // 用户上传的图，覆盖该指标的自动图（无图指标传了即用）
+    //   customSections:[{key,title,position,outlook,image}]  // 用户新增的自定义指标（图可选），追加在末尾
+    // }
     generateReport(priceInfo, cycleInfo, weekdayStats, data, config = {}) {
         const now = new Date();
         const dateStr = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日`;
@@ -14,11 +18,30 @@ const ReportModule = {
         const selected = config.selectedKeys || analysis.map(a => a.key);
         const crops = config.crops || {};
         const edits = config.edits || {};
+        const uploads = config.uploads || {};
+        const customSections = config.customSections || [];
 
         const chosen = analysis.filter(a => selected.includes(a.key));
         const images = ChartsModule.reportImages(crops);
 
         const pattern = DataModule.getWeekdayPattern();
+
+        // 内置指标段：上传图优先，否则用自动图（可能为 null）
+        const builtinSections = chosen.map(a => ({
+            ...a,
+            position: (edits[a.key] && edits[a.key].position != null) ? edits[a.key].position : a.position,
+            outlook: (edits[a.key] && edits[a.key].outlook != null) ? edits[a.key].outlook : a.outlook,
+            image: uploads[a.key] || images[a.key] || null,
+        }));
+
+        // 自定义段：标题/观点/图都来自用户；图可选
+        const customs = customSections.map(c => ({
+            key: c.key,
+            title: c.title || '自定义指标',
+            position: c.position || '',
+            outlook: c.outlook || '',
+            image: c.image || null,
+        }));
 
         return {
             title: `BTC 周期分析周报`,
@@ -32,13 +55,7 @@ const ReportModule = {
                 cycleYear: cycleInfo.year,
                 weekday: pattern.summary,
             },
-            // 图片按 key 对应（cointime 无图）；文本用编辑后的（回退到自动文案）
-            sections: chosen.map(a => ({
-                ...a,
-                position: (edits[a.key] && edits[a.key].position != null) ? edits[a.key].position : a.position,
-                outlook: (edits[a.key] && edits[a.key].outlook != null) ? edits[a.key].outlook : a.outlook,
-                image: images[a.key] || null,
-            })),
+            sections: [...builtinSections, ...customs],
         };
     },
 

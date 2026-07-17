@@ -13,9 +13,46 @@ const CHART_COLORS = {
 
 // 页面主题色板（随亮/暗主题切换）。离屏周报图不用这里，始终深色。
 const THEMES = {
-    dark: { tick: '#6b7280', grid: '#1f2937', gridStrong: '#4b5563', legend: '#9ca3af', tooltipBg: '#1a1a2e', tooltipBorder: '#374151' },
-    light: { tick: '#64748b', grid: '#e5e7eb', gridStrong: '#94a3b8', legend: '#475569', tooltipBg: '#ffffff', tooltipBorder: '#cbd5e1' },
+    dark: { tick: '#6b7280', grid: '#1f2937', gridStrong: '#4b5563', legend: '#9ca3af', tooltipBg: '#1a1a2e', tooltipBorder: '#374151', crosshair: 'rgba(148,163,184,0.7)' },
+    light: { tick: '#64748b', grid: '#e5e7eb', gridStrong: '#94a3b8', legend: '#475569', tooltipBg: '#ffffff', tooltipBorder: '#cbd5e1', crosshair: 'rgba(100,116,139,0.7)' },
 };
+
+// 十字准线插件：鼠标在图表区域内移动时，画跟随光标的横线+竖线。
+// 仅对交互图启用（options.plugins.crosshair.enabled=true）；离屏周报图不启用。
+const crosshairPlugin = {
+    id: 'crosshair',
+    afterEvent(chart, args) {
+        const e = args.event;
+        const area = chart.chartArea;
+        if (!area) return;
+        if (e.type === 'mousemove' && e.x >= area.left && e.x <= area.right && e.y >= area.top && e.y <= area.bottom) {
+            chart._crosshair = { x: e.x, y: e.y };
+        } else if (e.type === 'mouseout' || e.type === 'mousemove') {
+            // 移出绘图区则清除
+            if (!(e.x >= area.left && e.x <= area.right && e.y >= area.top && e.y <= area.bottom)) {
+                chart._crosshair = null;
+            }
+        }
+        chart.draw();
+    },
+    afterDraw(chart, args, opts) {
+        if (!opts || !opts.enabled) return;
+        const p = chart._crosshair;
+        const area = chart.chartArea;
+        if (!p || !area) return;
+        const ctx = chart.ctx;
+        ctx.save();
+        ctx.beginPath();
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 3]);
+        ctx.strokeStyle = opts.color || 'rgba(148,163,184,0.7)';
+        ctx.moveTo(p.x, area.top); ctx.lineTo(p.x, area.bottom);   // 竖线
+        ctx.moveTo(area.left, p.y); ctx.lineTo(area.right, p.y);   // 横线
+        ctx.stroke();
+        ctx.restore();
+    },
+};
+if (typeof Chart !== 'undefined') Chart.register(crosshairPlugin);
 
 // 通用缩放/平移配置（工厂函数：每张图独立一份，避免共享引用问题）：
 //  单轴图：滚轮=横纵同时；Shift=只纵轴；Ctrl/Alt=只横轴。
@@ -62,7 +99,8 @@ const ChartsModule = {
             maintainAspectRatio: false,
             plugins: {
                 legend: { labels: { color: c.legend, font: { size: 11 } } },
-                tooltip: { backgroundColor: c.tooltipBg, borderColor: c.tooltipBorder, borderWidth: 1 }
+                tooltip: { backgroundColor: c.tooltipBg, borderColor: c.tooltipBorder, borderWidth: 1 },
+                crosshair: { enabled: true, color: c.crosshair }
             },
             scales: {
                 x: { ticks: { color: c.tick, maxTicksLimit: 8 }, grid: { color: c.grid } },

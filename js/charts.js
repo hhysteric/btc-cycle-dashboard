@@ -644,6 +644,42 @@ const ChartsModule = {
         });
     },
 
+    // 4Y Rolling Realized Price Risk/Reward Ratio：R/R 比(对数,左轴) + 价格(对数,右轴) + 1.0 参考线
+    renderRiskRewardChart(logScale = true) {
+        this.destroyChart('riskreward');
+        const el = document.getElementById('riskreward-chart');
+        if (!el) return;
+        const series = DataModule.getRiskReward();
+        if (!series) return;
+        const pts = series.filter(s => s.rr != null && s.rr > 0);
+        if (!pts.length) return;
+        this.charts['riskreward'] = new Chart(el.getContext('2d'), {
+            data: {
+                labels: pts.map(s => s.date),
+                datasets: [
+                    { type: 'line', label: 'BTC 价格', yAxisID: 'yPrice', data: pts.map(s => s.price), borderColor: 'rgba(247,147,26,0.5)', borderWidth: 1, pointRadius: 0 },
+                    { type: 'line', label: 'R/R 比', yAxisID: 'y', data: pts.map(s => s.rr), borderColor: '#7c5cff', borderWidth: 1.4, pointRadius: 0 },
+                ]
+            },
+            options: {
+                ...this.defaults(),
+                plugins: {
+                    ...this.defaults().plugins,
+                    annotation: { annotations: {
+                        one: { type: 'line', yMin: 1, yMax: 1, yScaleID: 'y', borderColor: 'rgba(107,114,128,0.7)', borderDash: [4, 4], borderWidth: 1, label: { display: true, content: '1.0', position: 'start', color: '#9ca3af', backgroundColor: 'rgba(0,0,0,0)', font: { size: 9 } } },
+                        three: { type: 'line', yMin: 3, yMax: 3, yScaleID: 'y', borderColor: 'rgba(0,211,149,0.4)', borderDash: [3, 3], borderWidth: 1, label: { display: true, content: '3（价值区）', position: 'end', color: '#00d395', backgroundColor: 'rgba(0,0,0,0)', font: { size: 9 } } },
+                    } },
+                    zoom: makeZoomConfig({ leftAxis: 'y', rightAxis: 'yPrice' })
+                },
+                scales: {
+                    x: { type: 'time', time: { unit: 'year' }, ticks: { color: this.t().tick }, grid: { color: this.t().grid } },
+                    y: { position: 'left', type: logScale ? 'logarithmic' : 'linear', title: { display: true, text: 'R/R 比', color: '#7c5cff' }, ticks: { color: '#7c5cff', callback: v => v >= 1 ? v.toFixed(0) : v.toFixed(2) }, grid: { color: this.t().grid } },
+                    yPrice: { position: 'right', type: 'logarithmic', title: { display: true, text: 'BTC', color: '#f7931a' }, ticks: { color: '#f7931a', callback: v => this._fmtPrice(v) }, grid: { drawOnChartArea: false } }
+                }
+            }
+        });
+    },
+
     renderVolumeChart(data) {
         this.destroyChart('volume');
         const recent = data.slice(-90);
@@ -892,6 +928,15 @@ const ChartsModule = {
                 { label: 'NUPL', data: onchain.map(d => d.nupl), borderColor: '#7c5cff', borderWidth: 1.3, pointRadius: 0 } ] },
                 options: common({ x: { type: 'time', time: { unit: 'year' }, ticks: { color: c.tick }, grid: { color: c.grid } },
                     y: { ticks: { color: c.tick }, grid: { color: c.grid } } }) };
+        } else if (key === 'riskreward') {
+            const series = DataModule.getRiskReward();
+            if (!series) return false;
+            const pts = series.filter(s => s.rr != null && s.rr > 0);
+            if (!pts.length) return false;
+            cfg = { type: 'line', data: { labels: pts.map(s => s.date), datasets: [
+                { label: 'R/R', data: pts.map(s => s.rr), borderColor: '#7c5cff', borderWidth: 1.3, pointRadius: 0 } ] },
+                options: common({ x: { type: 'time', time: { unit: 'year' }, ticks: { color: c.tick }, grid: { color: c.grid } },
+                    y: { type: 'logarithmic', ticks: { color: c.tick, callback: v => v >= 1 ? v.toFixed(0) : v.toFixed(2) }, grid: { color: c.grid } } }) };
         } else if (key === 'rsi') {
             const weekly = DataModule.aggregateWeekly(DataModule.processedData);
             const rsi = DataModule.calculateRSI(weekly);
@@ -992,8 +1037,36 @@ const ChartsModule = {
         });
     },
 
+    // R/R 离屏图（周报用，深色）
+    reportRiskRewardImage(crop) {
+        const series = DataModule.getRiskReward();
+        if (!series) return null;
+        const pts = series.filter(s => s.rr != null && s.rr > 0);
+        if (!pts.length) return null;
+        return this._offscreenChart({
+            data: {
+                labels: pts.map(s => s.date),
+                datasets: [
+                    { type: 'line', label: 'BTC', yAxisID: 'yP', data: pts.map(s => s.price), borderColor: 'rgba(247,147,26,0.5)', borderWidth: 1, pointRadius: 0 },
+                    { type: 'line', label: 'R/R', yAxisID: 'y', data: pts.map(s => s.rr), borderColor: '#7c5cff', borderWidth: 1.4, pointRadius: 0 },
+                ]
+            },
+            options: {
+                plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 11 } } }, annotation: { annotations: {
+                    one: { type: 'line', yMin: 1, yMax: 1, yScaleID: 'y', borderColor: 'rgba(148,163,184,0.6)', borderDash: [4, 4], borderWidth: 1 },
+                    three: { type: 'line', yMin: 3, yMax: 3, yScaleID: 'y', borderColor: 'rgba(0,211,149,0.4)', borderDash: [3, 3], borderWidth: 1 },
+                } } },
+                scales: {
+                    x: this._cropScale({ type: 'time', time: { unit: 'year' }, ticks: { color: '#94a3b8' }, grid: { color: '#1f2937' } }, crop, 'x'),
+                    y: { position: 'left', type: 'logarithmic', title: { display: true, text: 'R/R', color: '#a855f7' }, ticks: { color: '#94a3b8', callback: v => v >= 1 ? v.toFixed(0) : v.toFixed(2) }, grid: { color: '#1f2937' } },
+                    yP: { position: 'right', type: 'logarithmic', ticks: { color: '#f7931a', callback: v => this._fmtPrice(v) }, grid: { drawOnChartArea: false } },
+                }
+            }
+        });
+    },
+
     // 返回各指标 dataURL 映射。crops: { key: {xMin,xMax,yMin,yMax} } 可选，用于「划选区域入周报」。
-    // realized（已实现价格）复用 MVRV 价格面板图；nupl 用专门离屏图。
+    // realized（已实现价格）复用 MVRV 价格面板图；nupl / riskreward 用专门离屏图。
     reportImages(crops = {}) {
         return {
             cycle: this.reportCycleImage(crops.cycle),
@@ -1002,6 +1075,7 @@ const ChartsModule = {
             mvrv: this.reportMvrvImage(crops.mvrv),
             realized: this.reportMvrvImage(crops.realized),
             nupl: this.reportNuplImage(crops.nupl),
+            riskreward: this.reportRiskRewardImage(crops.riskreward),
             rsi: this.reportRSIImage(crops.rsi),
         };
     }

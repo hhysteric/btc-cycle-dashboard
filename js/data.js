@@ -55,6 +55,7 @@ const DataModule = {
             }
             this.onchainData = merged.sort((a, b) => a.date - b.date);
             this._mvrvBands = null; // 失效重算
+            this._riskReward = null;
             return this.onchainData;
         } catch (e) {
             console.warn('Failed to load on-chain CSV:', e.message);
@@ -268,6 +269,64 @@ const DataModule = {
             if (this.onchainData[i].nupl != null) {
                 return { date: this.onchainData[i].date, nupl: this.onchainData[i].nupl };
             }
+        }
+        return null;
+    },
+
+    // ===== 4Y Rolling Realized Price Risk/Reward Ratio =====
+    // 复刻 CryptoQuant 同名指标（已按官方 Excel 反推验证）：
+    //   realized_price = price / mvrv
+    //   over 过去 1462 天窗口取 mvrv 的经验分位数 p05 / p95
+    //   bear_floor = realized_price × p05；bull_ceiling = realized_price × p95
+    //   downside_risk = (price − bear_floor)/price；upside_reward = (bull_ceiling − price)/price
+    //   R/R = upside_reward / downside_risk   （>1 上行空间占优/低估，<1 下行风险占优/高估）
+    // 依赖 onchainData(mvrv) + processedData(price)。返回逐日序列（升序）。
+    RR_WINDOW: 1462,
+    _riskReward: null,
+
+    getRiskReward() {
+        if (this._riskReward) return this._riskReward;
+        if (!this.onchainData.length) return null;
+        const priceByDay = new Map();
+        for (const d of this.processedData) priceByDay.set(d.date.toISOString().slice(0, 10), d.close);
+        // 组装 {date, price, mvrv, realized}
+        const rows = [];
+        for (const d of this.onchainData) {
+            const key = d.date.toISOString().slice(0, 10);
+            const price = priceByDay.get(key);
+            if (price == null || !d.mvrv) continue;
+            rows.push({ date: d.date, price, mvrv: d.mvrv, realized: price / d.mvrv });
+        }
+        // 经验分位（linear 插值，与 numpy 默认一致）
+        const percentile = (sorted, p) => {
+            const k = (sorted.length - 1) * p;
+            const f = Math.floor(k), c = Math.ceil(k);
+            if (f === c) return sorted[f];
+            return sorted[f] * (c - k) + sorted[c] * (k - f);
+        };
+        const W = this.RR_WINDOW;
+        const series = [];
+        for (let i = 0; i < rows.length; i++) {
+            if (i < W - 1) { series.push(null); continue; } // 窗口未满不算
+            const seg = rows.slice(i - W + 1, i + 1).map(r => r.mvrv).sort((a, b) => a - b);
+            const p05 = percentile(seg, 0.05), p95 = percentile(seg, 0.95);
+            const r = rows[i];
+            const bearFloor = r.realized * p05;
+            const bullCeiling = r.realized * p95;
+            const downRisk = (r.price - bearFloor) / r.price;
+            const upReward = (bullCeiling - r.price) / r.price;
+            const rr = downRisk !== 0 ? upReward / downRisk : null;
+            series.push({ date: r.date, price: r.price, realized: r.realized, bearFloor, bullCeiling, downRisk, upReward, rr });
+        }
+        this._riskReward = rows.map((r, i) => ({ date: r.date, ...(series[i] || {}) }));
+        return this._riskReward;
+    },
+
+    getRiskRewardCurrent() {
+        const s = this.getRiskReward();
+        if (!s) return null;
+        for (let i = s.length - 1; i >= 0; i--) {
+            if (s[i] && s[i].rr != null) return s[i];
         }
         return null;
     },
@@ -663,6 +722,19 @@ const DataModule = {
         return { key: 'rsi', title: 'RSI 强弱指标', position, outlook };
     },
 
+    // 4Y Rolling Realized Price Risk/Reward Ratio 分析
+    analyzeRiskReward() {
+        const cur = this.getRiskRewardCurrent();
+        if (!cur) return null;
+        const rr = cur.rr;
+        const position = `当前 4Y R/R 比 = ${rr.toFixed(2)}（上行空间 ${(cur.upReward * 100).toFixed(0)}% 至 $${Math.round(cur.bullCeiling).toLocaleString()}，下行风险 ${(cur.downRisk * 100).toFixed(0)}% 至 $${Math.round(cur.bearFloor).toLocaleString()}）。该比 = 上行空间/下行风险，>1 表示上行空间占优（偏低估），<1 表示下行风险占优（偏高估）。区间用过去 4 年 MVRV 的 p05/p95 分位映射到价格。`;
+        let outlook;
+        if (rr >= 3) outlook = `R/R ≥ 3，上行空间显著大于下行风险，处于历史价值/低估区，是周期底部附近常见的风险回报结构。【下行底线】约 $${Math.round(cur.bearFloor).toLocaleString()}（4Y p05 映射）。`;
+        else if (rr <= 0.3) outlook = `R/R ≤ 0.3，下行风险显著大于上行空间，处于历史高估区，周期顶部风险区常见。上行天花板约 $${Math.round(cur.bullCeiling).toLocaleString()}（4Y p95 映射）。`;
+        else outlook = `R/R=${rr.toFixed(2)} 处于中性区间。【价位参考】下行底线约 $${Math.round(cur.bearFloor).toLocaleString()}（p05）、上行天花板约 $${Math.round(cur.bullCeiling).toLocaleString()}（p95）；比值向 1 以下走表示风险积累、向 3 以上走表示价值显现。`;
+        return { key: 'riskreward', title: '4Y 已实现价格风险回报比', position, outlook };
+    },
+
     // Cointime Price（时间加权持币成本，本地无该数据，做定性思路描述，图见嵌入的 CheckOnChain）
     analyzeCointime() {
         const ctx = this.getBottomContext();
@@ -681,6 +753,7 @@ const DataModule = {
             this.analyzeMvrv(),
             this.analyzeRealizedPrice(),
             this.analyzeNupl(),
+            this.analyzeRiskReward(),
             this.analyzeRSI(),
             this.analyzeCointime(),
         ].filter(Boolean);

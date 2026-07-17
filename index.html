@@ -261,6 +261,24 @@
                 </div>
             </div>
 
+            <!-- 4Y Rolling Realized Price Risk/Reward Ratio（本地自绘，复刻 CryptoQuant 同名指标） -->
+            <div id="card-riskreward-local" class="chart-card bg-white dark:bg-dark-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
+                <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                    <h2 class="text-lg font-semibold">4Y 已实现价格风险回报比（本地自绘）</h2>
+                    <div class="flex gap-2 items-center">
+                        <span id="riskreward-current" class="text-sm text-accent-gold font-semibold">--</span>
+                        <span class="w-px h-5 bg-gray-400 dark:bg-gray-600 mx-1"></span>
+                        <button class="chart-tool-btn log-btn active px-3 py-1 rounded text-sm" data-chart="riskreward" data-axis="y">对数</button>
+                        <button class="zoom-reset-btn px-3 py-1 rounded text-sm" data-chart="riskreward">重置</button>
+                        <button class="chart-tool-btn fullscreen-btn px-3 py-1 rounded text-sm" data-target="card-riskreward-local">全屏</button>
+                    </div>
+                </div>
+                <p class="text-gray-500 dark:text-gray-400 text-sm mb-3">R/R 比 = 上行空间 / 下行风险。区间用过去 4 年 MVRV 的 p05/p95 分位映射到价格：下行底线=已实现价×p05、上行天花板=已实现价×p95。>1 上行占优（偏低估），>3 常见于周期底部；<1 下行占优（偏高估）。滚轮缩放、Shift 只缩 R/R 轴、Alt 只缩价格轴。</p>
+                <div class="chart-canvas-wrap h-80">
+                    <canvas id="riskreward-chart"></canvas>
+                </div>
+            </div>
+
             <div id="card-nupl" class="chart-card bg-white dark:bg-dark-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
                 <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
                     <a href="https://charts.checkonchain.com/btconchain/unrealised/nupl/nupl_light.html" target="_blank" class="font-semibold text-accent-gold hover:underline">NUPL 净未实现盈亏（CheckOnChain 官方，参考对照）↗</a>

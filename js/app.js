@@ -116,6 +116,7 @@ function renderPriceCharts(data) {
     ChartsModule.renderMayerChart(data);
     ChartsModule.renderMvrvChart(true);
     ChartsModule.renderNuplChart();
+    ChartsModule.renderRiskRewardChart(true);
 
     const mayer = DataModule.getMayerMultiple();
     if (mayer != null) {
@@ -139,6 +140,15 @@ function renderPriceCharts(data) {
         nuplEl.style.color = nuplCur.nupl < 0 ? '#00d395' : nuplCur.nupl >= 0.75 ? '#ff4757' : '#f7931a';
     } else if (nuplEl) {
         nuplEl.textContent = '链上数据未加载';
+    }
+
+    const rrCur = DataModule.getRiskRewardCurrent();
+    const rrEl = document.getElementById('riskreward-current');
+    if (rrCur && rrEl) {
+        rrEl.textContent = 'R/R ' + rrCur.rr.toFixed(2);
+        rrEl.style.color = rrCur.rr >= 3 ? '#00d395' : rrCur.rr <= 0.3 ? '#ff4757' : '#f7931a';
+    } else if (rrEl) {
+        rrEl.textContent = '链上数据未加载';
     }
 }
 
@@ -274,7 +284,7 @@ function setupEventListeners(data, priceInfo, cycleInfo) {
 }
 
 // ===== 周报配置面板 =====
-const CHARTABLE_KEYS = ['cycle', 'ma', 'mayer', 'mvrv', 'realized', 'nupl', 'rsi']; // 有图可裁剪的指标
+const CHARTABLE_KEYS = ['cycle', 'ma', 'mayer', 'mvrv', 'realized', 'nupl', 'riskreward', 'rsi']; // 有图可裁剪的指标
 
 let reportCrops = {};
 let reportUploads = {};   // key -> dataURL（内置指标上传的覆盖图）

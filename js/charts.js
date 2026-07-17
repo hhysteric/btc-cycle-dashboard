@@ -91,6 +91,30 @@ const ChartsModule = {
 
     setTheme(name) { this.themeName = (name === 'dark') ? 'dark' : 'light'; },
 
+    // 历史各轮周期底部日期（当前周期未见底，不标）。用于时间轴图的竖线标注，
+    // 让用户直观看到每轮周期的起点/底部。
+    CYCLE_BOTTOM_DATES: [
+        { date: '2015-01-14', label: '周期1底' },
+        { date: '2018-12-15', label: '周期2底' },
+        { date: '2022-11-21', label: '周期3底' },
+    ],
+
+    // 生成时间轴图的周期底部竖线注解（annotation 插件）。onEnd: 竖线标签放顶部还是底部。
+    cycleBottomAnnotations(labelPos = 'start') {
+        const ann = {};
+        this.CYCLE_BOTTOM_DATES.forEach((b, i) => {
+            ann['cb' + i] = {
+                type: 'line',
+                xMin: b.date, xMax: b.date,
+                borderColor: 'rgba(0,211,149,0.55)',
+                borderWidth: 1.5,
+                borderDash: [5, 4],
+                label: { display: true, content: b.label, position: labelPos, color: '#00d395', backgroundColor: 'rgba(0,0,0,0)', font: { size: 9 } },
+            };
+        });
+        return ann;
+    },
+
     // 生成主题相关的通用 options（原 CHART_DEFAULTS 的动态版）
     defaults() {
         const c = this.t();
@@ -185,7 +209,7 @@ const ChartsModule = {
             },
             options: {
                 ...this.defaults(),
-                plugins: { ...this.defaults().plugins, zoom: makeZoomConfig() },
+                plugins: { ...this.defaults().plugins, annotation: { annotations: this.cycleBottomAnnotations('start') }, zoom: makeZoomConfig() },
                 scales: {
                     x: {
                         type: 'time',
@@ -422,7 +446,8 @@ const ChartsModule = {
                     annotation: {
                         annotations: {
                             ob: { type: 'line', yMin: 70, yMax: 70, yScaleID: 'y', borderColor: 'rgba(255,71,87,0.5)', borderDash: [3, 3], borderWidth: 1 },
-                            os: { type: 'line', yMin: 30, yMax: 30, yScaleID: 'y', borderColor: 'rgba(0,211,149,0.5)', borderDash: [3, 3], borderWidth: 1 }
+                            os: { type: 'line', yMin: 30, yMax: 30, yScaleID: 'y', borderColor: 'rgba(0,211,149,0.5)', borderDash: [3, 3], borderWidth: 1 },
+                            ...this.cycleBottomAnnotations('start')
                         }
                     },
                     zoom: makeZoomConfig({ leftAxis: 'y', rightAxis: 'yPrice' })
@@ -497,7 +522,8 @@ const ChartsModule = {
                     annotation: {
                         annotations: {
                             hi: { type: 'line', yMin: 2.4, yMax: 2.4, yScaleID: 'y', borderColor: 'rgba(255,71,87,0.5)', borderDash: [3, 3], borderWidth: 1 },
-                            lo: { type: 'line', yMin: 1, yMax: 1, yScaleID: 'y', borderColor: 'rgba(0,211,149,0.5)', borderDash: [3, 3], borderWidth: 1 }
+                            lo: { type: 'line', yMin: 1, yMax: 1, yScaleID: 'y', borderColor: 'rgba(0,211,149,0.5)', borderDash: [3, 3], borderWidth: 1 },
+                            ...this.cycleBottomAnnotations('start')
                         }
                     },
                     zoom: makeZoomConfig({ leftAxis: 'y', rightAxis: 'yPrice' })
@@ -578,7 +604,7 @@ const ChartsModule = {
             },
             options: {
                 ...this.defaults(),
-                plugins: { ...this.defaults().plugins, zoom: makeZoomConfig({ leftAxis: 'y', rightAxis: 'yMvrv' }) },
+                plugins: { ...this.defaults().plugins, annotation: { annotations: this.cycleBottomAnnotations('start') }, zoom: makeZoomConfig({ leftAxis: 'y', rightAxis: 'yMvrv' }) },
                 scales: {
                     x: { type: 'time', time: { unit: 'year' }, ticks: { color: this.t().tick }, grid: { color: this.t().grid } },
                     // 轴 stack：Chart.js 把「后声明」的轴叠在上方，故先声明 yMvrv(下栏) 再声明 y(上栏价格)。
@@ -634,7 +660,7 @@ const ChartsModule = {
             },
             options: {
                 ...this.defaults(),
-                plugins: { ...this.defaults().plugins, annotation: { annotations: this._nuplAnnotations() }, zoom: makeZoomConfig({ leftAxis: 'y', rightAxis: 'yPrice' }) },
+                plugins: { ...this.defaults().plugins, annotation: { annotations: { ...this._nuplAnnotations(), ...this.cycleBottomAnnotations('start') } }, zoom: makeZoomConfig({ leftAxis: 'y', rightAxis: 'yPrice' }) },
                 scales: {
                     x: { type: 'time', time: { unit: 'year' }, ticks: { color: this.t().tick }, grid: { color: this.t().grid } },
                     y: { position: 'left', title: { display: true, text: 'NUPL', color: '#7c5cff' }, ticks: { color: '#7c5cff' }, grid: { color: this.t().grid } },
@@ -668,6 +694,7 @@ const ChartsModule = {
                     annotation: { annotations: {
                         one: { type: 'line', yMin: 1, yMax: 1, yScaleID: 'y', borderColor: 'rgba(107,114,128,0.7)', borderDash: [4, 4], borderWidth: 1, label: { display: true, content: '1.0', position: 'start', color: '#9ca3af', backgroundColor: 'rgba(0,0,0,0)', font: { size: 9 } } },
                         three: { type: 'line', yMin: 3, yMax: 3, yScaleID: 'y', borderColor: 'rgba(0,211,149,0.4)', borderDash: [3, 3], borderWidth: 1, label: { display: true, content: '3（价值区）', position: 'end', color: '#00d395', backgroundColor: 'rgba(0,0,0,0)', font: { size: 9 } } },
+                        ...this.cycleBottomAnnotations('start')
                     } },
                     zoom: makeZoomConfig({ leftAxis: 'y', rightAxis: 'yPrice' })
                 },

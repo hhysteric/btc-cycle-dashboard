@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BTC 周期分析 Dashboard</title>
+    <title>BTC 周期分析</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
@@ -33,7 +33,7 @@
         <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
             <div class="flex items-center gap-3">
                 <div class="w-8 h-8 bg-accent-gold rounded-full flex items-center justify-center font-bold text-black text-sm">B</div>
-                <h1 class="text-xl font-bold">BTC 周期分析 Dashboard</h1>
+                <h1 class="text-xl font-bold">BTC 周期分析</h1>
             </div>
             <div class="flex items-center gap-4">
                 <span id="last-update" class="text-xs text-gray-500 dark:text-gray-400"></span>
@@ -130,8 +130,7 @@
             <div class="chart-canvas-wrap h-80">
                 <canvas id="price-chart"></canvas>
             </div>
-            <p class="text-xs text-gray-600 dark:text-gray-500 mt-2">滚轮缩放（横纵同时），Shift+滚轮只缩纵轴、Ctrl+滚轮只缩横轴，拖动平移；「对数」切换纵轴刻度，「全屏」放大整图便于精调</p>
-        </section>
+                    </section>
 
         <!-- Four Year Cycle -->
         <section id="card-cycle" class="chart-card bg-white dark:bg-dark-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
@@ -143,7 +142,7 @@
                     <button class="chart-tool-btn fullscreen-btn px-3 py-1 rounded text-sm" data-target="card-cycle">全屏</button>
                 </div>
             </div>
-            <p class="text-gray-500 dark:text-gray-400 text-sm mb-4">每条曲线从该轮周期的历史最高点开始（起点=1.0），展示见顶后的回撤与恢复。横轴为距最高点天数，纵轴为相对最高点倍数。滚轮缩放（横纵同时），Shift+滚轮只缩纵轴，拖动平移</p>
+            <p class="text-gray-500 dark:text-gray-400 text-sm mb-4">每条曲线从该轮周期的历史最高点开始（起点=1.0），展示见顶后的回撤与恢复</p>
             <div class="chart-canvas-wrap h-80">
                 <canvas id="cycle-chart"></canvas>
             </div>
@@ -174,7 +173,7 @@
         <section class="space-y-4">
             <div id="card-rsi" class="chart-card bg-white dark:bg-dark-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
                 <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
-                    <h2 class="text-lg font-semibold">RSI 指标（叠加 BTC 全历史行情）</h2>
+                    <h2 class="text-lg font-semibold">RSI 指标</h2>
                     <div class="flex items-center gap-2 flex-wrap">
                         <div class="flex gap-2">
                             <button class="rsi-period-btn px-3 py-1 rounded text-sm" data-tf="daily">日线</button>
@@ -189,11 +188,11 @@
                 <div class="chart-canvas-wrap h-80">
                     <canvas id="rsi-chart"></canvas>
                 </div>
-                <p class="text-xs text-gray-600 dark:text-gray-500 mt-2">滚轮缩放（横纵同时）、Shift+滚轮只缩纵轴、拖动平移，可查看历轮周期。周线 RSI-14 &lt;30 常对应周期底部；&gt;70 为超买</p>
+                <p class="text-xs text-gray-600 dark:text-gray-500 mt-2">周线 RSI-14 &lt;30 常对应周期底部；&gt;70 为超买</p>
             </div>
             <div id="card-mayer" class="chart-card bg-white dark:bg-dark-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
                 <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
-                    <h2 class="text-lg font-semibold">Mayer Multiple（价格/MA200，叠加 BTC 全历史行情）</h2>
+                    <h2 class="text-lg font-semibold">Mayer Multiple（价格/MA200）</h2>
                     <div class="flex items-center gap-2 flex-wrap">
                         <span id="mayer-current" class="text-sm text-accent-gold font-semibold">--</span>
                         <span class="w-px h-5 bg-gray-600 mx-1"></span>
@@ -205,7 +204,7 @@
                 <div class="chart-canvas-wrap h-80">
                     <canvas id="mayer-chart"></canvas>
                 </div>
-                <p class="text-xs text-gray-600 dark:text-gray-500 mt-2">滚轮缩放（横纵同时）、Shift+滚轮只缩纵轴、拖动平移。历史上 &gt;2.4 偏高（顶部风险），&lt;1 偏低（价值区）</p>
+                <p class="text-xs text-gray-600 dark:text-gray-500 mt-2">历史上 &gt;2.4 偏高（顶部风险），&lt;1 偏低（价值区）</p>
             </div>
         </section>
 
@@ -219,7 +218,7 @@
             <!-- 本地自绘 MVRV 估值带（Pricing Bands），数据来自 data/mvrv.csv + realized_price.csv -->
             <div id="card-mvrv-local" class="chart-card bg-white dark:bg-dark-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
                 <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
-                    <h2 class="text-lg font-semibold">MVRV 估值带（本地自绘 · Pricing Bands）</h2>
+                    <h2 class="text-lg font-semibold">MVRV 估值带</h2>
                     <div class="flex gap-2 items-center">
                         <span id="mvrv-current" class="text-sm text-accent-gold font-semibold">--</span>
                         <span class="w-px h-5 bg-gray-400 dark:bg-gray-600 mx-1"></span>
@@ -228,7 +227,7 @@
                         <button class="chart-tool-btn fullscreen-btn px-3 py-1 rounded text-sm" data-target="card-mvrv-local">全屏</button>
                     </div>
                 </div>
-                <p class="text-gray-500 dark:text-gray-400 text-sm mb-3">上栏价格叠加已实现价格与 ±sd 价格估值带（触及 +2.0sd 为过热顶部区、跌破 -1.0sd 为亏损底部区）；下栏为 MVRV Ratio 及其估值带。估值带用逐日累计（expanding）均值/标准差，随时间收敛（曲线）。滚轮缩放、Shift 只缩价格轴、Alt 只缩 MVRV 轴、拖动平移。</p>
+                <p class="text-gray-500 dark:text-gray-400 text-sm mb-3">上栏价格叠加已实现价格与 ±sd 价格估值带（触及 +2.0sd 为过热顶部区、跌破 -1.0sd 为亏损底部区）；下栏为 MVRV Ratio 及其估值带。</p>
                 <div class="chart-canvas-wrap" style="height:540px">
                     <canvas id="mvrv-chart"></canvas>
                 </div>
@@ -247,7 +246,7 @@
             <!-- 本地自绘 NUPL（净未实现盈亏），数据来自 data/nupl.csv（CryptoQuant） -->
             <div id="card-nupl-local" class="chart-card bg-white dark:bg-dark-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
                 <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
-                    <h2 class="text-lg font-semibold">NUPL 净未实现盈亏（本地自绘）</h2>
+                    <h2 class="text-lg font-semibold">NUPL 净未实现盈亏</h2>
                     <div class="flex gap-2 items-center">
                         <span id="nupl-current" class="text-sm text-accent-gold font-semibold">--</span>
                         <span class="w-px h-5 bg-gray-400 dark:bg-gray-600 mx-1"></span>
@@ -255,7 +254,7 @@
                         <button class="chart-tool-btn fullscreen-btn px-3 py-1 rounded text-sm" data-target="card-nupl-local">全屏</button>
                     </div>
                 </div>
-                <p class="text-gray-500 dark:text-gray-400 text-sm mb-3">NUPL 衡量全市场未实现盈亏占市值比例：>0.75 欣快（顶部风险）、<0 投降（市场亏损）。历史周期底部 NUPL 均转负。滚轮缩放、Shift 只缩 NUPL 轴、Alt 只缩价格轴。</p>
+                <p class="text-gray-500 dark:text-gray-400 text-sm mb-3">NUPL 衡量全市场未实现盈亏占市值比例：>0.75 欣快（顶部风险）、<0 投降（市场亏损）。历史周期底部 NUPL 均转负。</p>
                 <div class="chart-canvas-wrap h-80">
                     <canvas id="nupl-chart"></canvas>
                 </div>
@@ -264,7 +263,7 @@
             <!-- 4Y Rolling Realized Price Risk/Reward Ratio（本地自绘，复刻 CryptoQuant 同名指标） -->
             <div id="card-riskreward-local" class="chart-card bg-white dark:bg-dark-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
                 <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
-                    <h2 class="text-lg font-semibold">4Y 已实现价格风险回报比（本地自绘）</h2>
+                    <h2 class="text-lg font-semibold">4Y 已实现价格风险回报比</h2>
                     <div class="flex gap-2 items-center">
                         <span id="riskreward-current" class="text-sm text-accent-gold font-semibold">--</span>
                         <span class="w-px h-5 bg-gray-400 dark:bg-gray-600 mx-1"></span>
@@ -273,7 +272,7 @@
                         <button class="chart-tool-btn fullscreen-btn px-3 py-1 rounded text-sm" data-target="card-riskreward-local">全屏</button>
                     </div>
                 </div>
-                <p class="text-gray-500 dark:text-gray-400 text-sm mb-3">R/R 比 = 上行空间 / 下行风险。区间用过去 4 年 MVRV 的 p05/p95 分位映射到价格：下行底线=已实现价×p05、上行天花板=已实现价×p95。>1 上行占优（偏低估），>3 常见于周期底部；<1 下行占优（偏高估）。滚轮缩放、Shift 只缩 R/R 轴、Alt 只缩价格轴。</p>
+                <p class="text-gray-500 dark:text-gray-400 text-sm mb-3">R/R 比 = 上行空间 / 下行风险。区间用过去 4 年 MVRV 的 p05/p95 分位映射到价格：下行底线=已实现价×p05、上行天花板=已实现价×p95。>1 上行占优（偏低估），>3 常见于周期底部；<1 下行占优（偏高估）。</p>
                 <div class="chart-canvas-wrap h-80">
                     <canvas id="riskreward-chart"></canvas>
                 </div>
@@ -396,7 +395,7 @@
     <!-- Footer -->
     <footer class="bg-white dark:bg-dark-800 border-t border-gray-200 dark:border-gray-700 mt-8 py-4">
         <div class="max-w-7xl mx-auto px-4 text-center text-gray-500 text-sm">
-            <p>BTC 周期分析 Dashboard | 历史数据: CoinMarketCap (至2026-04) + Blockchain.info 日线补全 (至2026-07) | 实时: CoinGecko API</p>
+            <p>BTC 周期分析 | 历史数据: CoinMarketCap (至2026-04) + Blockchain.info 日线补全 (至2026-07) | 实时: CoinGecko API</p>
             <p class="mt-1">仅供学习研究，不构成投资建议</p>
         </div>
     </footer>

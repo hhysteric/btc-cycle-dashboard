@@ -47,10 +47,18 @@ const DataModule = {
             const mvrv = this._parseOnchainCol(mvrvText);
             const rp = this._parseOnchainCol(rpText);
             const nupl = this._parseOnchainCol(nuplText);
+            // 价格查表：realized_price.csv 起点较晚（2014-11），早期缺失时用 price/mvrv 反推，
+            // 使链上指标（MVRV 带、R/R）可回溯到 MVRV 有值的最早日（2010-07）。
+            const priceByDay = new Map();
+            for (const d of this.processedData) priceByDay.set(d.date.toISOString().slice(0, 10), d.close);
             const merged = [];
             for (const [day, m] of mvrv) {
-                const r = rp.get(day);
-                if (r == null) continue;
+                let r = rp.get(day);
+                if (r == null) {
+                    const px = priceByDay.get(day);
+                    if (px != null && m) r = px / m;  // 反推已实现价格
+                }
+                if (r == null) continue;  // 既无 CSV 值也无价格可推，跳过
                 merged.push({ date: new Date(day), mvrv: m, realizedPrice: r, nupl: nupl.has(day) ? nupl.get(day) : null });
             }
             this.onchainData = merged.sort((a, b) => a.date - b.date);
@@ -289,7 +297,8 @@ const DataModule = {
         if (!this.onchainData.length) return null;
         const priceByDay = new Map();
         for (const d of this.processedData) priceByDay.set(d.date.toISOString().slice(0, 10), d.close);
-        // 组装 {date, price, mvrv, realized}
+        // 只需 MVRV(有值) + 价格：realized = price / mvrv（不依赖 realized_price.csv，
+        // 因其起点晚，用它 join 会白白截短历史）。MVRV 自 2010-07 起有值，故 R/R 可回溯更早。
         const rows = [];
         for (const d of this.onchainData) {
             const key = d.date.toISOString().slice(0, 10);

@@ -244,9 +244,26 @@
                 </div>
             </div>
 
+            <!-- 本地自绘 NUPL（净未实现盈亏），数据来自 data/nupl.csv（CryptoQuant） -->
+            <div id="card-nupl-local" class="chart-card bg-white dark:bg-dark-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
+                <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                    <h2 class="text-lg font-semibold">NUPL 净未实现盈亏（本地自绘）</h2>
+                    <div class="flex gap-2 items-center">
+                        <span id="nupl-current" class="text-sm text-accent-gold font-semibold">--</span>
+                        <span class="w-px h-5 bg-gray-400 dark:bg-gray-600 mx-1"></span>
+                        <button class="zoom-reset-btn px-3 py-1 rounded text-sm" data-chart="nupl">重置</button>
+                        <button class="chart-tool-btn fullscreen-btn px-3 py-1 rounded text-sm" data-target="card-nupl-local">全屏</button>
+                    </div>
+                </div>
+                <p class="text-gray-500 dark:text-gray-400 text-sm mb-3">NUPL 衡量全市场未实现盈亏占市值比例：>0.75 欣快（顶部风险）、<0 投降（市场亏损）。历史周期底部 NUPL 均转负。滚轮缩放、Shift 只缩 NUPL 轴、Alt 只缩价格轴。</p>
+                <div class="chart-canvas-wrap h-80">
+                    <canvas id="nupl-chart"></canvas>
+                </div>
+            </div>
+
             <div id="card-nupl" class="chart-card bg-white dark:bg-dark-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
                 <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
-                    <a href="https://charts.checkonchain.com/btconchain/unrealised/nupl/nupl_light.html" target="_blank" class="font-semibold text-accent-gold hover:underline">NUPL 净未实现盈亏（CheckOnChain）↗</a>
+                    <a href="https://charts.checkonchain.com/btconchain/unrealised/nupl/nupl_light.html" target="_blank" class="font-semibold text-accent-gold hover:underline">NUPL 净未实现盈亏（CheckOnChain 官方，参考对照）↗</a>
                     <button class="chart-tool-btn fullscreen-btn px-3 py-1 rounded text-sm" data-target="card-nupl">全屏</button>
                 </div>
                 <div class="chart-canvas-wrap rounded-lg overflow-hidden bg-white" style="height:560px">

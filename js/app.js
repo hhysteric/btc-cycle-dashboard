@@ -115,6 +115,7 @@ function renderPriceCharts(data) {
     ChartsModule.renderVolumeChart(data);
     ChartsModule.renderMayerChart(data);
     ChartsModule.renderMvrvChart(true);
+    ChartsModule.renderNuplChart();
 
     const mayer = DataModule.getMayerMultiple();
     if (mayer != null) {
@@ -129,6 +130,15 @@ function renderPriceCharts(data) {
         mvrvEl.textContent = 'MVRV ' + mvrvCur.mvrv.toFixed(2) + '（' + mvrvCur.zone + '）';
     } else if (mvrvEl) {
         mvrvEl.textContent = '链上数据未加载';
+    }
+
+    const nuplCur = DataModule.getNuplCurrent();
+    const nuplEl = document.getElementById('nupl-current');
+    if (nuplCur && nuplEl) {
+        nuplEl.textContent = 'NUPL ' + nuplCur.nupl.toFixed(3);
+        nuplEl.style.color = nuplCur.nupl < 0 ? '#00d395' : nuplCur.nupl >= 0.75 ? '#ff4757' : '#f7931a';
+    } else if (nuplEl) {
+        nuplEl.textContent = '链上数据未加载';
     }
 }
 
@@ -264,7 +274,7 @@ function setupEventListeners(data, priceInfo, cycleInfo) {
 }
 
 // ===== 周报配置面板 =====
-const CHARTABLE_KEYS = ['cycle', 'ma', 'mayer', 'mvrv', 'rsi']; // 有图可裁剪的指标
+const CHARTABLE_KEYS = ['cycle', 'ma', 'mayer', 'mvrv', 'realized', 'nupl', 'rsi']; // 有图可裁剪的指标
 
 let reportCrops = {};
 let reportUploads = {};   // key -> dataURL（内置指标上传的覆盖图）

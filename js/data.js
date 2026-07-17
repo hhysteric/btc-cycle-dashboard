@@ -35,21 +35,23 @@ const DataModule = {
         }
     },
 
-    // 加载链上 CSV（MVRV Ratio + Realized Price），按日期 join。格式：逗号分隔、降序、
-    // 首行表头、日期形如 2026-07-15T00:00:00Z。缺任一值的日期跳过。
+    // 加载链上 CSV（MVRV Ratio + Realized Price + NUPL），按日期 join。格式：逗号分隔、降序、
+    // 首行表头、日期形如 2026-07-15T00:00:00Z。缺 MVRV/Realized 的日期跳过；NUPL 可缺（null）。
     async loadOnchainCSV() {
         try {
-            const [mvrvText, rpText] = await Promise.all([
+            const [mvrvText, rpText, nuplText] = await Promise.all([
                 fetch('data/mvrv.csv').then(r => r.text()),
                 fetch('data/realized_price.csv').then(r => r.text()),
+                fetch('data/nupl.csv').then(r => r.text()).catch(() => ''),
             ]);
             const mvrv = this._parseOnchainCol(mvrvText);
             const rp = this._parseOnchainCol(rpText);
+            const nupl = this._parseOnchainCol(nuplText);
             const merged = [];
             for (const [day, m] of mvrv) {
                 const r = rp.get(day);
                 if (r == null) continue;
-                merged.push({ date: new Date(day), mvrv: m, realizedPrice: r });
+                merged.push({ date: new Date(day), mvrv: m, realizedPrice: r, nupl: nupl.has(day) ? nupl.get(day) : null });
             }
             this.onchainData = merged.sort((a, b) => a.date - b.date);
             this._mvrvBands = null; // 失效重算
@@ -255,6 +257,55 @@ const DataModule = {
         return {
             date: latest.date, mvrv: latest.mvrv, realizedPrice: latest.realizedPrice, zone,
             mean: cur.mean, sd: cur.sd, coef: cur.coef,
+            nupl: latest.nupl,
+        };
+    },
+
+    // 当前 NUPL（最新一条）
+    getNuplCurrent() {
+        if (!this.onchainData.length) return null;
+        for (let i = this.onchainData.length - 1; i >= 0; i--) {
+            if (this.onchainData[i].nupl != null) {
+                return { date: this.onchainData[i].date, nupl: this.onchainData[i].nupl };
+            }
+        }
+        return null;
+    },
+
+    // ===== 底部研判共享上下文 =====
+    // 汇总「历史各轮周期底部」的链上特征（价格/已实现价格比、MVRV、NUPL），供多个指标分析复用，
+    // 据此给出「若历史规律重演」的底部价位区间。历轮底部经数据核对：
+    //   周期1底 2015-01 P/R≈0.57 MVRV≈0.56 NUPL≈-0.77
+    //   周期2底 2018-12 P/R≈0.70 MVRV≈0.69 NUPL≈-0.45
+    //   周期3底 2022-11 P/R≈0.78 MVRV≈0.78 NUPL≈-0.29
+    // 规律：每轮底部「跌破已实现价格」的幅度逐轮收敛（0.57→0.70→0.78），MVRV/NUPL 底部同步抬升。
+    HISTORICAL_BOTTOMS: [
+        { label: '周期1 (2015底)', pr: 0.571, mvrv: 0.564, nupl: -0.774 },
+        { label: '周期2 (2018底)', pr: 0.701, mvrv: 0.691, nupl: -0.447 },
+        { label: '周期3 (2022底)', pr: 0.779, mvrv: 0.778, nupl: -0.285 },
+    ],
+
+    getBottomContext() {
+        const latest = this.getLatest();
+        const mvrvCur = this.getMvrvCurrent();
+        if (!latest || !mvrvCur) return null;
+        const price = latest.close;
+        const realized = mvrvCur.realizedPrice;
+        const b = this.HISTORICAL_BOTTOMS;
+        const prMin = Math.min(...b.map(x => x.pr));   // 最深（0.571）
+        const prMax = Math.max(...b.map(x => x.pr));   // 最浅（0.779）
+        // 底部价位区间：已实现价格 × 历轮 P/R（下限用最深、上限用最浅）
+        const bottomLow = realized * prMin;
+        const bottomHigh = realized * prMax;
+        return {
+            price, realized,
+            priceToRealized: price / realized,
+            mvrv: mvrvCur.mvrv,
+            nupl: mvrvCur.nupl,
+            bottoms: b,
+            prMin, prMax,
+            bottomLow, bottomHigh,
+            aboveRealized: price > realized,
         };
     },
 
@@ -445,13 +496,17 @@ const DataModule = {
         const priceLow = peakPrice * (1 - ddMax / 100);
         const priceHigh = peakPrice * (1 - ddMin / 100);
 
-        const position = `当前距本轮高点已下跌 ${curDay} 天，期间最大跌幅 ${curDrawdown.toFixed(1)}%（最低出现在第 ${curLow.day} 天）。此前 3 轮周期见底耗时 ${dayMin}–${dayMax} 天，跌幅 ${ddMin.toFixed(1)}%–${ddMax.toFixed(1)}%。`;
+        const position = `当前距本轮高点已下跌 ${curDay} 天，期间最大跌幅 ${curDrawdown.toFixed(1)}%（最低出现在第 ${curLow.day} 天）。此前 3 轮周期见底耗时 ${dayMin}–${dayMax} 天，跌幅 ${ddMin.toFixed(1)}%–${ddMax.toFixed(1)}%（分别为 ${past.map(p => p.drawdown.toFixed(0) + '%').join(' / ')}，跌幅逐轮收敛）。`;
+
+        // 底部价位/时间区间：结合链上底部规律（若可用）给更贴合的价位
+        const ctx = this.getBottomContext();
+        const bandNote = ctx ? `链上视角下（已实现价格 $${Math.round(ctx.realized).toLocaleString()}），若按历轮底部「价格/已实现价格 ${ctx.prMin}–${ctx.prMax}」测算，底部价位约 $${Math.round(ctx.bottomLow).toLocaleString()}–$${Math.round(ctx.bottomHigh).toLocaleString()}。` : '';
 
         let outlook;
         if (curDay >= dayMax) {
-            outlook = `本轮下跌天数已超过历史区间上限（${dayMax} 天），若历史规律仍成立，周期底部大概率已在近期出现或临近，可重点关注筑底信号。`;
+            outlook = `本轮下跌天数已超过历史区间上限（${dayMax} 天），若历史规律仍成立，周期底部大概率已在近期出现或临近，可重点关注筑底信号。${bandNote}`;
         } else {
-            outlook = `若按历史区间推演，本轮低点可能落在 ${lowDateStart} 至 ${lowDateEnd}，对应价格约 $${Math.round(priceLow).toLocaleString()}–$${Math.round(priceHigh).toLocaleString()}。当前跌幅 ${curDrawdown.toFixed(1)}% 仍浅于历史（${ddMin.toFixed(1)}%+），需警惕进一步下探。`;
+            outlook = `【时间区间】若按历史见底耗时推演，本轮低点可能落在 ${lowDateStart} 至 ${lowDateEnd}。【价位区间】按跌幅法约 $${Math.round(priceLow).toLocaleString()}–$${Math.round(priceHigh).toLocaleString()}。${bandNote}当前跌幅 ${curDrawdown.toFixed(1)}% 仍浅于历史（${ddMin.toFixed(1)}%+），若趋势转弱需警惕进一步下探。`;
         }
         return { key: 'cycle', title: '四年大周期对比（从各轮最高点对齐）', position, outlook };
     },
@@ -516,11 +571,13 @@ const DataModule = {
         const ma200arr = this.calculateMA(data.slice(-200), 200);
         const ma200 = ma200arr[ma200arr.length - 1];
 
-        const position = `当前 Mayer Multiple = ${m.toFixed(2)}（价格 $${Math.round(price).toLocaleString()} / MA200 $${Math.round(ma200).toLocaleString()}）。历史上 >2.4 为过热顶部区，<1 为价值/底部区。`;
+        // 历史周期底部 Mayer 多在 0.5–0.7；据此推底部价位 = MA200 × [0.5, 0.7]
+        const bLo = ma200 * 0.5, bHi = ma200 * 0.7;
+        const position = `当前 Mayer Multiple = ${m.toFixed(2)}（价格 $${Math.round(price).toLocaleString()} / MA200 $${Math.round(ma200).toLocaleString()}）。历史上 >2.4 为过热顶部区，<1 为价值区，周期底部多落在 0.5–0.7。`;
         let outlook;
         if (m > 2.4) outlook = `已进入历史过热区间，向上空间受限，需警惕均值回归带来的回调压力。`;
-        else if (m < 1) outlook = `价格位于 MA200 下方（Mayer <1），历史上此区间多为中长期价值区，但也可能在熊市中继续磨底，需结合周期位置判断。`;
-        else outlook = `处于 1–2.4 的中性区间，方向性不强，跟随大周期与均线趋势运行。`;
+        else if (m < 1) outlook = `价格位于 MA200 下方（Mayer <1），已进入历史价值区。若按周期底部 Mayer 0.5–0.7 测算，【价位区间】约 $${Math.round(bLo).toLocaleString()}–$${Math.round(bHi).toLocaleString()}（随 MA200 下移）；此区间可能磨底，需结合周期位置判断。`;
+        else outlook = `处于 1–2.4 的中性区间，方向性不强，跟随大周期与均线趋势运行。若后续转弱回到价值区，按 Mayer 0.5–0.7 对应【价位区间】约 $${Math.round(bLo).toLocaleString()}–$${Math.round(bHi).toLocaleString()}。`;
         return { key: 'mayer', title: 'Mayer Multiple（价格/MA200）', position, outlook };
     },
 
@@ -535,14 +592,57 @@ const DataModule = {
         const topPrice = topCoef * cur.realizedPrice;
         const bottomPrice = bottomCoef * cur.realizedPrice;
 
-        const position = `当前 MVRV = ${cur.mvrv.toFixed(2)}（已实现价格 $${Math.round(cur.realizedPrice).toLocaleString()}，隐含市场均价约 $${Math.round(impliedPrice).toLocaleString()}），处于 ${cur.zone}。历史均值 ${cur.mean.toFixed(2)}，+2.0sd 顶部带 ${topCoef.toFixed(2)}（≈$${Math.round(topPrice).toLocaleString()}），-1.0sd 底部带 ${bottomCoef.toFixed(2)}（≈$${Math.round(bottomPrice).toLocaleString()}）。`;
+        // 历史周期底部 MVRV：0.56 / 0.69 / 0.78（逐轮抬升）。据此推底部价位 = 已实现价 × [0.56, 0.78]
+        const bt = this.HISTORICAL_BOTTOMS;
+        const mvLo = Math.min(...bt.map(x => x.mvrv)), mvHi = Math.max(...bt.map(x => x.mvrv));
+        const btPriceLo = mvLo * cur.realizedPrice, btPriceHi = mvHi * cur.realizedPrice;
+        const position = `当前 MVRV = ${cur.mvrv.toFixed(2)}（已实现价格 $${Math.round(cur.realizedPrice).toLocaleString()}，隐含市场均价约 $${Math.round(impliedPrice).toLocaleString()}），处于 ${cur.zone}。历史周期底部 MVRV 约 ${mvLo.toFixed(2)}–${mvHi.toFixed(2)}（${bt.map(x => x.mvrv.toFixed(2)).join(' / ')}，逐轮抬升）；顶部带 +2.0sd=${topCoef.toFixed(2)}。`;
 
         let outlook;
-        if (cur.mvrv >= topCoef) outlook = `MVRV 已触及 +2.0sd 过热带，历史上此区间对应周期顶部风险，链上持币者浮盈丰厚、抛压易积累。`;
-        else if (cur.mvrv <= bottomCoef) outlook = `MVRV 跌破 -1.0sd 底部带，全市场平均处于亏损，历史上是周期底部的价值区，但磨底可能持续。`;
-        else if (cur.mvrv < cur.mean) outlook = `MVRV 低于历史均值，市场情绪偏冷，向下距 -1.0sd 底部带（≈$${Math.round(bottomPrice).toLocaleString()}）尚有空间，若继续回落将逼近历史价值区。`;
-        else outlook = `MVRV 高于历史均值但未到过热带，中性偏暖，向上距 +2.0sd 顶部带（≈$${Math.round(topPrice).toLocaleString()}）仍有空间。`;
+        if (cur.mvrv >= topCoef) outlook = `MVRV 已触及 +2.0sd 过热带，历史上对应周期顶部风险，链上浮盈丰厚、抛压易积累。`;
+        else if (cur.mvrv <= mvHi) outlook = `MVRV 已进入历史底部区间（${mvLo.toFixed(2)}–${mvHi.toFixed(2)}），全市场平均接近或处于亏损，是周期价值区，但磨底可能持续。`;
+        else outlook = `MVRV=${cur.mvrv.toFixed(2)} 高于历史底部区。若历史规律重演，周期底部 MVRV 落在 ${mvLo.toFixed(2)}–${mvHi.toFixed(2)}，对应【价位区间】约 $${Math.round(btPriceLo).toLocaleString()}–$${Math.round(btPriceHi).toLocaleString()}（以当前已实现价 $${Math.round(cur.realizedPrice).toLocaleString()} 测算，实际随已实现价变化）。`;
         return { key: 'mvrv', title: 'MVRV 估值带（本地自绘）', position, outlook };
+    },
+
+    // 已实现价格分析（链上全市场持币成本）：历轮周期底部 BTC 价格均跌破已实现价格，据此研判底部
+    analyzeRealizedPrice() {
+        const ctx = this.getBottomContext();
+        if (!ctx) return null;
+        const bt = ctx.bottoms;
+        const position = `当前 BTC 价格 $${Math.round(ctx.price).toLocaleString()}，已实现价格（全市场平均持币成本）$${Math.round(ctx.realized).toLocaleString()}，价格/已实现价格 = ${ctx.priceToRealized.toFixed(2)}（价格${ctx.aboveRealized ? '在成本线上方，市场整体盈利' : '已跌破成本线，市场整体亏损'}）。`;
+
+        // 规律：此前 3 轮周期底部，价格都跌破已实现价格，比值 0.57 / 0.70 / 0.78（逐轮抬升）
+        const ratios = bt.map(x => x.pr);
+        let outlook;
+        if (ctx.aboveRealized) {
+            outlook = `【历史规律】此前 3 轮周期底部，BTC 价格均跌破已实现价格，价格/已实现价格分别为 ${ratios.map(r => r.toFixed(2)).join(' / ')}（跌破幅度逐轮收敛）。当前价格仍在成本线上方（${ctx.priceToRealized.toFixed(2)}），尚未出现历史级别的底部信号。若重演该规律，【价位区间】约 $${Math.round(ctx.bottomLow).toLocaleString()}–$${Math.round(ctx.bottomHigh).toLocaleString()}（已实现价格 $${Math.round(ctx.realized).toLocaleString()} × ${ctx.prMin}–${ctx.prMax}）；由于已实现价格随时间缓慢变化，实际底部价位会随之调整。`;
+        } else {
+            outlook = `【历史规律】价格已跌破已实现价格——此前 3 轮周期底部均出现此现象（比值 ${ratios.map(r => r.toFixed(2)).join(' / ')}）。当前比值 ${ctx.priceToRealized.toFixed(2)}，已进入历史底部特征区；若比值向 ${ctx.prMin} 靠拢，对应价位约 $${Math.round(ctx.bottomLow).toLocaleString()}，是历史级别的深度价值区。`;
+        }
+        return { key: 'realized', title: '已实现价格 / 全市场持币成本', position, outlook };
+    },
+
+    // NUPL 分析（净未实现盈亏）：分区 + 历史底部 NUPL 转负特征
+    analyzeNupl() {
+        const cur = this.getNuplCurrent();
+        if (!cur) return null;
+        const nupl = cur.nupl;
+        const bt = this.HISTORICAL_BOTTOMS;
+        const nuplBottoms = bt.map(x => x.nupl);
+        // NUPL 分区（CheckOnChain 口径）
+        let zoneLabel;
+        if (nupl >= 0.75) zoneLabel = '欣快（>0.75，顶部风险区）';
+        else if (nupl >= 0.5) zoneLabel = '贪婪（0.5–0.75）';
+        else if (nupl >= 0.25) zoneLabel = '乐观/焦虑（0.25–0.5）';
+        else if (nupl >= 0) zoneLabel = '希望/恐惧（0–0.25）';
+        else zoneLabel = '投降（<0，市场整体亏损）';
+        const position = `当前 NUPL = ${nupl.toFixed(3)}，处于「${zoneLabel}」。NUPL 衡量全市场未实现盈亏占市值比例。历史周期底部 NUPL 约 ${Math.min(...nuplBottoms).toFixed(2)}–${Math.max(...nuplBottoms).toFixed(2)}（${nuplBottoms.map(v => v.toFixed(2)).join(' / ')}，逐轮抬升）。`;
+        let outlook;
+        if (nupl < 0) outlook = `NUPL 已转负，市场整体亏损——这是历史周期底部的典型特征（此前 3 轮底部 NUPL 分别为 ${nuplBottoms.map(v => v.toFixed(2)).join(' / ')}）。当前已进入投降区，属历史价值区间，但仍需结合价格与已实现价格确认筑底。`;
+        else if (nupl >= 0.75) outlook = `NUPL 进入欣快区（>0.75），历史上对应周期顶部，浮盈过高、获利抛压风险大。`;
+        else outlook = `NUPL=${nupl.toFixed(3)} 尚未转负，距历史底部（NUPL 转负、约 ${Math.max(...nuplBottoms).toFixed(2)} 以下）仍有距离，若市场进一步走弱、NUPL 逐步下探至 0 以下，才是接近周期底部的链上信号。`;
+        return { key: 'nupl', title: 'NUPL 净未实现盈亏', position, outlook };
     },
 
     // RSI 分析（日线 + 周线）
@@ -555,27 +655,32 @@ const DataModule = {
         const wRsi = wRsiArr[wRsiArr.length - 1];
 
         const position = `日线 RSI-14 = ${dRsi ? dRsi.toFixed(1) : 'N/A'}，周线 RSI-14 = ${wRsi ? wRsi.toFixed(1) : 'N/A'}。（>70 超买，<30 超卖）`;
+        // RSI 本身不直接推导底部价位，给「见底信号特征」而非硬编价位
         let outlook;
-        if (wRsi < 30) outlook = `周线 RSI 已进入超卖区，历史上常对应周期性底部，若出现价格新低而 RSI 不创新低的背离，是较强的反转信号。`;
-        else if (wRsi > 70) outlook = `周线 RSI 超买，中期过热，上行动能可能衰减，注意高位波动放大。`;
-        else outlook = `RSI 处于中性区间，短期动能不极端，趋势由更高级别的周期/均线主导。`;
+        if (wRsi < 30) outlook = `【见底信号】周线 RSI 已进入超卖区（<30），历史上常对应周期性底部；若同时出现「价格创新低而 RSI 不创新低」的正向背离，是较强的反转信号，可与周期/MVRV/已实现价格的价位区间交叉验证。`;
+        else if (wRsi > 70) outlook = `周线 RSI 超买（>70），中期过热，上行动能可能衰减，注意高位波动放大。`;
+        else outlook = `RSI 处于中性区间，短期动能不极端。【见底信号】关注周线 RSI 是否下探至 30 以下并出现正向背离——这是底部的动能信号（不直接对应具体价位，需配合估值类指标定位）。`;
         return { key: 'rsi', title: 'RSI 强弱指标', position, outlook };
     },
 
-    // Cointime / 链上成本线（本地无数据，做定性思路描述）
+    // Cointime Price（时间加权持币成本，本地无该数据，做定性思路描述，图见嵌入的 CheckOnChain）
     analyzeCointime() {
-        const position = `Cointime Price / 已实现价格是全市场时间加权持币成本线（本地无该链上数据，图见嵌入的 CheckOnChain 官方图表）。`;
-        const outlook = `历史上每轮周期最低点都曾跌破 Cointime Price / 已实现价格。当前若 BTC 持续在成本线上方震荡，成本线会随时间缓慢抬升；若价格横盘而成本线上移并最终交叉，往往意味着市场进入亏损主导、逼近周期底部区域。建议对照嵌入图观察价格与成本线的相对位置与斜率。`;
-        return { key: 'cointime', title: 'Cointime Price / 链上成本线', position, outlook };
+        const ctx = this.getBottomContext();
+        const anchor = ctx ? `（当前已实现价格 $${Math.round(ctx.realized).toLocaleString()} 可作近似参照）` : '';
+        const position = `Cointime Price 是按币龄时间加权的全市场持币成本线，比已实现价格更强调长期持有者成本${anchor}。本地无该链上数据，图见嵌入的 CheckOnChain 官方图表。`;
+        const outlook = `【见底信号】历史上每轮周期最低点都曾跌破 Cointime Price / 已实现价格。若价格横盘而成本线随时间上移并最终交叉（价格跌破成本线），往往意味着市场进入亏损主导、逼近周期底部区域。具体价位请参照「已实现价格」与「MVRV」给出的底部区间，并对照嵌入图观察价格与成本线的相对位置与斜率。`;
+        return { key: 'cointime', title: 'Cointime Price / 时间加权成本线', position, outlook };
     },
 
-    // 汇总所有分析
+    // 汇总所有分析。顺序：大周期 → 均线 → 估值(Mayer/MVRV) → 链上成本(已实现价格) → 情绪(NUPL/RSI) → Cointime
     getReportAnalysis() {
         return [
             this.analyzeCycle(),
             this.analyzeMA(),
             this.analyzeMayer(),
             this.analyzeMvrv(),
+            this.analyzeRealizedPrice(),
+            this.analyzeNupl(),
             this.analyzeRSI(),
             this.analyzeCointime(),
         ].filter(Boolean);

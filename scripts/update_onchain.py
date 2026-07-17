@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
-"""增量更新链上指标 CSV（MVRV Ratio、Realized Price）。
+"""增量更新链上指标 CSV（MVRV Ratio、Realized Price、NUPL）——数据源 CryptoQuant。
 
-读取 data/mvrv.csv 与 data/realized_price.csv 的最新日期，从 bitcoin-data.com
+读取 data/mvrv.csv / realized_price.csv / nupl.csv 的最新日期，从 CryptoQuant API
 拉取之后的数据并追加（保持原格式：逗号分隔、降序、最新在最上、日期形如
 2026-07-15T00:00:00Z）。幂等：重复运行不会重复写入已有日期。
 
-数据源说明：bitcoin-data.com 在浏览器端受 CORS + 限流约束（故页面不直连，用本地
-CSV），但在服务端 / GitHub Actions 环境可正常访问，因此更新放在此脚本里跑。
-数值口径与 CryptoQuant 导出的初始 CSV 接近（同为全网 MVRV / 已实现价格）。
+CryptoQuant API key 从环境变量 CRYPTOQUANT_KEY 读取（GitHub Actions 里配为 Secret）。
+**绝不硬编码 key**：前端源码公开，key 只能存在于服务端 Actions 环境。
 
 用法:
-    python scripts/update_onchain.py
+    CRYPTOQUANT_KEY=xxxx python scripts/update_onchain.py
 """
 import datetime
 import json
@@ -20,26 +19,36 @@ import urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(ROOT, "data")
+API_BASE = "https://api.cryptoquant.com/v1"
 
-# 每个指标：本地文件、表头、API 端点、返回 JSON 里的取值字段
+# 每个指标：本地文件、表头、CryptoQuant endpoint、返回 JSON 里的取值字段
 SERIES = [
     {
         "file": "mvrv.csv",
         "header": "Datetime,MVRV Ratio",
-        "url": "https://bitcoin-data.com/v1/mvrv",
+        "endpoint": "btc/market-indicator/mvrv",
         "field": "mvrv",
     },
     {
         "file": "realized_price.csv",
         "header": "Datetime,Realized Price",
-        "url": "https://bitcoin-data.com/v1/realized-price",
-        "field": "realizedPrice",
+        "endpoint": "btc/market-indicator/realized-price",
+        "field": "realized_price",
+    },
+    {
+        "file": "nupl.csv",
+        "header": "Datetime,Net Unrealized Profit/Loss (NUPL)",
+        "endpoint": "btc/network-indicator/nupl",
+        "field": "nupl",
     },
 ]
 
 
-def http_get(url, timeout=30):
-    req = urllib.request.Request(url, headers={"User-Agent": "btc-cycle-dashboard/1.0"})
+def http_get(url, key, timeout=30):
+    req = urllib.request.Request(url, headers={
+        "Authorization": f"Bearer {key}",
+        "User-Agent": "btc-cycle-dashboard/1.0",
+    })
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return r.read()
 
@@ -47,7 +56,7 @@ def http_get(url, timeout=30):
 def read_csv(path):
     with open(path, encoding="utf-8-sig") as f:
         lines = [l.rstrip("\n") for l in f if l.strip()]
-    return lines[0], lines[1:]  # header, rows (descending, 最新在最上)
+    return lines[0], lines[1:]  # header, rows (descending)
 
 
 def date_of(row):
@@ -55,7 +64,6 @@ def date_of(row):
 
 
 def newest_valid_date(rows):
-    """跳过尾部空值行，返回最新一条【有值】的日期。"""
     for row in rows:
         cols = row.split(",")
         if len(cols) >= 2 and cols[1].strip():
@@ -63,22 +71,24 @@ def newest_valid_date(rows):
     return None
 
 
-def fetch_series(url, field, start_date, end_date):
-    """拉取 [start_date, end_date] 区间，返回 {date_iso: value}。"""
-    sd = start_date.isoformat()
-    ed = end_date.isoformat()
-    full = f"{url}?startday={sd}&endday={ed}"
-    data = json.loads(http_get(full))
+def fetch_series(endpoint, field, key, start_date, today):
+    """拉取 [start_date, today] 区间，返回 {date_iso: value}。CryptoQuant 用 from/to (YYYYMMDD)。"""
+    frm = start_date.strftime("%Y%m%d")
+    to = today.strftime("%Y%m%d")
+    url = f"{API_BASE}/{endpoint}?window=day&from={frm}&to={to}&limit=100000"
+    data = json.loads(http_get(url, key))
+    if data.get("status", {}).get("code") != 200:
+        raise RuntimeError(f"API status {data.get('status')}")
     out = {}
-    for item in data:
-        d = item.get("d")
+    for item in data.get("result", {}).get("data", []):
+        d = item.get("date")
         v = item.get(field)
         if d and v is not None:
             out[d[:10]] = v
     return out
 
 
-def update_one(series, today):
+def update_one(series, key, today):
     path = os.path.join(DATA_DIR, series["file"])
     if not os.path.exists(path):
         print(f"[{series['file']}] 不存在，跳过")
@@ -94,7 +104,7 @@ def update_one(series, today):
         return False
 
     try:
-        fresh = fetch_series(series["url"], series["field"],
+        fresh = fetch_series(series["endpoint"], series["field"], key,
                              newest + datetime.timedelta(days=1), today)
     except Exception as e:
         print(f"[{series['file']}] 数据源不可用: {e}")
@@ -106,12 +116,8 @@ def update_one(series, today):
         print(f"[{series['file']}] 数据源可达但无新数据")
         return False
 
-    # 构造新行（升序），再降序插入到顶部
-    new_rows = []
-    for d in sorted(fresh):
-        new_rows.append(f"{d}T00:00:00Z,{fresh[d]}")
+    new_rows = [f"{d}T00:00:00Z,{fresh[d]}" for d in sorted(fresh)]
     new_rows_desc = list(reversed(new_rows))
-
     out = [header] + new_rows_desc + rows
     with open(path, "w", encoding="utf-8", newline="\n") as f:
         f.write("\n".join(out) + "\n")
@@ -120,11 +126,17 @@ def update_one(series, today):
 
 
 def main():
+    key = os.environ.get("CRYPTOQUANT_KEY", "").strip()
+    if not key:
+        print("未设置 CRYPTOQUANT_KEY 环境变量，跳过链上更新。"
+              "（GitHub Actions 里请在 Settings→Secrets 配置 CRYPTOQUANT_KEY）")
+        return 0
+
     today = datetime.datetime.now(datetime.timezone.utc).date()
     print(f"今日(UTC): {today}")
     changed = False
     for series in SERIES:
-        if update_one(series, today):
+        if update_one(series, key, today):
             changed = True
     print("有更新" if changed else "无更新")
     return 0

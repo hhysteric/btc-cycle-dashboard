@@ -564,6 +564,48 @@ const ChartsModule = {
         });
     },
 
+    // NUPL 阈值线（分区）配置，供交互图与离屏图共用
+    _nuplAnnotations() {
+        const line = (y, color, label) => ({ type: 'line', yMin: y, yMax: y, yScaleID: 'y', borderColor: color, borderDash: [4, 4], borderWidth: 1,
+            label: { display: true, content: label, position: 'start', color, backgroundColor: 'rgba(0,0,0,0)', font: { size: 9 } } });
+        return {
+            euphoria: line(0.75, 'rgba(236,72,153,0.6)', '欣快 0.75'),
+            greed: line(0.5, 'rgba(245,158,11,0.6)', '贪婪 0.5'),
+            optimism: line(0.25, 'rgba(234,179,8,0.5)', '乐观 0.25'),
+            zero: line(0, 'rgba(107,114,128,0.7)', '0'),
+        };
+    },
+
+    // 本地自绘 NUPL（净未实现盈亏）：右轴价格(对数) + 左轴 NUPL，分区阈值线。保留 CheckOnChain 嵌入。
+    renderNuplChart() {
+        this.destroyChart('nupl');
+        const el = document.getElementById('nupl-chart');
+        if (!el) return;
+        const onchain = DataModule.onchainData.filter(d => d.nupl != null);
+        if (!onchain.length) return;
+        const priceByDay = new Map();
+        for (const d of DataModule.processedData) priceByDay.set(d.date.toISOString().slice(0, 10), d.close);
+        const labels = onchain.map(d => d.date);
+        this.charts['nupl'] = new Chart(el.getContext('2d'), {
+            data: {
+                labels,
+                datasets: [
+                    { type: 'line', label: 'BTC 价格', yAxisID: 'yPrice', data: onchain.map(d => { const p = priceByDay.get(d.date.toISOString().slice(0, 10)); return p != null ? p : null; }), borderColor: 'rgba(247,147,26,0.5)', borderWidth: 1, pointRadius: 0 },
+                    { type: 'line', label: 'NUPL', yAxisID: 'y', data: onchain.map(d => d.nupl), borderColor: '#7c5cff', borderWidth: 1.4, pointRadius: 0 },
+                ]
+            },
+            options: {
+                ...this.defaults(),
+                plugins: { ...this.defaults().plugins, annotation: { annotations: this._nuplAnnotations() }, zoom: makeZoomConfig({ leftAxis: 'y', rightAxis: 'yPrice' }) },
+                scales: {
+                    x: { type: 'time', time: { unit: 'year' }, ticks: { color: this.t().tick }, grid: { color: this.t().grid } },
+                    y: { position: 'left', title: { display: true, text: 'NUPL', color: '#7c5cff' }, ticks: { color: '#7c5cff' }, grid: { color: this.t().grid } },
+                    yPrice: { position: 'right', type: 'logarithmic', title: { display: true, text: 'BTC', color: '#f7931a' }, ticks: { color: '#f7931a', callback: v => this._fmtPrice(v) }, grid: { drawOnChartArea: false } }
+                }
+            }
+        });
+    },
+
     renderVolumeChart(data) {
         this.destroyChart('volume');
         const recent = data.slice(-90);
@@ -792,7 +834,8 @@ const ChartsModule = {
                 { label: 'Mayer', data: mayer, borderColor: CHART_COLORS.blue, borderWidth: 1.4, pointRadius: 0 } ] },
                 options: common({ x: { type: 'time', time: { unit: 'year' }, ticks: { color: c.tick }, grid: { color: c.grid } },
                     y: { ticks: { color: c.tick, callback: v => v.toFixed(1) + 'x' }, grid: { color: c.grid } } }) };
-        } else if (key === 'mvrv') {
+        } else if (key === 'mvrv' || key === 'realized') {
+            // realized（已实现价格）与 mvrv 共用价格面板小图
             const onchain = DataModule.onchainData; const bandInfo = DataModule.getMvrvBands();
             if (!onchain.length || !bandInfo) return false;
             const { defs, series } = bandInfo;
@@ -804,6 +847,13 @@ const ChartsModule = {
                 ...defs.map(def => ({ label: def.key, data: onchain.map((d, i) => d.realizedPrice * series[i].coef[def.key]), borderColor: def.color, borderWidth: 0.8, borderDash: [3, 2], pointRadius: 0 })) ] },
                 options: common({ x: { type: 'time', time: { unit: 'year' }, ticks: { color: c.tick }, grid: { color: c.grid } },
                     y: { type: 'logarithmic', ticks: { color: c.tick, callback: v => this._fmtPrice(v) }, grid: { color: c.grid } } }) };
+        } else if (key === 'nupl') {
+            const onchain = DataModule.onchainData.filter(d => d.nupl != null);
+            if (!onchain.length) return false;
+            cfg = { type: 'line', data: { labels: onchain.map(d => d.date), datasets: [
+                { label: 'NUPL', data: onchain.map(d => d.nupl), borderColor: '#7c5cff', borderWidth: 1.3, pointRadius: 0 } ] },
+                options: common({ x: { type: 'time', time: { unit: 'year' }, ticks: { color: c.tick }, grid: { color: c.grid } },
+                    y: { ticks: { color: c.tick }, grid: { color: c.grid } } }) };
         } else if (key === 'rsi') {
             const weekly = DataModule.aggregateWeekly(DataModule.processedData);
             const rsi = DataModule.calculateRSI(weekly);
@@ -879,13 +929,41 @@ const ChartsModule = {
         return out;
     },
 
+    // NUPL 离屏图（周报用，深色）
+    reportNuplImage(crop) {
+        const onchain = DataModule.onchainData.filter(d => d.nupl != null);
+        if (!onchain.length) return null;
+        const priceByDay = new Map();
+        for (const d of DataModule.processedData) priceByDay.set(d.date.toISOString().slice(0, 10), d.close);
+        return this._offscreenChart({
+            data: {
+                labels: onchain.map(d => d.date),
+                datasets: [
+                    { type: 'line', label: 'BTC', yAxisID: 'yP', data: onchain.map(d => { const p = priceByDay.get(d.date.toISOString().slice(0, 10)); return p != null ? p : null; }), borderColor: 'rgba(247,147,26,0.5)', borderWidth: 1, pointRadius: 0 },
+                    { type: 'line', label: 'NUPL', yAxisID: 'y', data: onchain.map(d => d.nupl), borderColor: '#7c5cff', borderWidth: 1.4, pointRadius: 0 },
+                ]
+            },
+            options: {
+                plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 11 } } }, annotation: { annotations: this._nuplAnnotations() } },
+                scales: {
+                    x: this._cropScale({ type: 'time', time: { unit: 'year' }, ticks: { color: '#94a3b8' }, grid: { color: '#1f2937' } }, crop, 'x'),
+                    y: { position: 'left', title: { display: true, text: 'NUPL', color: '#a855f7' }, ticks: { color: '#94a3b8' }, grid: { color: '#1f2937' } },
+                    yP: { position: 'right', type: 'logarithmic', ticks: { color: '#f7931a', callback: v => this._fmtPrice(v) }, grid: { drawOnChartArea: false } },
+                }
+            }
+        });
+    },
+
     // 返回各指标 dataURL 映射。crops: { key: {xMin,xMax,yMin,yMax} } 可选，用于「划选区域入周报」。
+    // realized（已实现价格）复用 MVRV 价格面板图；nupl 用专门离屏图。
     reportImages(crops = {}) {
         return {
             cycle: this.reportCycleImage(crops.cycle),
             ma: this.reportMAImage(crops.ma),
             mayer: this.reportMayerImage(crops.mayer),
             mvrv: this.reportMvrvImage(crops.mvrv),
+            realized: this.reportMvrvImage(crops.realized),
+            nupl: this.reportNuplImage(crops.nupl),
             rsi: this.reportRSIImage(crops.rsi),
         };
     }

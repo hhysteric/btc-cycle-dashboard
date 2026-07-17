@@ -117,10 +117,10 @@
             <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
                 <h2 class="text-lg font-semibold">BTC 价格与均线</h2>
                 <div class="flex gap-2 flex-wrap items-center">
-                    <button class="chart-period-btn active px-3 py-1 rounded text-sm" data-period="365">1Y</button>
+                    <button class="chart-period-btn px-3 py-1 rounded text-sm" data-period="365">1Y</button>
                     <button class="chart-period-btn px-3 py-1 rounded text-sm" data-period="730">2Y</button>
                     <button class="chart-period-btn px-3 py-1 rounded text-sm" data-period="1460">4Y</button>
-                    <button class="chart-period-btn px-3 py-1 rounded text-sm" data-period="all">全部</button>
+                    <button class="chart-period-btn active px-3 py-1 rounded text-sm" data-period="all">全部</button>
                     <span class="w-px h-5 bg-gray-600 mx-1"></span>
                     <button class="chart-tool-btn log-btn px-3 py-1 rounded text-sm" data-chart="price" data-axis="y">对数</button>
                     <button class="zoom-reset-btn px-3 py-1 rounded text-sm" data-chart="price">重置</button>
@@ -228,7 +228,7 @@
                     </div>
                 </div>
                 <p class="text-gray-500 dark:text-gray-400 text-sm mb-3">上栏价格叠加已实现价格与 ±sd 价格估值带（触及 +2.0sd 为过热顶部区、跌破 -1.0sd 为亏损底部区）；下栏为 MVRV Ratio 及其估值带。</p>
-                <div class="chart-canvas-wrap" style="height:540px">
+                <div class="chart-canvas-wrap" style="height:640px">
                     <canvas id="mvrv-chart"></canvas>
                 </div>
             </div>

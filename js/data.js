@@ -51,8 +51,12 @@ const DataModule = {
             // 使链上指标（MVRV 带、R/R）可回溯到 MVRV 有值的最早日（2010-07）。
             const priceByDay = new Map();
             for (const d of this.processedData) priceByDay.set(d.date.toISOString().slice(0, 10), d.close);
+            // 2009-2010 早期 BTC 几乎无市场，MVRV 为无意义的极端值（如 443、12.9），会让
+            // expanding 均值/标准差爆炸、-1.0sd 变负数、对数图出现畸形尖峰。从 2011-01-01 起才纳入。
+            const ONCHAIN_START = '2011-01-01';
             const merged = [];
             for (const [day, m] of mvrv) {
+                if (day < ONCHAIN_START) continue;
                 let r = rp.get(day);
                 if (r == null) {
                     const px = priceByDay.get(day);

@@ -102,7 +102,7 @@ function highlightCurrentPhase(cycleInfo) {
 }
 
 function renderPriceCharts(data) {
-    ChartsModule.renderPriceChart(data, 365);
+    ChartsModule.renderPriceChart(data, 'all');
     ChartsModule.renderCycleChart(DataModule.getCycleData());
 
     const pattern = DataModule.getWeekdayPattern();

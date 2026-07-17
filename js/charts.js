@@ -608,16 +608,16 @@ const ChartsModule = {
                 scales: {
                     x: { type: 'time', time: { unit: 'year' }, ticks: { color: this.t().tick }, grid: { color: this.t().grid } },
                     // 轴 stack：Chart.js 把「后声明」的轴叠在上方，故先声明 yMvrv(下栏) 再声明 y(上栏价格)。
-                    // 上栏价格占 2/3、下栏 MVRV 占 1/3，视觉上下分开（像 CheckOnChain）。
+                    // 上栏价格 : 下栏 MVRV = 3 : 2，让 MVRV 面板更大、band 更清晰。
                     yMvrv: {
-                        stack: 'mvrv', stackWeight: 1, offset: true,
+                        stack: 'mvrv', stackWeight: 2, offset: true,
                         type: 'logarithmic',
                         title: { display: true, text: 'MVRV', color: '#7c5cff' },
                         ticks: { color: '#7c5cff', callback: v => v.toFixed(1) },
                         grid: { color: this.t().grid }
                     },
                     y: {
-                        stack: 'mvrv', stackWeight: 2, offset: true,
+                        stack: 'mvrv', stackWeight: 3, offset: true,
                         type: logScale ? 'logarithmic' : 'linear',
                         title: { display: true, text: '价格 (USD)', color: this.t().tick },
                         ticks: { color: this.t().tick, callback: v => this._fmtPrice(v) },

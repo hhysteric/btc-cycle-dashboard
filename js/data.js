@@ -668,7 +668,7 @@ const DataModule = {
         if (cur.mvrv >= topCoef) tail = `MVRV 已触及 +2.0sd 过热带，历史上对应周期顶部风险，链上浮盈丰厚、抛压易积累。`;
         else if (cur.mvrv <= mvHi) tail = `MVRV=${cur.mvrv.toFixed(2)} 已进入历史底部区间，全市场平均接近或处于亏损，是周期价值区，但磨底可能持续。`;
         else tail = `MVRV=${cur.mvrv.toFixed(2)} 高于历史底部区。若历史规律重演，周期底部 MVRV 落在 ${mvLo.toFixed(2)}–${mvHi.toFixed(2)}，对应价位区间约 $${Math.round(btPriceLo).toLocaleString()}–$${Math.round(btPriceHi).toLocaleString()}。`;
-        return { key: 'mvrv', title: 'MVRV 估值带（本地自绘）', text: head + tail };
+        return { key: 'mvrv', title: 'MVRV 估值带', text: head + tail };
     },
 
     // 已实现价格分析（链上全市场持币成本）：历轮周期底部 BTC 价格均跌破已实现价格，据此研判底部

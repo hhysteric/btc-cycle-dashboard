@@ -174,6 +174,12 @@ async function loadCapitalFlowSection() {
 function setupEventListeners(data, priceInfo, cycleInfo) {
     document.getElementById('btn-theme-toggle').addEventListener('click', toggleTheme);
 
+    // MVRV 上下栏比例调节器
+    const mvrvSplit = document.getElementById('mvrv-split');
+    if (mvrvSplit) mvrvSplit.addEventListener('input', () => {
+        ChartsModule.setMvrvSplit(parseInt(mvrvSplit.value) / 100);
+    });
+
     document.querySelectorAll('.chart-period-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             document.querySelectorAll('.chart-period-btn').forEach(b => b.classList.remove('active'));

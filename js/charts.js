@@ -99,13 +99,14 @@ const ChartsModule = {
         { date: '2022-11-21', label: '周期3底' },
     ],
 
-    // 生成时间轴图的周期底部竖线注解（annotation 插件）。onEnd: 竖线标签放顶部还是底部。
+    // 生成时间轴图的周期底部竖线注解（annotation 插件）。
+    // 用 scaleID:'x' + value 画贯穿整个绘图区的竖线——即便双轴 stack（如 MVRV 上下栏）也能跨两栏。
     cycleBottomAnnotations(labelPos = 'start') {
         const ann = {};
         this.CYCLE_BOTTOM_DATES.forEach((b, i) => {
             ann['cb' + i] = {
                 type: 'line',
-                xMin: b.date, xMax: b.date,
+                scaleID: 'x', value: b.date,
                 borderColor: 'rgba(0,211,149,0.55)',
                 borderWidth: 1.5,
                 borderDash: [5, 4],
@@ -561,7 +562,12 @@ const ChartsModule = {
     //   上栏 y(对数,价格)：BTC 价格 + 已实现价格 + 价格估值带（已实现价 × 当日 MVRV band 系数）
     //   下栏 yMvrv(对数,紫)：MVRV Ratio 曲线 + MVRV 估值带曲线（当日 expanding mean/std → 曲线）
     // band 系数逐日变化（getMvrvBands().series[i].coef），因此是曲线而非直线。
+    // 上下栏高度比（可由调节器修改）。priceWeight+mvrvWeight 决定 stack 比例。
+    mvrvWeights: { price: 3, mvrv: 2 },
+
     renderMvrvChart(logScale = true) {
+        // 记住当前对数状态，供调节器重绘时保持
+        this._mvrvLog = logScale;
         this.destroyChart('mvrv');
         const el = document.getElementById('mvrv-chart');
         if (!el) return;
@@ -610,14 +616,14 @@ const ChartsModule = {
                     // 轴 stack：Chart.js 把「后声明」的轴叠在上方，故先声明 yMvrv(下栏) 再声明 y(上栏价格)。
                     // 上栏价格 : 下栏 MVRV = 3 : 2，让 MVRV 面板更大、band 更清晰。
                     yMvrv: {
-                        stack: 'mvrv', stackWeight: 2, offset: true,
+                        stack: 'mvrv', stackWeight: this.mvrvWeights.mvrv, offset: true,
                         type: 'logarithmic',
                         title: { display: true, text: 'MVRV', color: '#7c5cff' },
                         ticks: { color: '#7c5cff', callback: v => v.toFixed(1) },
                         grid: { color: this.t().grid }
                     },
                     y: {
-                        stack: 'mvrv', stackWeight: 3, offset: true,
+                        stack: 'mvrv', stackWeight: this.mvrvWeights.price, offset: true,
                         type: logScale ? 'logarithmic' : 'linear',
                         title: { display: true, text: '价格 (USD)', color: this.t().tick },
                         ticks: { color: this.t().tick, callback: v => this._fmtPrice(v) },
@@ -626,6 +632,13 @@ const ChartsModule = {
                 }
             }
         });
+    },
+
+    // 调节 MVRV 上下栏高度比：priceRatio ∈ [0.2,0.8]，为价格栏占比。重绘保持对数状态。
+    setMvrvSplit(priceRatio) {
+        const r = Math.min(0.8, Math.max(0.2, priceRatio));
+        this.mvrvWeights = { price: r, mvrv: 1 - r };
+        this.renderMvrvChart(this._mvrvLog !== false);
     },
 
     // NUPL 阈值线（分区）配置，供交互图与离屏图共用
@@ -1025,6 +1038,35 @@ const ChartsModule = {
         });
     },
 
+    // 已实现价格离屏图（周报用）：只画 价格 + 已实现价格（成本线），不含 ±sd 带，
+    // 与 MVRV 估值带图区分开，突出「价格 vs 全市场成本」的关系。
+    reportRealizedImage(crop) {
+        const onchain = DataModule.onchainData;
+        if (!onchain.length) return null;
+        const priceByDay = new Map();
+        for (const d of DataModule.processedData) priceByDay.set(d.date.toISOString().slice(0, 10), d.close);
+        const priceData = onchain.map(d => {
+            const p = priceByDay.get(d.date.toISOString().slice(0, 10));
+            return p != null ? p : d.mvrv * d.realizedPrice;
+        });
+        return this._offscreenChart({
+            data: {
+                labels: onchain.map(d => d.date),
+                datasets: [
+                    { type: 'line', label: 'BTC 价格', data: priceData, borderColor: CHART_COLORS.gold, borderWidth: 1.6, pointRadius: 0 },
+                    { type: 'line', label: '已实现价格（成本线）', data: onchain.map(d => d.realizedPrice), borderColor: CHART_COLORS.purple, borderWidth: 2.5, pointRadius: 0 },
+                ]
+            },
+            options: {
+                plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 11 } } } },
+                scales: {
+                    x: this._cropScale({ type: 'time', time: { unit: 'year' }, ticks: { color: '#94a3b8' }, grid: { color: '#1f2937' } }, crop, 'x'),
+                    y: this._cropScale({ type: 'logarithmic', title: { display: true, text: '价格', color: '#94a3b8' }, ticks: { color: '#94a3b8', callback: v => this._fmtPrice(v) }, grid: { color: '#1f2937' } }, crop, 'y'),
+                }
+            }
+        });
+    },
+
     // 把 crop 的 min/max 套到某个轴配置上（x 轴 crop 值为时间戳，y 为数值）
     _cropScale(scale, crop, axis) {
         if (!crop) return scale;
@@ -1100,7 +1142,7 @@ const ChartsModule = {
             ma: this.reportMAImage(crops.ma),
             mayer: this.reportMayerImage(crops.mayer),
             mvrv: this.reportMvrvImage(crops.mvrv),
-            realized: this.reportMvrvImage(crops.realized),
+            realized: this.reportRealizedImage(crops.realized),
             nupl: this.reportNuplImage(crops.nupl),
             riskreward: this.reportRiskRewardImage(crops.riskreward),
             rsi: this.reportRSIImage(crops.rsi),

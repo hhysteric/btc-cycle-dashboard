@@ -228,6 +228,12 @@
                     </div>
                 </div>
                 <p class="text-gray-500 dark:text-gray-400 text-sm mb-3">上栏价格叠加已实现价格与 ±sd 价格估值带（触及 +2.0sd 为过热顶部区、跌破 -1.0sd 为亏损底部区）；下栏为 MVRV Ratio 及其估值带。</p>
+                <div class="flex items-center gap-2 mb-2 text-xs text-gray-500 dark:text-gray-400">
+                    <span>上下图比例</span>
+                    <span>MVRV↑</span>
+                    <input id="mvrv-split" type="range" min="20" max="80" value="60" class="flex-1 max-w-xs accent-yellow-500">
+                    <span>价格↑</span>
+                </div>
                 <div class="chart-canvas-wrap" style="height:640px">
                     <canvas id="mvrv-chart"></canvas>
                 </div>

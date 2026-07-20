@@ -156,61 +156,73 @@ const ChartsModule = {
         return next;
     },
 
+    // zZ 指标：BTC 价格 + MA6 / MA103 / MA110，及各自「假设价格不变」的延长线（虚线到交叉点）。
+    //   MA110：价格上穿 = 上涨/牛市启动信号；  MA6×MA103：金叉 = 买入信号。
     renderPriceChart(data, period = 365) {
         this.destroyChart('price');
-        // MA 需要完整历史做前置窗口，再截取显示区间，避免开头一段为 null
-        const ma50Full = DataModule.calculateMA(data, 50);
-        const ma200Full = DataModule.calculateMA(data, 200);
-        const ma365Full = DataModule.calculateMA(data, 365);
+        const P = { ma6: 6, ma103: 103, ma110: 110 };
+        const maFull = {
+            ma6: DataModule.calculateMA(data, P.ma6),
+            ma103: DataModule.calculateMA(data, P.ma103),
+            ma110: DataModule.calculateMA(data, P.ma110),
+        };
         const startIdx = period === 'all' ? 0 : Math.max(0, data.length - period);
         const chartData = data.slice(startIdx);
-        const ma50 = ma50Full.slice(startIdx);
-        const ma200 = ma200Full.slice(startIdx);
-        const ma365 = ma365Full.slice(startIdx);
+        const hist = chartData.map(d => ({ x: d.date, y: d.close }));
+        const maHist = {};
+        for (const k of Object.keys(P)) maHist[k] = maFull[k].slice(startIdx).map((v, i) => ({ x: chartData[i].date, y: v }));
+
+        // 延长线：从今天起假设价格恒定，逐日外推各 MA，画到交叉那天（或最多 ~400 天）
+        const zz = DataModule.getZzSignals();
+        const dayMs = 86400000;
+        const projLine = (arr, upto) => {
+            const out = [];
+            const t0 = data[data.length - 1].date.getTime();
+            const n = Math.min(arr.length - 1, upto != null ? upto : 400);
+            for (let t = 0; t <= n; t++) out.push({ x: new Date(t0 + t * dayMs), y: arr[t] });
+            return out;
+        };
+        const ext = {};
+        const priceExt = [];
+        if (zz) {
+            const upto110 = zz.crossPriceMA110 != null ? zz.crossPriceMA110 + 20 : 400;
+            const uptoCross = zz.crossMA6MA103 != null ? zz.crossMA6MA103 + 20 : 400;
+            ext.ma110 = projLine(zz.proj[110], upto110);
+            ext.ma6 = projLine(zz.proj[6], uptoCross);
+            ext.ma103 = projLine(zz.proj[103], uptoCross);
+            // 价格延长线（恒定），画到 MA110 交叉，便于看「价格上穿 MA110」
+            const t0 = data[data.length - 1].date.getTime();
+            const n = Math.min(upto110, 400);
+            for (let t = 0; t <= n; t++) priceExt.push({ x: new Date(t0 + t * dayMs), y: zz.price });
+        }
+
+        const COL = { ma6: '#3b82f6', ma103: '#ef4444', ma110: '#a855f7' };
+        const mk = (label, dataArr, color, opts = {}) => ({ type: 'line', label, data: dataArr, borderColor: color, borderWidth: opts.w || 1.2, pointRadius: 0, borderDash: opts.dash, fill: false, spanGaps: true });
 
         const ctx = document.getElementById('price-chart').getContext('2d');
         this.charts['price'] = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: chartData.map(d => d.date),
                 datasets: [
-                    {
-                        label: 'BTC Price',
-                        data: chartData.map(d => d.close),
-                        borderColor: CHART_COLORS.gold,
-                        backgroundColor: 'rgba(247, 147, 26, 0.05)',
-                        borderWidth: 1.5,
-                        pointRadius: 0,
-                        fill: true
-                    },
-                    {
-                        label: 'MA50',
-                        data: ma50,
-                        borderColor: CHART_COLORS.ma50,
-                        borderWidth: 1,
-                        pointRadius: 0,
-                        borderDash: [3, 3]
-                    },
-                    {
-                        label: 'MA200',
-                        data: ma200,
-                        borderColor: CHART_COLORS.ma200,
-                        borderWidth: 1,
-                        pointRadius: 0,
-                        borderDash: [5, 5]
-                    },
-                    {
-                        label: 'MA365',
-                        data: ma365,
-                        borderColor: CHART_COLORS.ma365,
-                        borderWidth: 1,
-                        pointRadius: 0
-                    }
+                    { type: 'line', label: 'BTC 价格', data: hist, borderColor: CHART_COLORS.gold, backgroundColor: 'rgba(247,147,26,0.05)', borderWidth: 1.5, pointRadius: 0, fill: true },
+                    mk('MA6', maHist.ma6, COL.ma6, { w: 1 }),
+                    mk('MA103', maHist.ma103, COL.ma103, { w: 1.2 }),
+                    mk('MA110', maHist.ma110, COL.ma110, { w: 1.2 }),
+                    // 延长线（虚线）
+                    mk('价格(恒定)', priceExt, CHART_COLORS.gold, { dash: [2, 3], w: 1 }),
+                    mk('MA6 延长', ext.ma6 || [], COL.ma6, { dash: [4, 3], w: 1 }),
+                    mk('MA103 延长', ext.ma103 || [], COL.ma103, { dash: [4, 3], w: 1 }),
+                    mk('MA110 延长', ext.ma110 || [], COL.ma110, { dash: [4, 3], w: 1 }),
                 ]
             },
             options: {
                 ...this.defaults(),
-                plugins: { ...this.defaults().plugins, annotation: { annotations: this.cycleBottomAnnotations('start') }, zoom: makeZoomConfig() },
+                plugins: {
+                    ...this.defaults().plugins,
+                    legend: { labels: { color: this.t().legend, font: { size: 11 }, filter: (it) => !it.text.includes('恒定') } },
+                    annotation: { annotations: this._zzCrossAnnotations(zz) },
+                    zoom: makeZoomConfig()
+                },
                 scales: {
                     x: {
                         type: 'time',
@@ -641,6 +653,21 @@ const ChartsModule = {
         this.renderMvrvChart(this._mvrvLog !== false);
     },
 
+    // zZ 交叉点竖线：价格上穿 MA110（上涨信号）、MA6 上穿 MA103（买入信号）
+    _zzCrossAnnotations(zz) {
+        const ann = {};
+        if (!zz) return ann;
+        if (zz.crossPriceMA110 != null && zz.crossPriceMA110Date) {
+            ann.up = { type: 'line', scaleID: 'x', value: zz.crossPriceMA110Date.getTime(), borderColor: 'rgba(0,211,149,0.7)', borderWidth: 1.5, borderDash: [5, 4],
+                label: { display: true, content: '上涨信号(上穿MA110)', position: 'start', color: '#00d395', backgroundColor: 'rgba(0,0,0,0)', font: { size: 9 } } };
+        }
+        if (zz.crossMA6MA103 != null && zz.crossMA6MA103Date) {
+            ann.buy = { type: 'line', scaleID: 'x', value: zz.crossMA6MA103Date.getTime(), borderColor: 'rgba(247,147,26,0.8)', borderWidth: 1.5, borderDash: [5, 4],
+                label: { display: true, content: '买入信号(MA6×MA103)', position: 'end', color: '#f7931a', backgroundColor: 'rgba(0,0,0,0)', font: { size: 9 } } };
+        }
+        return ann;
+    },
+
     // NUPL 阈值线（分区）配置，供交互图与离屏图共用
     _nuplAnnotations() {
         const line = (y, color, label) => ({ type: 'line', yMin: y, yMax: y, yScaleID: 'y', borderColor: color, borderDash: [4, 4], borderWidth: 1,
@@ -816,29 +843,42 @@ const ChartsModule = {
         });
     },
 
+    // zZ 指标离屏图（周报用）：价格 + MA6/103/110 + 延长线到交叉点，标出上涨/买入信号日。
     reportMAImage(crop) {
-        const data = DataModule.processedData.slice(-730);
         const full = DataModule.processedData;
+        const data = full.slice(-730);
         const s = full.length - data.length;
-        const ma50 = DataModule.calculateMA(full, 50).slice(s);
-        const ma200 = DataModule.calculateMA(full, 200).slice(s);
-        const ma365 = DataModule.calculateMA(full, 365).slice(s);
+        const P = { ma6: 6, ma103: 103, ma110: 110 };
+        const COL = { ma6: '#3b82f6', ma103: '#ef4444', ma110: '#a855f7' };
+        const maHist = {};
+        for (const k of Object.keys(P)) maHist[k] = DataModule.calculateMA(full, P[k]).slice(s).map((v, i) => ({ x: data[i].date, y: v }));
+        const hist = data.map(d => ({ x: d.date, y: d.close }));
+        const zz = DataModule.getZzSignals();
+        const dayMs = 86400000, t0 = full[full.length - 1].date.getTime();
+        const projLine = (arr, upto) => { const out = []; const n = Math.min(arr.length - 1, upto); for (let t = 0; t <= n; t++) out.push({ x: new Date(t0 + t * dayMs), y: arr[t] }); return out; };
+        const ds = [
+            { type: 'line', label: 'BTC', data: hist, borderColor: CHART_COLORS.gold, borderWidth: 1.6, pointRadius: 0 },
+            { type: 'line', label: 'MA6', data: maHist.ma6, borderColor: COL.ma6, borderWidth: 1, pointRadius: 0 },
+            { type: 'line', label: 'MA103', data: maHist.ma103, borderColor: COL.ma103, borderWidth: 1.2, pointRadius: 0 },
+            { type: 'line', label: 'MA110', data: maHist.ma110, borderColor: COL.ma110, borderWidth: 1.2, pointRadius: 0 },
+        ];
+        const ann = {};
+        if (zz) {
+            const u110 = zz.crossPriceMA110 != null ? zz.crossPriceMA110 + 20 : 300;
+            const uX = zz.crossMA6MA103 != null ? zz.crossMA6MA103 + 20 : 300;
+            ds.push({ type: 'line', label: 'MA110 延长', data: projLine(zz.proj[110], u110), borderColor: COL.ma110, borderWidth: 1, borderDash: [4, 3], pointRadius: 0 });
+            ds.push({ type: 'line', label: 'MA6 延长', data: projLine(zz.proj[6], uX), borderColor: COL.ma6, borderWidth: 1, borderDash: [4, 3], pointRadius: 0 });
+            ds.push({ type: 'line', label: 'MA103 延长', data: projLine(zz.proj[103], uX), borderColor: COL.ma103, borderWidth: 1, borderDash: [4, 3], pointRadius: 0 });
+            if (zz.crossPriceMA110Date) ann.up = { type: 'line', scaleID: 'x', value: zz.crossPriceMA110Date.getTime(), borderColor: 'rgba(0,211,149,0.7)', borderWidth: 1.5, borderDash: [5, 4], label: { display: true, content: '上涨信号', position: 'start', color: '#00d395', backgroundColor: 'rgba(0,0,0,0)', font: { size: 10 } } };
+            if (zz.crossMA6MA103Date) ann.buy = { type: 'line', scaleID: 'x', value: zz.crossMA6MA103Date.getTime(), borderColor: 'rgba(247,147,26,0.8)', borderWidth: 1.5, borderDash: [5, 4], label: { display: true, content: '买入信号', position: 'end', color: '#f7931a', backgroundColor: 'rgba(0,0,0,0)', font: { size: 10 } } };
+        }
         return this._offscreenChart({
-            type: 'line',
-            data: {
-                labels: data.map(d => d.date),
-                datasets: [
-                    { label: 'BTC', data: data.map(d => d.close), borderColor: CHART_COLORS.gold, borderWidth: 1.6, pointRadius: 0 },
-                    { label: 'MA50', data: ma50, borderColor: CHART_COLORS.ma50, borderWidth: 1, pointRadius: 0, borderDash: [3, 3] },
-                    { label: 'MA200', data: ma200, borderColor: CHART_COLORS.ma200, borderWidth: 1, pointRadius: 0, borderDash: [5, 5] },
-                    { label: 'MA365', data: ma365, borderColor: CHART_COLORS.ma365, borderWidth: 1, pointRadius: 0 },
-                ]
-            },
+            data: { datasets: ds },
             options: {
-                plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 11 } } } },
+                plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 11 } } }, annotation: { annotations: ann } },
                 scales: {
                     x: this._cropScale({ type: 'time', time: { unit: 'quarter' }, ticks: { color: '#94a3b8' }, grid: { color: '#1f2937' } }, crop, 'x'),
-                    y: this._cropScale({ ticks: { color: '#94a3b8', callback: v => '$' + (v / 1000).toFixed(0) + 'k' }, grid: { color: '#1f2937' } }, crop, 'y')
+                    y: this._cropScale({ type: 'logarithmic', ticks: { color: '#94a3b8', callback: v => this._fmtPrice(v) }, grid: { color: '#1f2937' } }, crop, 'y')
                 }
             }
         });
@@ -932,14 +972,19 @@ const ChartsModule = {
                 options: common({ x: { type: 'linear', ticks: { color: c.tick }, grid: { color: c.grid } },
                     y: { type: 'logarithmic', ticks: { color: c.tick, callback: v => v.toFixed(1) + 'x' }, grid: { color: c.grid } } }) };
         } else if (key === 'ma') {
+            // zZ 指标小图：价格 + MA6/103/110
             const data = DataModule.processedData.slice(-730);
             const full = DataModule.processedData; const s = full.length - data.length;
-            const ma200 = DataModule.calculateMA(full, 200).slice(s);
+            const ma6 = DataModule.calculateMA(full, 6).slice(s);
+            const ma103 = DataModule.calculateMA(full, 103).slice(s);
+            const ma110 = DataModule.calculateMA(full, 110).slice(s);
             cfg = { type: 'line', data: { labels: data.map(d => d.date), datasets: [
                 { label: 'BTC', data: data.map(d => d.close), borderColor: CHART_COLORS.gold, borderWidth: 1.4, pointRadius: 0 },
-                { label: 'MA200', data: ma200, borderColor: CHART_COLORS.ma200, borderWidth: 1, pointRadius: 0, borderDash: [5, 5] } ] },
+                { label: 'MA6', data: ma6, borderColor: '#3b82f6', borderWidth: 1, pointRadius: 0 },
+                { label: 'MA103', data: ma103, borderColor: '#ef4444', borderWidth: 1, pointRadius: 0 },
+                { label: 'MA110', data: ma110, borderColor: '#a855f7', borderWidth: 1, pointRadius: 0 } ] },
                 options: common({ x: { type: 'time', time: { unit: 'quarter' }, ticks: { color: c.tick }, grid: { color: c.grid } },
-                    y: { ticks: { color: c.tick, callback: v => this._fmtPrice(v) }, grid: { color: c.grid } } }) };
+                    y: { type: 'logarithmic', ticks: { color: c.tick, callback: v => this._fmtPrice(v) }, grid: { color: c.grid } } }) };
         } else if (key === 'mayer') {
             const full = DataModule.processedData; const data = full.slice(-1460); const s = full.length - data.length;
             const ma200Full = DataModule.calculateMA(full, 200);

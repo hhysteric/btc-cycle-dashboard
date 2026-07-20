@@ -142,6 +142,72 @@ const DataModule = {
         return result;
     },
 
+    // ===== zZ 指标：MA6 / MA103 / MA110 + 假设价格不变的延长线与交叉信号 =====
+    // 逻辑：从今天起假设 BTC 价格恒定 = 当前价，逐日把每条 MA 窗口最旧一天替换成当前价，
+    // 模拟未来 MA 走向；据此求两组交叉：
+    //   ① 价格上穿 MA110 → 上涨/牛市启动信号
+    //   ② MA6 上穿 MA103（金叉）→ 买入信号
+    // 返回当前值、各 MA 的未来延长序列、以及两组交叉的天数/日期。
+    ZZ_PERIODS: [6, 103, 110],
+    ZZ_MAX_PROJECT: 800,   // 最多外推天数
+
+    getZzSignals() {
+        const data = this.processedData;
+        if (data.length < 110) return null;
+        const price = data[data.length - 1].close;
+        const lastDate = data[data.length - 1].date;
+
+        // 当前 MA 值 + 用于外推的窗口（最近 period 天收盘价）
+        const cur = {}, windows = {};
+        for (const p of this.ZZ_PERIODS) {
+            const w = data.slice(-p).map(d => d.close);
+            windows[p] = w.slice();
+            cur[p] = w.reduce((a, b) => a + b, 0) / p;
+        }
+
+        // 逐日外推：未来第 t 天（t≥1）各 MA 值（假设价格恒为 price）
+        const proj = { 6: [cur[6]], 103: [cur[103]], 110: [cur[110]] }; // index 0 = 今天
+        const sim = {}, sums = {};
+        for (const p of this.ZZ_PERIODS) { sim[p] = windows[p].slice(); sums[p] = cur[p] * p; }
+        const maxT = this.ZZ_MAX_PROJECT;
+        for (let t = 1; t <= maxT; t++) {
+            for (const p of this.ZZ_PERIODS) {
+                const removed = sim[p].shift();
+                sim[p].push(price);
+                sums[p] += price - removed;
+                proj[p].push(sums[p] / p);
+            }
+        }
+
+        // 求交叉天数：找第一处符号翻转（从下方到上方）
+        const findCross = (aArr, bArr, aStart, bStart) => {
+            // aArr/bArr 为随 t 变化的数组（index=t）；aStart>bStart 表示已在上方
+            let prevDiff = aStart - bStart;
+            for (let t = 1; t < aArr.length; t++) {
+                const diff = aArr[t] - bArr[t];
+                if (prevDiff <= 0 && diff > 0) return t; // 上穿
+                prevDiff = diff;
+            }
+            return null;
+        };
+        // 价格恒定，价格数组就是常量 price
+        const priceArr = new Array(proj[110].length).fill(price);
+        const crossPriceMA110 = findCross(priceArr, proj[110], price, cur[110]);
+        const crossMA6MA103 = findCross(proj[6], proj[103], cur[6], cur[103]);
+
+        return {
+            price, lastDate,
+            cur,                       // {6,103,110}
+            proj,                      // 未来外推序列（含今天为 index0）
+            aboveMA110: price > cur[110],
+            ma6AboveMA103: cur[6] > cur[103],
+            crossPriceMA110,           // 天数 or null
+            crossMA6MA103,             // 天数 or null
+            crossPriceMA110Date: crossPriceMA110 != null ? this.addDays(lastDate, crossPriceMA110) : null,
+            crossMA6MA103Date: crossMA6MA103 != null ? this.addDays(lastDate, crossMA6MA103) : null,
+        };
+    },
+
     // 把日线聚合成周线（以周一为起点）
     aggregateWeekly(data) {
         const weeks = new Map();
@@ -578,55 +644,32 @@ const DataModule = {
         return { key: 'cycle', title: '四年大周期对比（从各轮最高点对齐）', text };
     },
 
-    // MA 分析：当前价相对 MA50/200/365 的位置；若维持当前价震荡，推算何时上穿/下穿最近的关键均线
+    // zZ 指标分析：价格 vs MA110（上涨/牛市信号）、MA6 vs MA103 金叉（买入信号）。
+    // 交叉天数为「假设价格维持当前不变」的外推推算，不是预测。
     analyzeMA() {
-        const data = this.processedData;
-        if (data.length < 365) return null;
-        const price = data[data.length - 1].close;
-        const maVals = {};
-        for (const p of [50, 200, 365]) {
-            const arr = this.calculateMA(data.slice(-p), p);
-            maVals[p] = arr[arr.length - 1];
+        const zz = this.getZzSignals();
+        if (!zz) return null;
+        const price = zz.price;
+        let text = `当前价 $${Math.round(price).toLocaleString()}，MA6 $${Math.round(zz.cur[6]).toLocaleString()}、MA103 $${Math.round(zz.cur[103]).toLocaleString()}、MA110 $${Math.round(zz.cur[110]).toLocaleString()}。`;
+
+        // 组A：上涨/牛市信号（价格上穿 MA110）
+        if (zz.aboveMA110) {
+            text += `价格已在 MA110 上方，处于上涨信号已触发状态；若跌回 MA110（$${Math.round(zz.cur[110]).toLocaleString()}）下方则信号转弱。`;
+        } else if (zz.crossPriceMA110 != null) {
+            text += `价格在 MA110 下方，尚未触发上涨信号；若维持当前价格不变，MA110 将逐日下移，约 ${zz.crossPriceMA110} 天后（${this.fmtDate(zz.crossPriceMA110Date)}）价格上穿 MA110，触发上涨/牛市启动信号。`;
+        } else {
+            text += `价格在 MA110 下方，按当前价维持不变外推，短期内（${this.ZZ_MAX_PROJECT} 天内）不会上穿 MA110，上涨信号尚远。`;
         }
 
-        const pos = [];
-        for (const p of [50, 200, 365]) {
-            pos.push(`MA${p} $${Math.round(maVals[p]).toLocaleString()}（价格${price > maVals[p] ? '上方' : '下方'}）`);
+        // 组B：买入信号（MA6 上穿 MA103 金叉）
+        if (zz.ma6AboveMA103) {
+            text += ` MA6 已在 MA103 上方（金叉状态），买入信号已触发/持续中；若 MA6 回落下穿 MA103 则转为卖出/观望。`;
+        } else if (zz.crossMA6MA103 != null) {
+            text += ` MA6 在 MA103 下方，若维持当前价格不变，约 ${zz.crossMA6MA103} 天后（${this.fmtDate(zz.crossMA6MA103Date)}）MA6 上穿 MA103（金叉），触发买入信号。`;
+        } else {
+            text += ` MA6 在 MA103 下方，按当前价外推短期内不会金叉，买入信号尚未临近。`;
         }
-        const posText = `当前价 $${Math.round(price).toLocaleString()}。${pos.join('，')}。`;
-
-        // 找一条价格尚未突破、且最接近的关键均线，估算"若价格维持震荡"何时穿越
-        // 用 MA 近 N 日斜率外推：MA 会朝价格收敛。取 MA200 举例（最有周期意义）
-        const proj = [];
-        for (const p of [200, 365]) {
-            const ma = maVals[p];
-            const gap = price - ma; // 正=价在均线上方
-            // MA 每日变化 ≈ (今日价 - period 天前的价) / period；用"维持当前价"假设：
-            // 若未来每天都收在 price，则 MA 每天变化 = (price - 被移出的那天旧价)/period
-            const oldPrices = data.slice(-p).map(d => d.close); // 最近 p 天，将逐日被 price 替换
-            // 估算跨越所需天数：模拟维持 price 时 MA 的走向
-            let simMa = ma;
-            let cross = null;
-            const window = oldPrices.slice(); // 复制
-            for (let day = 1; day <= 400; day++) {
-                // 移出最旧一天，加入 price
-                const removed = window.shift();
-                window.push(price);
-                simMa += (price - removed) / p;
-                if ((gap > 0 && price < simMa) || (gap < 0 && price > simMa) ||
-                    Math.abs(price - simMa) / price < 0.005) {
-                    cross = day;
-                    break;
-                }
-            }
-            if (cross) {
-                const d = this.fmtDate(this.addDays(data[data.length - 1].date, cross));
-                proj.push(`若维持当前价格震荡，约 ${cross} 天后（${d}）价格将与 MA${p} 收敛${gap > 0 ? '（均线上移逼近）' : '（有望上穿）'}`);
-            }
-        }
-        const outlookText = proj.length ? proj.join('；') + '。' :
-            '当前价格与主要均线偏离较大，短期内难以收敛，趋势延续为主。';
-        return { key: 'ma', title: 'MA 均线分析', text: posText + outlookText };
+        return { key: 'ma', title: 'zZ 指标（MA110 上涨信号 / MA6×MA103 买入信号）', text };
     },
 
     // Mayer Multiple 分析

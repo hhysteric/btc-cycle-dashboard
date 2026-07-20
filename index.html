@@ -115,7 +115,7 @@
         <!-- Price Chart with MA -->
         <section id="card-price" class="chart-card bg-white dark:bg-dark-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
             <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
-                <h2 class="text-lg font-semibold">BTC 价格与均线</h2>
+                <h2 class="text-lg font-semibold">zZ 指标</h2>
                 <div class="flex gap-2 flex-wrap items-center">
                     <button class="chart-period-btn px-3 py-1 rounded text-sm" data-period="365">1Y</button>
                     <button class="chart-period-btn px-3 py-1 rounded text-sm" data-period="730">2Y</button>
@@ -127,6 +127,7 @@
                     <button class="chart-tool-btn fullscreen-btn px-3 py-1 rounded text-sm" data-target="card-price">全屏</button>
                 </div>
             </div>
+            <p class="text-gray-500 dark:text-gray-400 text-sm mb-3">BTC 价格 + MA6 / MA103 / MA110，虚线为「假设价格维持当前不变」的均线延长线。价格上穿 MA110 = 上涨/牛市启动信号；MA6 上穿 MA103（金叉）= 买入信号。竖线标出预计触发日。</p>
             <div class="chart-canvas-wrap h-80">
                 <canvas id="price-chart"></canvas>
             </div>

@@ -948,17 +948,25 @@ const ChartsModule = {
                 { label: 'Mayer', data: mayer, borderColor: CHART_COLORS.blue, borderWidth: 1.4, pointRadius: 0 } ] },
                 options: common({ x: { type: 'time', time: { unit: 'year' }, ticks: { color: c.tick }, grid: { color: c.grid } },
                     y: { ticks: { color: c.tick, callback: v => v.toFixed(1) + 'x' }, grid: { color: c.grid } } }) };
-        } else if (key === 'mvrv' || key === 'realized') {
-            // realized（已实现价格）与 mvrv 共用价格面板小图
+        } else if (key === 'mvrv') {
+            // mvrv 小图 = MVRV 面板（MVRV Ratio + MVRV band 曲线），与周报图一致
             const onchain = DataModule.onchainData; const bandInfo = DataModule.getMvrvBands();
             if (!onchain.length || !bandInfo) return false;
             const { defs, series } = bandInfo;
+            cfg = { type: 'line', data: { labels: onchain.map(d => d.date), datasets: [
+                { label: 'MVRV', data: onchain.map(d => d.mvrv), borderColor: '#7c5cff', borderWidth: 1.3, pointRadius: 0 },
+                ...defs.map(def => ({ label: def.key, data: onchain.map((d, i) => series[i].coef[def.key]), borderColor: def.color, borderWidth: 0.8, borderDash: [3, 2], pointRadius: 0 })) ] },
+                options: common({ x: { type: 'time', time: { unit: 'year' }, ticks: { color: c.tick }, grid: { color: c.grid } },
+                    y: { type: 'logarithmic', ticks: { color: c.tick, callback: v => v.toFixed(1) }, grid: { color: c.grid } } }) };
+        } else if (key === 'realized') {
+            // realized 小图 = 价格 + 已实现价格成本线
+            const onchain = DataModule.onchainData;
+            if (!onchain.length) return false;
             const priceByDay = new Map();
             for (const d of DataModule.processedData) priceByDay.set(d.date.toISOString().slice(0, 10), d.close);
             cfg = { type: 'line', data: { labels: onchain.map(d => d.date), datasets: [
                 { label: 'BTC', data: onchain.map(d => { const p = priceByDay.get(d.date.toISOString().slice(0, 10)); return p != null ? p : d.mvrv * d.realizedPrice; }), borderColor: CHART_COLORS.gold, borderWidth: 1.2, pointRadius: 0 },
-                { label: 'RP', data: onchain.map(d => d.realizedPrice), borderColor: CHART_COLORS.purple, borderWidth: 2, pointRadius: 0 },
-                ...defs.map(def => ({ label: def.key, data: onchain.map((d, i) => d.realizedPrice * series[i].coef[def.key]), borderColor: def.color, borderWidth: 0.8, borderDash: [3, 2], pointRadius: 0 })) ] },
+                { label: 'RP', data: onchain.map(d => d.realizedPrice), borderColor: CHART_COLORS.purple, borderWidth: 2, pointRadius: 0 } ] },
                 options: common({ x: { type: 'time', time: { unit: 'year' }, ticks: { color: c.tick }, grid: { color: c.grid } },
                     y: { type: 'logarithmic', ticks: { color: c.tick, callback: v => this._fmtPrice(v) }, grid: { color: c.grid } } }) };
         } else if (key === 'nupl') {
@@ -1002,37 +1010,30 @@ const ChartsModule = {
     },
 
     // MVRV 估值带离屏图（周报用，深色）。crop: {xMin,xMax,yMin,yMax} 可选。
+    // 周报里 MVRV 用「MVRV 面板」（对应页面 MVRV 卡片的下图）：MVRV Ratio + MVRV 估值带曲线，
+    // 与已实现价格图（价格+成本线）区分开。
     reportMvrvImage(crop) {
         const onchain = DataModule.onchainData;
         const bandInfo = DataModule.getMvrvBands();
         if (!onchain.length || !bandInfo) return null;
-        const priceByDay = new Map();
-        for (const d of DataModule.processedData) priceByDay.set(d.date.toISOString().slice(0, 10), d.close);
-        const labels = onchain.map(d => d.date);
-        const priceData = onchain.map(d => {
-            const p = priceByDay.get(d.date.toISOString().slice(0, 10));
-            return p != null ? p : d.mvrv * d.realizedPrice;
-        });
-        // 周报里 MVRV 用价格面板（价格 + 已实现价格 + 价格估值带曲线），信息最直观且与文字量化对应
         const { defs, series } = bandInfo;
-        const priceBandDatasets = defs.map(def => ({
-            type: 'line', label: def.key, data: onchain.map((d, i) => d.realizedPrice * series[i].coef[def.key]),
-            borderColor: def.color, borderWidth: 1, borderDash: [4, 3], pointRadius: 0,
+        const mvrvBandDatasets = defs.map(def => ({
+            type: 'line', label: `MVRV ${def.key}`, data: onchain.map((d, i) => series[i].coef[def.key]),
+            borderColor: def.color, borderWidth: 1, borderDash: [6, 3], pointRadius: 0,
         }));
         return this._offscreenChart({
             data: {
-                labels,
+                labels: onchain.map(d => d.date),
                 datasets: [
-                    { type: 'line', label: 'BTC', data: priceData, borderColor: CHART_COLORS.gold, borderWidth: 1.6, pointRadius: 0 },
-                    { type: 'line', label: '已实现价格', data: onchain.map(d => d.realizedPrice), borderColor: CHART_COLORS.purple, borderWidth: 2.5, pointRadius: 0 },
-                    ...priceBandDatasets,
+                    { type: 'line', label: 'MVRV Ratio', data: onchain.map(d => d.mvrv), borderColor: '#7c5cff', borderWidth: 1.6, pointRadius: 0 },
+                    ...mvrvBandDatasets,
                 ]
             },
             options: {
                 plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 11 } } } },
                 scales: {
                     x: this._cropScale({ type: 'time', time: { unit: 'year' }, ticks: { color: '#94a3b8' }, grid: { color: '#1f2937' } }, crop, 'x'),
-                    y: this._cropScale({ type: 'logarithmic', title: { display: true, text: '价格', color: '#94a3b8' }, ticks: { color: '#94a3b8', callback: v => this._fmtPrice(v) }, grid: { color: '#1f2937' } }, crop, 'y'),
+                    y: this._cropScale({ type: 'logarithmic', title: { display: true, text: 'MVRV', color: '#a855f7' }, ticks: { color: '#94a3b8', callback: v => v.toFixed(1) }, grid: { color: '#1f2937' } }, crop, 'y'),
                 }
             }
         });

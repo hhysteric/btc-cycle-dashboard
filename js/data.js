@@ -650,26 +650,26 @@ const DataModule = {
         const zz = this.getZzSignals();
         if (!zz) return null;
         const price = zz.price;
-        let text = `当前价 $${Math.round(price).toLocaleString()}，MA6 $${Math.round(zz.cur[6]).toLocaleString()}、MA103 $${Math.round(zz.cur[103]).toLocaleString()}、MA110 $${Math.round(zz.cur[110]).toLocaleString()}。`;
+        let text = `当前价 $${Math.round(price).toLocaleString()}，`;
 
         // 组A：上涨/牛市信号（价格上穿 MA110）
         if (zz.aboveMA110) {
-            text += `价格已在 MA110 上方，处于上涨信号已触发状态；若跌回 MA110（$${Math.round(zz.cur[110]).toLocaleString()}）下方则信号转弱。`;
+            text += `已触发上涨信号（价格在 MA110 上方）。`;
         } else if (zz.crossPriceMA110 != null) {
-            text += `价格在 MA110 下方，尚未触发上涨信号；若维持当前价格不变，MA110 将逐日下移，约 ${zz.crossPriceMA110} 天后（${this.fmtDate(zz.crossPriceMA110Date)}）价格上穿 MA110，触发上涨/牛市启动信号。`;
+            text += `尚未触发上涨信号。若维持当前价格不变，约 ${zz.crossPriceMA110} 天后 ${this.fmtDate(zz.crossPriceMA110Date)}，触发上涨/牛市启动信号。`;
         } else {
-            text += `价格在 MA110 下方，按当前价维持不变外推，短期内（${this.ZZ_MAX_PROJECT} 天内）不会上穿 MA110，上涨信号尚远。`;
+            text += `尚未触发上涨信号，短期内不会上穿 MA110。`;
         }
 
         // 组B：买入信号（MA6 上穿 MA103 金叉）
         if (zz.ma6AboveMA103) {
-            text += ` MA6 已在 MA103 上方（金叉状态），买入信号已触发/持续中；若 MA6 回落下穿 MA103 则转为卖出/观望。`;
+            text += `已触发买入信号（MA6 在 MA103 上方）。`;
         } else if (zz.crossMA6MA103 != null) {
-            text += ` MA6 在 MA103 下方，若维持当前价格不变，约 ${zz.crossMA6MA103} 天后（${this.fmtDate(zz.crossMA6MA103Date)}）MA6 上穿 MA103（金叉），触发买入信号。`;
+            text += `约 ${zz.crossMA6MA103} 天后 ${this.fmtDate(zz.crossMA6MA103Date)}，触发买入信号。`;
         } else {
-            text += ` MA6 在 MA103 下方，按当前价外推短期内不会金叉，买入信号尚未临近。`;
+            text += `买入信号尚未临近。`;
         }
-        return { key: 'ma', title: 'zZ 指标（MA110 上涨信号 / MA6×MA103 买入信号）', text };
+        return { key: 'ma', title: 'zZ 指标', text };
     },
 
     // Mayer Multiple 分析

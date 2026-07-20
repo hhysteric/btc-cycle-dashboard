@@ -26,11 +26,10 @@ const ReportModule = {
 
         const pattern = DataModule.getWeekdayPattern();
 
-        // 内置指标段：上传图优先，否则用自动图（可能为 null）。uploaded 标记用于排版（上传图可能含白底）
+        // 内置指标段：单段文本 text（可被 edits[key].text 覆盖）；上传图优先，否则用自动图
         const builtinSections = chosen.map(a => ({
             ...a,
-            position: (edits[a.key] && edits[a.key].position != null) ? edits[a.key].position : a.position,
-            outlook: (edits[a.key] && edits[a.key].outlook != null) ? edits[a.key].outlook : a.outlook,
+            text: (edits[a.key] && edits[a.key].text != null) ? edits[a.key].text : a.text,
             image: uploads[a.key] || images[a.key] || null,
             uploaded: !!uploads[a.key],
         }));
@@ -39,8 +38,7 @@ const ReportModule = {
         const customs = customSections.map(c => ({
             key: c.key,
             title: c.title || '自定义指标',
-            position: c.position || '',
-            outlook: c.outlook || '',
+            text: c.text || '',
             image: c.image || null,
             uploaded: !!c.image,
         }));
@@ -96,16 +94,8 @@ const ReportModule = {
         `;
 
         for (const s of report.sections) {
-            // 图左观点右：有图时两列布局（图 58% / 观点 42%）；无图（如 Cointime）时观点占满
-            const opinionHtml = `
-                <div style="margin-bottom:10px;">
-                    <span style="display:inline-block;background:#252547;color:#93c5fd;font-size:12px;padding:2px 8px;border-radius:4px;margin-bottom:4px;">当前位置</span>
-                    <div style="font-size:14px;line-height:1.6;color:#d1d5db;white-space:pre-wrap;">${s.position}</div>
-                </div>
-                <div>
-                    <span style="display:inline-block;background:#252547;color:#fbbf24;font-size:12px;padding:2px 8px;border-radius:4px;margin-bottom:4px;">后市展望</span>
-                    <div style="font-size:14px;line-height:1.6;color:#d1d5db;white-space:pre-wrap;">${s.outlook}</div>
-                </div>`;
+            // 单段连贯叙述；图左文右（有图时两列），无图时文字占满
+            const opinionHtml = `<div style="font-size:14px;line-height:1.7;color:#d1d5db;white-space:pre-wrap;">${s.text || ''}</div>`;
 
             html += `<div style="background:#1a1a2e;border:1px solid #374151;border-radius:12px;padding:18px;margin-bottom:18px;">
                 <div style="font-size:17px;font-weight:700;color:#f7931a;margin-bottom:12px;">${s.title}</div>`;
@@ -154,9 +144,7 @@ const ReportModule = {
         text += `四年周期阶段: ${o.cyclePhase}（${o.cycleYear}年）\n`;
         text += `${o.weekday}\n\n`;
         for (const s of report.sections) {
-            text += `【${s.title}】\n`;
-            text += `- 当前位置: ${s.position}\n`;
-            text += `- 后市展望: ${s.outlook}\n\n`;
+            text += `【${s.title}】\n${s.text || ''}\n\n`;
         }
         text += `生成于 ${new Date().toLocaleString('zh-CN')}\n（不构成投资建议）`;
         return text;

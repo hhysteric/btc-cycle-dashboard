@@ -356,12 +356,8 @@ function openReportConfig(cycleInfo, data) {
                 </div>
                 <div class="space-y-2">
                     <div>
-                        <div class="text-xs text-blue-300 mb-1">当前位置</div>
-                        <textarea class="rpt-position w-full bg-dark-900 border border-gray-700 rounded p-2 text-sm text-gray-200" rows="4" data-key="${a.key}">${a.position}</textarea>
-                    </div>
-                    <div>
-                        <div class="text-xs text-yellow-300 mb-1">后市展望</div>
-                        <textarea class="rpt-outlook w-full bg-dark-900 border border-gray-700 rounded p-2 text-sm text-gray-200" rows="4" data-key="${a.key}">${a.outlook}</textarea>
+                        <div class="text-xs text-blue-300 mb-1">分析（可编辑）</div>
+                        <textarea class="rpt-text w-full bg-dark-900 border border-gray-700 rounded p-2 text-sm text-gray-200" rows="7" data-key="${a.key}">${a.text || ''}</textarea>
                     </div>
                 </div>
             </div>`;
@@ -442,12 +438,8 @@ function addCustomSection() {
             </div>
             <div class="space-y-2">
                 <div>
-                    <div class="text-xs text-blue-300 mb-1">当前位置</div>
-                    <textarea class="rpt-position w-full bg-dark-900 border border-gray-700 rounded p-2 text-sm text-gray-200" rows="4" data-key="${key}" placeholder="填写该指标的当前位置…"></textarea>
-                </div>
-                <div>
-                    <div class="text-xs text-yellow-300 mb-1">后市展望</div>
-                    <textarea class="rpt-outlook w-full bg-dark-900 border border-gray-700 rounded p-2 text-sm text-gray-200" rows="4" data-key="${key}" placeholder="填写该指标的后市展望…"></textarea>
+                    <div class="text-xs text-blue-300 mb-1">分析（可编辑）</div>
+                    <textarea class="rpt-text w-full bg-dark-900 border border-gray-700 rounded p-2 text-sm text-gray-200" rows="7" data-key="${key}" placeholder="填写该指标的分析…"></textarea>
                 </div>
             </div>
         </div>`;
@@ -464,16 +456,11 @@ function buildReportPreview(cycleInfo, data) {
     const selectedKeys = Array.from(document.querySelectorAll('.rpt-sel'))
         .filter(cb => cb.checked).map(cb => cb.dataset.key);
     const edits = {};
-    document.querySelectorAll('.rpt-position').forEach(t => {
-        edits[t.dataset.key] = edits[t.dataset.key] || {};
-        edits[t.dataset.key].position = t.value;
-    });
-    document.querySelectorAll('.rpt-outlook').forEach(t => {
-        edits[t.dataset.key] = edits[t.dataset.key] || {};
-        edits[t.dataset.key].outlook = t.value;
+    document.querySelectorAll('.rpt-text').forEach(t => {
+        edits[t.dataset.key] = { text: t.value };
     });
 
-    // 自定义段：从带 data-custom 的项收集标题/观点/图
+    // 自定义段：从带 data-custom 的项收集标题/分析/图
     const customSections = [];
     document.querySelectorAll('#report-config-list [data-custom="1"]').forEach(item => {
         const key = item.dataset.key;
@@ -481,8 +468,7 @@ function buildReportPreview(cycleInfo, data) {
         const e = edits[key] || {};
         customSections.push({
             key, title,
-            position: e.position || '',
-            outlook: e.outlook || '',
+            text: e.text || '',
             image: reportUploads[key] || null,
         });
     });

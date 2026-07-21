@@ -219,7 +219,7 @@ const ChartsModule = {
                 ...this.defaults(),
                 plugins: {
                     ...this.defaults().plugins,
-                    legend: { labels: { color: this.t().legend, font: { size: 11 }, filter: (it) => !it.text.includes('恒定') } },
+                    legend: { display: false },
                     annotation: { annotations: this._zzCrossAnnotations(zz) },
                     zoom: makeZoomConfig()
                 },

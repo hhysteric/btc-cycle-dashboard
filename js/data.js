@@ -87,6 +87,12 @@ const DataModule = {
                 .sort((a, b) => a.date - b.date);
             let cum = 0;
             for (const r of rows) { cum += r.flow; r.cumulative = cum; }
+            // 近 20 日滚动净流入（平滑日噪声；其正负是最有区分力的资金环境信号）
+            for (let i = 0; i < rows.length; i++) {
+                let s = 0, cnt = 0;
+                for (let j = Math.max(0, i - 19); j <= i; j++) { s += rows[j].flow; cnt++; }
+                rows[i].roll20 = s;
+            }
             this.etfData = rows;
             return rows;
         } catch (e) {

@@ -755,7 +755,10 @@ const ChartsModule = {
         });
     },
 
-    // ETF 资金流：日净流量柱（绿正红负，左轴百万美元）+ 累计净流入线 + BTC 价格（右轴对数）
+    // ETF 资金流（双栏，Chart.js 轴 stack）：
+    //   上栏 yPrice(对数)：BTC 价格，按「近20日滚动净流入」正/负分段着色（绿=流入主导、红=流出主导）
+    //   下栏 yFlow：20 日滚动净流入面积（正绿负红）——平滑日噪声，与价格共振最直观
+    // 依据数据：ETF 流为同步指标（当日相关 0.39），20 日净流入正负对后市方向有区分力。
     renderEtfChart() {
         this.destroyChart('etf');
         const el = document.getElementById('etf-chart');
@@ -765,26 +768,43 @@ const ChartsModule = {
         const priceByDay = new Map();
         for (const p of DataModule.processedData) priceByDay.set(p.date.toISOString().slice(0, 10), p.close);
         const labels = d.map(x => x.date);
+        const priceData = d.map(x => priceByDay.get(x.date.toISOString().slice(0, 10)) ?? null);
+        const roll = d.map(x => x.roll20);
+        // 价格线按 roll20 正负分段着色（用 segment.borderColor，取该段起点的 roll20 符号）
+        const segColor = (ctx) => (roll[ctx.p0DataIndex] >= 0 ? 'rgba(0,211,149,0.9)' : 'rgba(255,71,87,0.9)');
+
         this.charts['etf'] = new Chart(el.getContext('2d'), {
             data: {
                 labels,
                 datasets: [
-                    { type: 'bar', label: '日净流量', yAxisID: 'y', data: d.map(x => x.flow),
-                      backgroundColor: d.map(x => x.flow >= 0 ? 'rgba(0,211,149,0.6)' : 'rgba(255,71,87,0.6)'), borderWidth: 0, order: 3 },
-                    { type: 'line', label: '累计净流入', yAxisID: 'yCum', data: d.map(x => x.cumulative),
-                      borderColor: '#f7931a', borderWidth: 1.6, pointRadius: 0, order: 1 },
-                    { type: 'line', label: 'BTC 价格', yAxisID: 'yPrice', data: d.map(x => priceByDay.get(x.date.toISOString().slice(0, 10)) ?? null),
-                      borderColor: 'rgba(124,92,255,0.7)', borderWidth: 1.2, pointRadius: 0, order: 2 },
+                    { type: 'line', label: 'BTC 价格', yAxisID: 'yPrice', data: priceData,
+                      borderColor: 'rgba(124,92,255,0.9)', borderWidth: 1.6, pointRadius: 0, order: 1,
+                      segment: { borderColor: segColor } },
+                    // 下栏：20 日滚动净流入（正绿负红），用面积
+                    { type: 'line', label: '20日滚动净流入', yAxisID: 'yFlow', data: roll,
+                      borderColor: '#f7931a', borderWidth: 1, pointRadius: 0, fill: 'origin',
+                      backgroundColor: (c) => {
+                          const a = c.chart.chartArea; if (!a) return 'rgba(0,211,149,0.15)';
+                          const g = c.chart.ctx.createLinearGradient(0, a.top, 0, a.bottom);
+                          g.addColorStop(0, 'rgba(0,211,149,0.35)'); g.addColorStop(0.5, 'rgba(0,211,149,0.05)');
+                          g.addColorStop(0.5, 'rgba(255,71,87,0.05)'); g.addColorStop(1, 'rgba(255,71,87,0.35)');
+                          return g;
+                      }, order: 2 },
                 ]
             },
             options: {
                 ...this.defaults(),
+                // ETF 仅 2024-01 起，周期底部竖线（2015/2018/2022）不适用，不标。x 轴限定到 ETF 数据区间。
                 plugins: { ...this.defaults().plugins, zoom: makeZoomConfig() },
                 scales: {
-                    x: { type: 'time', time: { unit: 'quarter' }, ticks: { color: this.t().tick }, grid: { color: this.t().grid } },
-                    y: { position: 'left', title: { display: true, text: '日净流量 (百万$)', color: this.t().tick }, ticks: { color: this.t().tick, callback: v => this._fmtFlow(v) }, grid: { color: this.t().grid } },
-                    yCum: { position: 'right', title: { display: true, text: '累计 ($)', color: '#f7931a' }, ticks: { color: '#f7931a', callback: v => '$' + (v / 1000).toFixed(1) + 'B' }, grid: { drawOnChartArea: false } },
-                    yPrice: { position: 'right', type: 'logarithmic', display: false, grid: { drawOnChartArea: false } },
+                    x: { type: 'time', time: { unit: 'quarter' }, min: labels[0], max: labels[labels.length - 1], ticks: { color: this.t().tick }, grid: { color: this.t().grid } },
+                    // 下栏在下（先声明），上栏价格在上
+                    yFlow: { stack: 'etf', stackWeight: 1, offset: true,
+                             title: { display: true, text: '20日净流入', color: this.t().tick },
+                             ticks: { color: this.t().tick, callback: v => this._fmtFlow(v) }, grid: { color: this.t().grid } },
+                    yPrice: { stack: 'etf', stackWeight: 2, offset: true, type: 'logarithmic',
+                              title: { display: true, text: 'BTC 价格', color: '#7c5cff' },
+                              ticks: { color: '#7c5cff', callback: v => this._fmtPrice(v) }, grid: { color: this.t().grid } },
                 }
             }
         });
@@ -1083,12 +1103,16 @@ const ChartsModule = {
         } else if (key === 'etf') {
             const d = DataModule.etfData;
             if (!d || !d.length) return false;
+            const roll = d.map(x => x.roll20);
+            const segColor = (ctx) => (roll[ctx.p0DataIndex] >= 0 ? 'rgba(0,211,149,0.9)' : 'rgba(255,71,87,0.9)');
+            const priceByDay = new Map();
+            for (const p of DataModule.processedData) priceByDay.set(p.date.toISOString().slice(0, 10), p.close);
             cfg = { data: { labels: d.map(x => x.date), datasets: [
-                { type: 'bar', label: '日净流量', yAxisID: 'y', data: d.map(x => x.flow), backgroundColor: d.map(x => x.flow >= 0 ? 'rgba(0,211,149,0.6)' : 'rgba(255,71,87,0.6)'), borderWidth: 0 },
-                { type: 'line', label: '累计', yAxisID: 'yCum', data: d.map(x => x.cumulative), borderColor: '#f7931a', borderWidth: 1.4, pointRadius: 0 } ] },
+                { type: 'bar', label: '20日净流入', yAxisID: 'yFlow', data: roll, backgroundColor: roll.map(v => v >= 0 ? 'rgba(0,211,149,0.3)' : 'rgba(255,71,87,0.3)'), borderWidth: 0 },
+                { type: 'line', label: 'BTC', yAxisID: 'yP', data: d.map(x => priceByDay.get(x.date.toISOString().slice(0, 10)) ?? null), borderColor: '#7c5cff', borderWidth: 1.3, pointRadius: 0, segment: { borderColor: segColor } } ] },
                 options: common({ x: { type: 'time', time: { unit: 'quarter' }, ticks: { color: c.tick }, grid: { color: c.grid } },
-                    y: { position: 'left', ticks: { color: c.tick }, grid: { color: c.grid } },
-                    yCum: { position: 'right', ticks: { color: '#f7931a', callback: v => '$' + (v / 1000).toFixed(1) + 'B' }, grid: { drawOnChartArea: false } } }) };
+                    yP: { position: 'left', type: 'logarithmic', ticks: { color: c.tick, callback: v => this._fmtPrice(v) }, grid: { color: c.grid } },
+                    yFlow: { position: 'right', ticks: { color: c.tick, callback: v => this._fmtFlow(v) }, grid: { drawOnChartArea: false } } }) };
         } else {
             return false; // cointime 等无图
         }
@@ -1232,28 +1256,29 @@ const ChartsModule = {
         });
     },
 
-    // ETF 资金流离屏图（周报用）：日净流量柱 + 累计净流入线 + 价格
+    // ETF 资金流离屏图（周报用）：价格按 20 日滚动净流入正/负分段着色（绿=流入主导、红=流出主导），
+    // 叠加 20 日滚动净流入柱（右轴），直观呈现资金环境与价格共振。
     reportEtfImage(crop) {
         const d = DataModule.etfData;
         if (!d || !d.length) return null;
         const priceByDay = new Map();
         for (const p of DataModule.processedData) priceByDay.set(p.date.toISOString().slice(0, 10), p.close);
+        const roll = d.map(x => x.roll20);
+        const segColor = (ctx) => (roll[ctx.p0DataIndex] >= 0 ? 'rgba(0,211,149,0.95)' : 'rgba(255,71,87,0.95)');
         return this._offscreenChart({
             data: {
                 labels: d.map(x => x.date),
                 datasets: [
-                    { type: 'bar', label: '日净流量', yAxisID: 'y', data: d.map(x => x.flow), backgroundColor: d.map(x => x.flow >= 0 ? 'rgba(0,211,149,0.6)' : 'rgba(255,71,87,0.6)'), borderWidth: 0, order: 3 },
-                    { type: 'line', label: '累计净流入', yAxisID: 'yCum', data: d.map(x => x.cumulative), borderColor: '#f7931a', borderWidth: 1.6, pointRadius: 0, order: 1 },
-                    { type: 'line', label: 'BTC', yAxisID: 'yP', data: d.map(x => priceByDay.get(x.date.toISOString().slice(0, 10)) ?? null), borderColor: 'rgba(124,92,255,0.7)', borderWidth: 1.2, pointRadius: 0, order: 2 },
+                    { type: 'bar', label: '20日滚动净流入', yAxisID: 'yFlow', data: roll, backgroundColor: roll.map(v => v >= 0 ? 'rgba(0,211,149,0.35)' : 'rgba(255,71,87,0.35)'), borderWidth: 0, order: 2 },
+                    { type: 'line', label: 'BTC 价格（绿=流入主导 红=流出主导）', yAxisID: 'yP', data: d.map(x => priceByDay.get(x.date.toISOString().slice(0, 10)) ?? null), borderColor: 'rgba(124,92,255,0.9)', borderWidth: 1.8, pointRadius: 0, order: 1, segment: { borderColor: segColor } },
                 ]
             },
             options: {
                 plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 11 } } } },
                 scales: {
                     x: this._cropScale({ type: 'time', time: { unit: 'quarter' }, ticks: { color: '#94a3b8' }, grid: { color: '#1f2937' } }, crop, 'x'),
-                    y: { position: 'left', title: { display: true, text: '日净流量(百万$)', color: '#94a3b8' }, ticks: { color: '#94a3b8', callback: v => this._fmtFlow(v) }, grid: { color: '#1f2937' } },
-                    yCum: { position: 'right', title: { display: true, text: '累计', color: '#f7931a' }, ticks: { color: '#f7931a', callback: v => '$' + (v / 1000).toFixed(1) + 'B' }, grid: { drawOnChartArea: false } },
-                    yP: { position: 'right', type: 'logarithmic', display: false, grid: { drawOnChartArea: false } },
+                    yP: { position: 'left', type: 'logarithmic', title: { display: true, text: '价格', color: '#94a3b8' }, ticks: { color: '#94a3b8', callback: v => this._fmtPrice(v) }, grid: { color: '#1f2937' } },
+                    yFlow: { position: 'right', title: { display: true, text: '20日净流入', color: '#f7931a' }, ticks: { color: '#94a3b8', callback: v => this._fmtFlow(v) }, grid: { drawOnChartArea: false } },
                 }
             }
         });

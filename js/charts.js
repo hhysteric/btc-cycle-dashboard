@@ -570,6 +570,14 @@ const ChartsModule = {
         return '$' + v.toPrecision(2);
     },
 
+    // ETF 资金流刻度（百万美元）：整数化，≥1000M 显示为 B（避免放大时出现 -$1619.897…M）
+    _fmtFlow(v) {
+        const sign = v < 0 ? '-' : '';
+        const a = Math.abs(v);
+        if (a >= 1000) return sign + '$' + (a / 1000).toFixed(1) + 'B';
+        return sign + '$' + Math.round(a) + 'M';
+    },
+
     // 本地自绘 MVRV，对齐 CheckOnChain：单张图上下两栏（Chart.js 轴 stack），共享横轴。
     //   上栏 y(对数,价格)：BTC 价格 + 已实现价格 + 价格估值带（已实现价 × 当日 MVRV band 系数）
     //   下栏 yMvrv(对数,紫)：MVRV Ratio 曲线 + MVRV 估值带曲线（当日 expanding mean/std → 曲线）
@@ -774,7 +782,7 @@ const ChartsModule = {
                 plugins: { ...this.defaults().plugins, zoom: makeZoomConfig() },
                 scales: {
                     x: { type: 'time', time: { unit: 'quarter' }, ticks: { color: this.t().tick }, grid: { color: this.t().grid } },
-                    y: { position: 'left', title: { display: true, text: '日净流量 (百万$)', color: this.t().tick }, ticks: { color: this.t().tick, callback: v => (v >= 0 ? '' : '-') + '$' + Math.abs(v) + 'M' }, grid: { color: this.t().grid } },
+                    y: { position: 'left', title: { display: true, text: '日净流量 (百万$)', color: this.t().tick }, ticks: { color: this.t().tick, callback: v => this._fmtFlow(v) }, grid: { color: this.t().grid } },
                     yCum: { position: 'right', title: { display: true, text: '累计 ($)', color: '#f7931a' }, ticks: { color: '#f7931a', callback: v => '$' + (v / 1000).toFixed(1) + 'B' }, grid: { drawOnChartArea: false } },
                     yPrice: { position: 'right', type: 'logarithmic', display: false, grid: { drawOnChartArea: false } },
                 }
@@ -1243,7 +1251,7 @@ const ChartsModule = {
                 plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 11 } } } },
                 scales: {
                     x: this._cropScale({ type: 'time', time: { unit: 'quarter' }, ticks: { color: '#94a3b8' }, grid: { color: '#1f2937' } }, crop, 'x'),
-                    y: { position: 'left', title: { display: true, text: '日净流量(百万$)', color: '#94a3b8' }, ticks: { color: '#94a3b8', callback: v => (v >= 0 ? '' : '-') + '$' + Math.abs(v) + 'M' }, grid: { color: '#1f2937' } },
+                    y: { position: 'left', title: { display: true, text: '日净流量(百万$)', color: '#94a3b8' }, ticks: { color: '#94a3b8', callback: v => this._fmtFlow(v) }, grid: { color: '#1f2937' } },
                     yCum: { position: 'right', title: { display: true, text: '累计', color: '#f7931a' }, ticks: { color: '#f7931a', callback: v => '$' + (v / 1000).toFixed(1) + 'B' }, grid: { drawOnChartArea: false } },
                     yP: { position: 'right', type: 'logarithmic', display: false, grid: { drawOnChartArea: false } },
                 }

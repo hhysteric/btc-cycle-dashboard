@@ -54,34 +54,52 @@ const crosshairPlugin = {
 };
 if (typeof Chart !== 'undefined') Chart.register(crosshairPlugin);
 
-// 通用缩放/平移配置（工厂函数：每张图独立一份，避免共享引用问题）：
-//  单轴图：滚轮=横纵同时；Shift=只纵轴；Ctrl/Alt=只横轴。
-//  双轴图（传 leftAxis/rightAxis）：Shift=只左轴；Alt=只右轴；Ctrl=只横轴；无修饰键=纵横同时。
-// mode 决定 x/y/xy；scaleMode 进一步把纵向缩放限定到某一条 y 轴（plugin-zoom v2 支持）。
-const wheelMode = (ctx) => {
-    const ev = ctx && ctx.event && ctx.event.native;
-    if (ev && ev.shiftKey) return 'y';
-    if (ev && ev.altKey) return 'y';
-    if (ev && ev.ctrlKey) return 'x';
-    return 'xy';
-};
-const makeZoomConfig = (axes) => {
-    const zoom = {
-        wheel: { enabled: true },
-        pinch: { enabled: true },
-        mode: wheelMode,
-    };
-    // 双轴：按 Shift/Alt 把纵向缩放限定到左/右轴
-    if (axes && axes.leftAxis && axes.rightAxis) {
-        zoom.scaleMode = (ctx) => {
-            const ev = ctx && ctx.event && ctx.event.native;
-            if (ev && ev.shiftKey) return axes.leftAxis;
-            if (ev && ev.altKey) return axes.rightAxis;
-            return 'xy';
-        };
-    }
-    return { pan: { enabled: true, mode: 'xy', modifierKey: null }, zoom };
-};
+// 缩放/平移配置：
+//  重要——plugin-zoom v2 会把函数型 mode/scaleMode 归一化成字符串，导致「按修饰键选轴」失效。
+//  因此这里 **关闭插件自带的滚轮缩放**，改由 attachModifierZoom 挂一个原生 wheel 监听：
+//    无修饰键 = 横纵同时；Shift = 只缩（左）纵轴；Alt = 只缩右轴；Ctrl = 只缩横轴。
+//  平移（拖动）仍用插件。pinch 保留横纵同时。
+const makeZoomConfig = () => ({
+    pan: { enabled: true, mode: 'xy', modifierKey: null },
+    zoom: { wheel: { enabled: false }, pinch: { enabled: true }, mode: 'xy' },
+});
+
+// 给某张图挂「按修饰键选轴」的原生滚轮缩放。axes 可选 { leftAxis, rightAxis }，
+// 单轴图默认纵轴 id = 'y'。所有交互图创建后调用一次即可（新增指标同样调用）。
+function attachModifierZoom(chart, axes) {
+    const canvas = chart.canvas;
+    if (!canvas || canvas._modZoom) return;   // 避免重复挂载
+    canvas._modZoom = true;
+    const left = (axes && axes.leftAxis) || 'y';
+    const right = axes && axes.rightAxis;
+    canvas.addEventListener('wheel', (e) => {
+        if (!chart.scales) return;
+        e.preventDefault();
+        const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;   // 上滚放大、下滚缩小
+        let target;
+        if (e.shiftKey) target = left;
+        else if (e.altKey) target = right || left;
+        else if (e.ctrlKey) target = 'x';
+        else { chart.zoom(factor); return; }            // 无修饰键：横纵同时
+        // 只缩指定轴：以光标处为锚点，按 factor 收缩该轴的 min/max 区间（支持 stacked / 对数轴）
+        const sc = chart.scales[target];
+        if (!sc) return;
+        const rect = canvas.getBoundingClientRect();
+        const pos = target === 'x' ? (e.clientX - rect.left) : (e.clientY - rect.top);
+        const anchor = sc.getValueForPixel(pos);
+        const log = sc.type === 'logarithmic';
+        let lo = sc.min, hi = sc.max;
+        if (log) {
+            const la = Math.log(anchor), lmin = Math.log(lo), lmax = Math.log(hi);
+            const nlo = la - (la - lmin) / factor, nhi = la + (lmax - la) / factor;
+            lo = Math.exp(nlo); hi = Math.exp(nhi);
+        } else {
+            lo = anchor - (anchor - lo) / factor;
+            hi = anchor + (hi - anchor) / factor;
+        }
+        chart.zoomScale(target, { min: lo, max: hi }, 'none');
+    }, { passive: false });
+}
 
 const ChartsModule = {
     charts: {},
@@ -238,6 +256,7 @@ const ChartsModule = {
                 }
             }
         });
+        attachModifierZoom(this.charts['price']);
     },
 
     renderCycleChart(cycles) {
@@ -322,6 +341,7 @@ const ChartsModule = {
                 }
             }
         });
+        attachModifierZoom(this.charts['cycle']);
     },
 
     renderWeekdayChart(stats) {
@@ -463,7 +483,7 @@ const ChartsModule = {
                             ...this.cycleBottomAnnotations('start')
                         }
                     },
-                    zoom: makeZoomConfig({ leftAxis: 'y', rightAxis: 'yPrice' })
+                    zoom: makeZoomConfig()
                 },
                 scales: {
                     x: {
@@ -491,6 +511,7 @@ const ChartsModule = {
                 }
             }
         });
+        attachModifierZoom(this.charts['rsi'], { rightAxis: 'yPrice' });
     },
 
     // Mayer Multiple = 价格 / MA200，基于 CSV 稳定计算（全历史，可缩放）
@@ -539,7 +560,7 @@ const ChartsModule = {
                             ...this.cycleBottomAnnotations('start')
                         }
                     },
-                    zoom: makeZoomConfig({ leftAxis: 'y', rightAxis: 'yPrice' })
+                    zoom: makeZoomConfig()
                 },
                 scales: {
                     x: { type: 'time', time: { unit: 'year' }, ticks: { color: this.t().tick }, grid: { color: this.t().grid } },
@@ -561,6 +582,7 @@ const ChartsModule = {
                 }
             }
         });
+        attachModifierZoom(this.charts['mayer'], { rightAxis: 'yPrice' });
     },
 
     // 对数轴刻度格式化：$1.2k / $980 / $83（避免放大时出现 $83.36810381153265）
@@ -630,7 +652,7 @@ const ChartsModule = {
             },
             options: {
                 ...this.defaults(),
-                plugins: { ...this.defaults().plugins, annotation: { annotations: this.cycleBottomAnnotations('start') }, zoom: makeZoomConfig({ leftAxis: 'y', rightAxis: 'yMvrv' }) },
+                plugins: { ...this.defaults().plugins, annotation: { annotations: this.cycleBottomAnnotations('start') }, zoom: makeZoomConfig() },
                 scales: {
                     x: { type: 'time', time: { unit: 'year' }, ticks: { color: this.t().tick }, grid: { color: this.t().grid } },
                     // 轴 stack：Chart.js 把「后声明」的轴叠在上方，故先声明 yMvrv(下栏) 再声明 y(上栏价格)。
@@ -652,6 +674,8 @@ const ChartsModule = {
                 }
             }
         });
+        // Shift=缩价格栏(yPrice)，Alt=缩 MVRV 栏(yMvrv)，Ctrl=横轴
+        attachModifierZoom(this.charts['mvrv'], { leftAxis: 'yPrice', rightAxis: 'yMvrv' });
     },
 
     // 调节 MVRV 上下栏高度比：priceRatio ∈ [0.2,0.8]，为价格栏占比。重绘保持对数状态。
@@ -708,7 +732,7 @@ const ChartsModule = {
             },
             options: {
                 ...this.defaults(),
-                plugins: { ...this.defaults().plugins, annotation: { annotations: { ...this._nuplAnnotations(), ...this.cycleBottomAnnotations('start') } }, zoom: makeZoomConfig({ leftAxis: 'y', rightAxis: 'yPrice' }) },
+                plugins: { ...this.defaults().plugins, annotation: { annotations: { ...this._nuplAnnotations(), ...this.cycleBottomAnnotations('start') } }, zoom: makeZoomConfig() },
                 scales: {
                     x: { type: 'time', time: { unit: 'year' }, ticks: { color: this.t().tick }, grid: { color: this.t().grid } },
                     y: { position: 'left', title: { display: true, text: 'NUPL', color: '#7c5cff' }, ticks: { color: '#7c5cff' }, grid: { color: this.t().grid } },
@@ -716,6 +740,7 @@ const ChartsModule = {
                 }
             }
         });
+        attachModifierZoom(this.charts['nupl'], { rightAxis: 'yPrice' });
     },
 
     // 4Y Rolling Realized Price Risk/Reward Ratio：R/R 比(对数,左轴) + 价格(对数,右轴) + 1.0 参考线
@@ -744,7 +769,7 @@ const ChartsModule = {
                         three: { type: 'line', yMin: 3, yMax: 3, yScaleID: 'y', borderColor: 'rgba(0,211,149,0.4)', borderDash: [3, 3], borderWidth: 1, label: { display: true, content: '3（价值区）', position: 'end', color: '#00d395', backgroundColor: 'rgba(0,0,0,0)', font: { size: 9 } } },
                         ...this.cycleBottomAnnotations('start')
                     } },
-                    zoom: makeZoomConfig({ leftAxis: 'y', rightAxis: 'yPrice' })
+                    zoom: makeZoomConfig()
                 },
                 scales: {
                     x: { type: 'time', time: { unit: 'year' }, ticks: { color: this.t().tick }, grid: { color: this.t().grid } },
@@ -753,6 +778,7 @@ const ChartsModule = {
                 }
             }
         });
+        attachModifierZoom(this.charts['riskreward'], { leftAxis: 'y', rightAxis: 'yPrice' });
     },
 
     // ETF 资金流（同卡三栏，Chart.js 轴 stack，共享横轴）：
@@ -805,6 +831,8 @@ const ChartsModule = {
                 }
             }
         });
+        // Shift=缩价格栏(yPrice)，Alt=缩日净流量栏(yDaily)，Ctrl=横轴
+        attachModifierZoom(this.charts['etf'], { leftAxis: 'yPrice', rightAxis: 'yDaily' });
     },
 
     renderVolumeChart(data) {
@@ -935,7 +963,7 @@ const ChartsModule = {
         return this._offscreenChart({
             data: { datasets: ds },
             options: {
-                plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 11 } } }, annotation: { annotations: ann } },
+                plugins: { legend: { display: false }, annotation: { annotations: ann } },
                 scales: {
                     x: this._cropScale({ type: 'time', time: { unit: 'quarter' }, ticks: { color: '#94a3b8' }, grid: { color: '#1f2937' } }, crop, 'x'),
                     y: this._cropScale({ type: 'logarithmic', ticks: { color: '#94a3b8', callback: v => this._fmtPrice(v) }, grid: { color: '#1f2937' } }, crop, 'y')

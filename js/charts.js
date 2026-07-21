@@ -755,9 +755,10 @@ const ChartsModule = {
         });
     },
 
-    // ETF 资金流（双栏，Chart.js 轴 stack）：
+    // ETF 资金流（同卡三栏，Chart.js 轴 stack，共享横轴）：
     //   上栏 yPrice(对数)：BTC 价格，按「近20日滚动净流入」正/负分段着色（绿=流入主导、红=流出主导）
-    //   下栏 yFlow：20 日滚动净流入面积（正绿负红）——平滑日噪声，与价格共振最直观
+    //   中栏 yDaily：每日净流量柱（绿正红负）——每日细节
+    //   下栏 yCum：ETF 上市以来累计净流入线——总水位趋势
     // 依据数据：ETF 流为同步指标（当日相关 0.39），20 日净流入正负对后市方向有区分力。
     renderEtfChart() {
         this.destroyChart('etf');
@@ -770,7 +771,6 @@ const ChartsModule = {
         const labels = d.map(x => x.date);
         const priceData = d.map(x => priceByDay.get(x.date.toISOString().slice(0, 10)) ?? null);
         const roll = d.map(x => x.roll20);
-        // 价格线按 roll20 正负分段着色（用 segment.borderColor，取该段起点的 roll20 符号）
         const segColor = (ctx) => (roll[ctx.p0DataIndex] >= 0 ? 'rgba(0,211,149,0.9)' : 'rgba(255,71,87,0.9)');
 
         this.charts['etf'] = new Chart(el.getContext('2d'), {
@@ -780,16 +780,10 @@ const ChartsModule = {
                     { type: 'line', label: 'BTC 价格', yAxisID: 'yPrice', data: priceData,
                       borderColor: 'rgba(124,92,255,0.9)', borderWidth: 1.6, pointRadius: 0, order: 1,
                       segment: { borderColor: segColor } },
-                    // 下栏：20 日滚动净流入（正绿负红），用面积
-                    { type: 'line', label: '20日滚动净流入', yAxisID: 'yFlow', data: roll,
-                      borderColor: '#f7931a', borderWidth: 1, pointRadius: 0, fill: 'origin',
-                      backgroundColor: (c) => {
-                          const a = c.chart.chartArea; if (!a) return 'rgba(0,211,149,0.15)';
-                          const g = c.chart.ctx.createLinearGradient(0, a.top, 0, a.bottom);
-                          g.addColorStop(0, 'rgba(0,211,149,0.35)'); g.addColorStop(0.5, 'rgba(0,211,149,0.05)');
-                          g.addColorStop(0.5, 'rgba(255,71,87,0.05)'); g.addColorStop(1, 'rgba(255,71,87,0.35)');
-                          return g;
-                      }, order: 2 },
+                    { type: 'bar', label: '日净流量', yAxisID: 'yDaily', data: d.map(x => x.flow),
+                      backgroundColor: d.map(x => x.flow >= 0 ? 'rgba(0,211,149,0.6)' : 'rgba(255,71,87,0.6)'), borderWidth: 0, order: 3 },
+                    { type: 'line', label: '累计净流入', yAxisID: 'yCum', data: d.map(x => x.cumulative),
+                      borderColor: '#f7931a', borderWidth: 1.6, pointRadius: 0, order: 2 },
                 ]
             },
             options: {
@@ -798,11 +792,14 @@ const ChartsModule = {
                 plugins: { ...this.defaults().plugins, zoom: makeZoomConfig() },
                 scales: {
                     x: { type: 'time', time: { unit: 'quarter' }, min: labels[0], max: labels[labels.length - 1], ticks: { color: this.t().tick }, grid: { color: this.t().grid } },
-                    // 下栏在下（先声明），上栏价格在上
-                    yFlow: { stack: 'etf', stackWeight: 1, offset: true,
-                             title: { display: true, text: '20日净流入', color: this.t().tick },
-                             ticks: { color: this.t().tick, callback: v => this._fmtFlow(v) }, grid: { color: this.t().grid } },
-                    yPrice: { stack: 'etf', stackWeight: 2, offset: true, type: 'logarithmic',
+                    // 声明顺序 = 从下往上：下栏累计、中栏日净流量、上栏价格
+                    yCum: { stack: 'etf', stackWeight: 1.2, offset: true,
+                            title: { display: true, text: '累计', color: '#f7931a' },
+                            ticks: { color: '#f7931a', callback: v => '$' + (v / 1000).toFixed(1) + 'B' }, grid: { color: this.t().grid } },
+                    yDaily: { stack: 'etf', stackWeight: 1.2, offset: true,
+                              title: { display: true, text: '日净流量', color: this.t().tick },
+                              ticks: { color: this.t().tick, callback: v => this._fmtFlow(v) }, grid: { color: this.t().grid } },
+                    yPrice: { stack: 'etf', stackWeight: 2.4, offset: true, type: 'logarithmic',
                               title: { display: true, text: 'BTC 价格', color: '#7c5cff' },
                               ticks: { color: '#7c5cff', callback: v => this._fmtPrice(v) }, grid: { color: this.t().grid } },
                 }

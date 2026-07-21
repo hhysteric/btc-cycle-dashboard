@@ -20,6 +20,7 @@ const DataModule = {
     rawData: [],
     processedData: [],
     onchainData: [],   // [{date, mvrv, realizedPrice}] 升序
+    etfData: [],       // [{date, flow, cumulative}] 升序，flow 单位百万美元
     _mvrvBands: null,
 
     async loadCSV() {
@@ -72,6 +73,25 @@ const DataModule = {
         } catch (e) {
             console.warn('Failed to load on-chain CSV:', e.message);
             this.onchainData = [];
+            return [];
+        }
+    },
+
+    // 加载 ETF 每日净流量 CSV（data/etf_flow.csv，单位百万美元），并算累计净流入。
+    async loadEtfCSV() {
+        try {
+            const text = await fetch('data/etf_flow.csv').then(r => r.text());
+            const map = this._parseOnchainCol(text);
+            const rows = Array.from(map.entries())
+                .map(([day, flow]) => ({ date: new Date(day), flow }))
+                .sort((a, b) => a.date - b.date);
+            let cum = 0;
+            for (const r of rows) { cum += r.flow; r.cumulative = cum; }
+            this.etfData = rows;
+            return rows;
+        } catch (e) {
+            console.warn('Failed to load ETF CSV:', e.message);
+            this.etfData = [];
             return [];
         }
     },
@@ -790,7 +810,38 @@ const DataModule = {
         return { key: 'cointime', title: 'Cointime Price / 时间加权成本线', text };
     },
 
-    // 汇总所有分析。顺序：大周期 → 均线 → 估值(Mayer/MVRV) → 链上成本(已实现价格) → 情绪(NUPL/RSI) → Cointime
+    // ETF 资金流分析：现货 ETF 净流量是当前最可量化的「增量资金」，与 BTC 走势强相关。
+    analyzeEtf() {
+        const d = this.etfData;
+        if (!d || !d.length) return null;
+        const latest = d[d.length - 1];
+        const last5 = d.slice(-5);
+        const last20 = d.slice(-20);
+        const sum = arr => arr.reduce((a, b) => a + b.flow, 0);
+        const s5 = sum(last5), s20 = sum(last20);
+        const cum = latest.cumulative;
+        // 与 BTC 价格的相关性：用累计净流入 vs 价格（同期）算皮尔逊相关
+        const priceByDay = new Map();
+        for (const p of this.processedData) priceByDay.set(p.date.toISOString().slice(0, 10), p.close);
+        const pairs = d.map(x => [x.cumulative, priceByDay.get(x.date.toISOString().slice(0, 10))]).filter(p => p[1] != null);
+        let corr = null;
+        if (pairs.length > 30) {
+            const n = pairs.length;
+            const mx = pairs.reduce((a, p) => a + p[0], 0) / n;
+            const my = pairs.reduce((a, p) => a + p[1], 0) / n;
+            let sxy = 0, sxx = 0, syy = 0;
+            for (const [x, y] of pairs) { sxy += (x - mx) * (y - my); sxx += (x - mx) ** 2; syy += (y - my) ** 2; }
+            corr = sxy / Math.sqrt(sxx * syy);
+        }
+        const fmt = v => (v >= 0 ? '+' : '') + '$' + (Math.abs(v) >= 1000 ? (v / 1000).toFixed(2) + 'B' : v.toFixed(0) + 'M');
+        let text = `美国现货 BTC ETF 最新一日净${latest.flow >= 0 ? '流入' : '流出'} ${fmt(latest.flow)}（${this.fmtDate(latest.date)}）。近 5 日累计 ${fmt(s5)}、近 20 日累计 ${fmt(s20)}；ETF 上市以来累计净流入 ${fmt(cum)}。`;
+        if (corr != null) text += `累计净流入与 BTC 价格相关系数 ${corr.toFixed(2)}${corr > 0.7 ? '（强正相关，资金流入是本轮上涨的重要推力）' : corr > 0.4 ? '（中度正相关）' : ''}。`;
+        text += `${s20 > 0 ? '近 20 日净流入为正，增量资金仍在进场，对价格形成支撑' : '近 20 日净流出，增量资金撤离，需警惕price承压'}。`;
+        text += `（口径：Glassnode 等采用此法——先算各 ETF 持仓 BTC 数量的日变化，再按纽约时间 16:00 左右的 BTC 收盘价折算为美元净流量。）`;
+        return { key: 'etf', title: 'ETF 资金流（增量资金）', text };
+    },
+
+    // 汇总所有分析。顺序：大周期 → 均线 → 估值(Mayer/MVRV) → 链上成本(已实现价格) → 情绪(NUPL/RSI) → 资金(ETF) → Cointime
     getReportAnalysis() {
         return [
             this.analyzeCycle(),
@@ -801,6 +852,7 @@ const DataModule = {
             this.analyzeNupl(),
             this.analyzeRiskReward(),
             this.analyzeRSI(),
+            this.analyzeEtf(),
             this.analyzeCointime(),
         ].filter(Boolean);
     },

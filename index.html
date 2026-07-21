@@ -323,43 +323,19 @@
             </div>
         </section>
 
-        <!-- Futures & Capital Flow Panels -->
-        <section class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div class="bg-white dark:bg-dark-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
-                <h2 class="text-lg font-semibold mb-3">期货/衍生品</h2>
-                <div class="space-y-3">
-                    <div class="flex justify-between items-center p-3 bg-gray-200 dark:bg-dark-700 rounded-lg">
-                        <span class="text-gray-600 dark:text-gray-300">Open Interest</span>
-                        <span id="oi-value" class="text-accent-gold font-semibold">--</span>
-                    </div>
-                    <div class="flex justify-between items-center p-3 bg-gray-200 dark:bg-dark-700 rounded-lg">
-                        <span class="text-gray-600 dark:text-gray-300">期现溢价</span>
-                        <span id="basis-value" class="font-semibold">--</span>
-                    </div>
-                    <div class="flex justify-between items-center p-3 bg-gray-200 dark:bg-dark-700 rounded-lg">
-                        <span class="text-gray-600 dark:text-gray-300">资金费率</span>
-                        <span id="funding-rate" class="font-semibold">--</span>
-                    </div>
+        <!-- ETF 资金流（增量资金） -->
+        <section id="card-etf" class="chart-card bg-white dark:bg-dark-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
+            <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                <h2 class="text-lg font-semibold">ETF 资金流（增量资金）</h2>
+                <div class="flex gap-2 items-center">
+                    <span id="etf-current" class="text-sm text-accent-gold font-semibold">--</span>
+                    <span class="w-px h-5 bg-gray-400 dark:bg-gray-600 mx-1"></span>
+                    <button class="zoom-reset-btn px-3 py-1 rounded text-sm" data-chart="etf">重置</button>
+                    <button class="chart-tool-btn fullscreen-btn px-3 py-1 rounded text-sm" data-target="card-etf">全屏</button>
                 </div>
-                <p class="text-xs text-gray-600 dark:text-gray-500 mt-3">数据来源: CoinGlass / Binance API</p>
             </div>
-            <div class="bg-white dark:bg-dark-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
-                <h2 class="text-lg font-semibold mb-3">增量资金</h2>
-                <div class="space-y-3">
-                    <div class="flex justify-between items-center p-3 bg-gray-200 dark:bg-dark-700 rounded-lg">
-                        <span class="text-gray-600 dark:text-gray-300">ETF 净流入 (日)</span>
-                        <span id="etf-flow" class="text-accent-green font-semibold">--</span>
-                    </div>
-                    <div class="flex justify-between items-center p-3 bg-gray-200 dark:bg-dark-700 rounded-lg">
-                        <span class="text-gray-600 dark:text-gray-300">USDT 市值</span>
-                        <span id="usdt-mcap" class="font-semibold">--</span>
-                    </div>
-                    <div class="flex justify-between items-center p-3 bg-gray-200 dark:bg-dark-700 rounded-lg">
-                        <span class="text-gray-600 dark:text-gray-300">稳定币总供应</span>
-                        <span id="stablecoin-supply" class="font-semibold">--</span>
-                    </div>
-                </div>
-                <p class="text-xs text-gray-600 dark:text-gray-500 mt-3">数据来源: CoinGecko / DefiLlama</p>
+            <div class="chart-canvas-wrap h-80">
+                <canvas id="etf-chart"></canvas>
             </div>
         </section>
 

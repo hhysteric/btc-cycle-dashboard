@@ -747,6 +747,41 @@ const ChartsModule = {
         });
     },
 
+    // ETF 资金流：日净流量柱（绿正红负，左轴百万美元）+ 累计净流入线 + BTC 价格（右轴对数）
+    renderEtfChart() {
+        this.destroyChart('etf');
+        const el = document.getElementById('etf-chart');
+        if (!el) return;
+        const d = DataModule.etfData;
+        if (!d || !d.length) return;
+        const priceByDay = new Map();
+        for (const p of DataModule.processedData) priceByDay.set(p.date.toISOString().slice(0, 10), p.close);
+        const labels = d.map(x => x.date);
+        this.charts['etf'] = new Chart(el.getContext('2d'), {
+            data: {
+                labels,
+                datasets: [
+                    { type: 'bar', label: '日净流量', yAxisID: 'y', data: d.map(x => x.flow),
+                      backgroundColor: d.map(x => x.flow >= 0 ? 'rgba(0,211,149,0.6)' : 'rgba(255,71,87,0.6)'), borderWidth: 0, order: 3 },
+                    { type: 'line', label: '累计净流入', yAxisID: 'yCum', data: d.map(x => x.cumulative),
+                      borderColor: '#f7931a', borderWidth: 1.6, pointRadius: 0, order: 1 },
+                    { type: 'line', label: 'BTC 价格', yAxisID: 'yPrice', data: d.map(x => priceByDay.get(x.date.toISOString().slice(0, 10)) ?? null),
+                      borderColor: 'rgba(124,92,255,0.7)', borderWidth: 1.2, pointRadius: 0, order: 2 },
+                ]
+            },
+            options: {
+                ...this.defaults(),
+                plugins: { ...this.defaults().plugins, zoom: makeZoomConfig() },
+                scales: {
+                    x: { type: 'time', time: { unit: 'quarter' }, ticks: { color: this.t().tick }, grid: { color: this.t().grid } },
+                    y: { position: 'left', title: { display: true, text: '日净流量 (百万$)', color: this.t().tick }, ticks: { color: this.t().tick, callback: v => (v >= 0 ? '' : '-') + '$' + Math.abs(v) + 'M' }, grid: { color: this.t().grid } },
+                    yCum: { position: 'right', title: { display: true, text: '累计 ($)', color: '#f7931a' }, ticks: { color: '#f7931a', callback: v => '$' + (v / 1000).toFixed(1) + 'B' }, grid: { drawOnChartArea: false } },
+                    yPrice: { position: 'right', type: 'logarithmic', display: false, grid: { drawOnChartArea: false } },
+                }
+            }
+        });
+    },
+
     renderVolumeChart(data) {
         this.destroyChart('volume');
         const recent = data.slice(-90);
@@ -1037,6 +1072,15 @@ const ChartsModule = {
                 { label: 'RSI', data: rsi, borderColor: CHART_COLORS.purple, borderWidth: 1.4, pointRadius: 0 } ] },
                 options: common({ x: { type: 'time', time: { unit: 'year' }, ticks: { color: c.tick }, grid: { color: c.grid } },
                     y: { min: 0, max: 100, ticks: { color: c.tick }, grid: { color: c.grid } } }) };
+        } else if (key === 'etf') {
+            const d = DataModule.etfData;
+            if (!d || !d.length) return false;
+            cfg = { data: { labels: d.map(x => x.date), datasets: [
+                { type: 'bar', label: '日净流量', yAxisID: 'y', data: d.map(x => x.flow), backgroundColor: d.map(x => x.flow >= 0 ? 'rgba(0,211,149,0.6)' : 'rgba(255,71,87,0.6)'), borderWidth: 0 },
+                { type: 'line', label: '累计', yAxisID: 'yCum', data: d.map(x => x.cumulative), borderColor: '#f7931a', borderWidth: 1.4, pointRadius: 0 } ] },
+                options: common({ x: { type: 'time', time: { unit: 'quarter' }, ticks: { color: c.tick }, grid: { color: c.grid } },
+                    y: { position: 'left', ticks: { color: c.tick }, grid: { color: c.grid } },
+                    yCum: { position: 'right', ticks: { color: '#f7931a', callback: v => '$' + (v / 1000).toFixed(1) + 'B' }, grid: { drawOnChartArea: false } } }) };
         } else {
             return false; // cointime 等无图
         }
@@ -1180,8 +1224,34 @@ const ChartsModule = {
         });
     },
 
+    // ETF 资金流离屏图（周报用）：日净流量柱 + 累计净流入线 + 价格
+    reportEtfImage(crop) {
+        const d = DataModule.etfData;
+        if (!d || !d.length) return null;
+        const priceByDay = new Map();
+        for (const p of DataModule.processedData) priceByDay.set(p.date.toISOString().slice(0, 10), p.close);
+        return this._offscreenChart({
+            data: {
+                labels: d.map(x => x.date),
+                datasets: [
+                    { type: 'bar', label: '日净流量', yAxisID: 'y', data: d.map(x => x.flow), backgroundColor: d.map(x => x.flow >= 0 ? 'rgba(0,211,149,0.6)' : 'rgba(255,71,87,0.6)'), borderWidth: 0, order: 3 },
+                    { type: 'line', label: '累计净流入', yAxisID: 'yCum', data: d.map(x => x.cumulative), borderColor: '#f7931a', borderWidth: 1.6, pointRadius: 0, order: 1 },
+                    { type: 'line', label: 'BTC', yAxisID: 'yP', data: d.map(x => priceByDay.get(x.date.toISOString().slice(0, 10)) ?? null), borderColor: 'rgba(124,92,255,0.7)', borderWidth: 1.2, pointRadius: 0, order: 2 },
+                ]
+            },
+            options: {
+                plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 11 } } } },
+                scales: {
+                    x: this._cropScale({ type: 'time', time: { unit: 'quarter' }, ticks: { color: '#94a3b8' }, grid: { color: '#1f2937' } }, crop, 'x'),
+                    y: { position: 'left', title: { display: true, text: '日净流量(百万$)', color: '#94a3b8' }, ticks: { color: '#94a3b8', callback: v => (v >= 0 ? '' : '-') + '$' + Math.abs(v) + 'M' }, grid: { color: '#1f2937' } },
+                    yCum: { position: 'right', title: { display: true, text: '累计', color: '#f7931a' }, ticks: { color: '#f7931a', callback: v => '$' + (v / 1000).toFixed(1) + 'B' }, grid: { drawOnChartArea: false } },
+                    yP: { position: 'right', type: 'logarithmic', display: false, grid: { drawOnChartArea: false } },
+                }
+            }
+        });
+    },
+
     // 返回各指标 dataURL 映射。crops: { key: {xMin,xMax,yMin,yMax} } 可选，用于「划选区域入周报」。
-    // realized（已实现价格）复用 MVRV 价格面板图；nupl / riskreward 用专门离屏图。
     reportImages(crops = {}) {
         return {
             cycle: this.reportCycleImage(crops.cycle),
@@ -1192,6 +1262,7 @@ const ChartsModule = {
             nupl: this.reportNuplImage(crops.nupl),
             riskreward: this.reportRiskRewardImage(crops.riskreward),
             rsi: this.reportRSIImage(crops.rsi),
+            etf: this.reportEtfImage(crops.etf),
         };
     }
 };

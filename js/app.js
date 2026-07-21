@@ -26,8 +26,8 @@ async function init() {
         console.error('数据加载失败，请确保 data/btc_historical.csv 文件存在');
         return;
     }
-    // 链上 CSV 与行情并行加载；失败不阻塞主看板
-    await DataModule.loadOnchainCSV();
+    // 链上 CSV + ETF 资金流 CSV 与行情并行加载；失败不阻塞主看板
+    await Promise.all([DataModule.loadOnchainCSV(), DataModule.loadEtfCSV()]);
 
     // 先用 CSV 数据（本地即可得）立即渲染，不被外部 API 阻塞
     const latest = DataModule.getLatest();
@@ -49,7 +49,6 @@ async function init() {
 
     // 外部数据异步加载，失败时保留 CSV 数值
     loadLivePrice(cycleInfo);
-    loadCapitalFlowSection();
 }
 
 async function loadLivePrice(cycleInfo) {
@@ -117,6 +116,18 @@ function renderPriceCharts(data) {
     ChartsModule.renderMvrvChart(true);
     ChartsModule.renderNuplChart();
     ChartsModule.renderRiskRewardChart(true);
+    ChartsModule.renderEtfChart();
+
+    const etf = DataModule.etfData;
+    const etfEl = document.getElementById('etf-current');
+    if (etf && etf.length && etfEl) {
+        const last = etf[etf.length - 1];
+        const fmt = v => (v >= 0 ? '+' : '') + '$' + Math.abs(v).toFixed(0) + 'M';
+        etfEl.textContent = '最新 ' + fmt(last.flow) + ' · 累计 $' + (last.cumulative / 1000).toFixed(1) + 'B';
+        etfEl.style.color = last.flow >= 0 ? '#00d395' : '#ff4757';
+    } else if (etfEl) {
+        etfEl.textContent = 'ETF 数据未加载';
+    }
 
     const mayer = DataModule.getMayerMultiple();
     if (mayer != null) {
@@ -161,14 +172,6 @@ function toggleTheme() {
     const btn = document.getElementById('btn-theme-toggle');
     if (btn) btn.textContent = toDark ? '☀️' : '🌙';
     if (appState.data) renderPriceCharts(appState.data);
-}
-
-async function loadCapitalFlowSection() {
-    const sc = await DataModule.fetchStablecoinSupply();
-    if (sc) {
-        document.getElementById('usdt-mcap').textContent = '$' + (sc.usdt / 1e9).toFixed(1) + 'B';
-        document.getElementById('stablecoin-supply').textContent = '$' + (sc.total / 1e9).toFixed(1) + 'B';
-    }
 }
 
 function setupEventListeners(data, priceInfo, cycleInfo) {
@@ -290,7 +293,7 @@ function setupEventListeners(data, priceInfo, cycleInfo) {
 }
 
 // ===== 周报配置面板 =====
-const CHARTABLE_KEYS = ['cycle', 'ma', 'mayer', 'mvrv', 'realized', 'nupl', 'riskreward', 'rsi']; // 有图可裁剪的指标
+const CHARTABLE_KEYS = ['cycle', 'ma', 'mayer', 'mvrv', 'realized', 'nupl', 'riskreward', 'rsi', 'etf']; // 有图可裁剪的指标
 
 let reportCrops = {};
 let reportUploads = {};   // key -> dataURL（内置指标上传的覆盖图）

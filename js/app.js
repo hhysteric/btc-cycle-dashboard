@@ -117,6 +117,7 @@ function renderPriceCharts(data) {
     ChartsModule.renderNuplChart();
     ChartsModule.renderRiskRewardChart(true);
     ChartsModule.renderEtfChart();
+    if (typeof repositionAllSplitHandles === 'function') setTimeout(repositionAllSplitHandles, 150);
 
     const etf = DataModule.etfData;
     const etfEl = document.getElementById('etf-current');
@@ -177,11 +178,8 @@ function toggleTheme() {
 function setupEventListeners(data, priceInfo, cycleInfo) {
     document.getElementById('btn-theme-toggle').addEventListener('click', toggleTheme);
 
-    // MVRV 上下栏比例调节器
-    const mvrvSplit = document.getElementById('mvrv-split');
-    if (mvrvSplit) mvrvSplit.addEventListener('input', () => {
-        ChartsModule.setMvrvSplit(parseInt(mvrvSplit.value) / 100);
-    });
+    // MVRV / ETF 上下图之间的可拖动分隔把手
+    setupSplitHandles();
 
     document.querySelectorAll('.chart-period-btn').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -496,6 +494,50 @@ function buildReportPreview(cycleInfo, data) {
 
     document.getElementById('report-config').classList.add('hidden');
     document.getElementById('report-preview').classList.remove('hidden');
+}
+
+// ===== 图表上下面板可拖动分隔把手（MVRV / ETF）=====
+// MVRV：分隔在 yMvrv(下栏) 顶部；拖动改价格栏占比。
+// ETF：分隔在 yPrice(上栏) 底部；拖动改价格栏占比。
+function positionSplitHandle(handle) {
+    const chartId = handle.dataset.chart;
+    const chart = ChartsModule.charts[chartId];
+    if (!chart || !chart.scales) return;
+    // 边界像素 y：MVRV 用 yMvrv.top（下栏顶=分界）；ETF 用 yPrice.bottom（上栏底=分界）
+    const boundary = chartId === 'mvrv'
+        ? (chart.scales.yMvrv && chart.scales.yMvrv.top)
+        : (chart.scales.yPrice && chart.scales.yPrice.bottom);
+    if (boundary == null) return;
+    handle.style.top = boundary + 'px';
+}
+
+function repositionAllSplitHandles() {
+    document.querySelectorAll('.chart-split-handle').forEach(positionSplitHandle);
+}
+
+function setupSplitHandles() {
+    document.querySelectorAll('.chart-split-handle').forEach(handle => {
+        const chartId = handle.dataset.chart;
+        const wrap = handle.parentElement;
+        let dragging = false;
+        const onMove = (e) => {
+            if (!dragging) return;
+            const rect = wrap.getBoundingClientRect();
+            const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+            const ratio = y / rect.height;   // 顶部占比（=价格栏高度占比）
+            if (chartId === 'mvrv') ChartsModule.setMvrvSplit(ratio);
+            else if (chartId === 'etf') ChartsModule.setEtfSplit(ratio);
+            // 重绘后新 chart 的 scale 位置才可用，下一帧再定位把手
+            requestAnimationFrame(() => positionSplitHandle(handle));
+        };
+        const stop = () => { dragging = false; document.body.style.userSelect = ''; };
+        handle.addEventListener('mousedown', (e) => { dragging = true; document.body.style.userSelect = 'none'; e.preventDefault(); });
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', stop);
+    });
+    // 首次 + 窗口变化时定位
+    setTimeout(repositionAllSplitHandles, 200);
+    window.addEventListener('resize', () => setTimeout(repositionAllSplitHandles, 100));
 }
 
 document.addEventListener('DOMContentLoaded', init);

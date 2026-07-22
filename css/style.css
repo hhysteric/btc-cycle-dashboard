@@ -119,3 +119,37 @@ canvas {
         display: none;
     }
 }
+
+/* 图表上下面板可拖动分隔把手（MVRV / ETF），悬浮在 canvas 上 */
+.chart-split-handle {
+    position: absolute;
+    left: 8%;
+    right: 4%;
+    height: 10px;
+    margin-top: -5px;
+    cursor: ns-resize;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+.chart-split-wrap:hover .chart-split-handle { opacity: 1; }
+.chart-split-handle::before {
+    content: '';
+    width: 100%;
+    height: 2px;
+    background: var(--gold);
+    border-radius: 2px;
+    box-shadow: 0 0 4px rgba(247,147,26,0.6);
+}
+.chart-split-handle::after {
+    content: '⇕';
+    position: absolute;
+    color: var(--gold);
+    font-size: 12px;
+    background: var(--dark-800);
+    border-radius: 3px;
+    padding: 0 4px;
+}

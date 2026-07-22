@@ -786,6 +786,15 @@ const ChartsModule = {
     //   中栏 yDaily：每日净流量柱（绿正红负）——每日细节
     //   下栏 yCum：ETF 上市以来累计净流入线——总水位趋势
     // 依据数据：ETF 流为同步指标（当日相关 0.39），20 日净流入正负对后市方向有区分力。
+    etfPriceWeight: 2.4,   // 价格栏权重（可由分隔条调节；两个流量栏各占 1.2 → 价格栏占比 = w/(w+2.4)）
+
+    // 调节 ETF 价格栏占比：ratio ∈ [0.3,0.85]。两个流量栏合计权重固定 2.4。
+    setEtfSplit(ratio) {
+        const r = Math.min(0.85, Math.max(0.3, ratio));
+        this.etfPriceWeight = (2.4 * r) / (1 - r);
+        this.renderEtfChart();
+    },
+
     renderEtfChart() {
         this.destroyChart('etf');
         const el = document.getElementById('etf-chart');
@@ -825,7 +834,7 @@ const ChartsModule = {
                     yDaily: { stack: 'etf', stackWeight: 1.2, offset: true,
                               title: { display: true, text: '日净流量', color: this.t().tick },
                               ticks: { color: this.t().tick, callback: v => this._fmtFlow(v) }, grid: { color: this.t().grid } },
-                    yPrice: { stack: 'etf', stackWeight: 2.4, offset: true, type: 'logarithmic',
+                    yPrice: { stack: 'etf', stackWeight: this.etfPriceWeight, offset: true, type: 'logarithmic',
                               title: { display: true, text: 'BTC 价格', color: '#7c5cff' },
                               ticks: { color: '#7c5cff', callback: v => this._fmtPrice(v) }, grid: { color: this.t().grid } },
                 }

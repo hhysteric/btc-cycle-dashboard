@@ -227,15 +227,10 @@
                         <button class="chart-tool-btn fullscreen-btn px-3 py-1 rounded text-sm" data-target="card-mvrv-local">全屏</button>
                     </div>
                 </div>
-                <p class="text-gray-500 dark:text-gray-400 text-sm mb-3">上栏价格叠加已实现价格与 ±sd 价格估值带（触及 +2.0sd 为过热顶部区、跌破 -1.0sd 为亏损底部区）；下栏为 MVRV Ratio 及其估值带。</p>
-                <div class="flex items-center gap-2 mb-2 text-xs text-gray-500 dark:text-gray-400">
-                    <span>上下图比例</span>
-                    <span>MVRV↑</span>
-                    <input id="mvrv-split" type="range" min="20" max="80" value="60" class="flex-1 max-w-xs accent-yellow-500">
-                    <span>价格↑</span>
-                </div>
-                <div class="chart-canvas-wrap" style="height:640px">
+                <p class="text-gray-500 dark:text-gray-400 text-sm mb-3">上栏价格叠加已实现价格与 ±sd 价格估值带（触及 +2.0sd 为过热顶部区、跌破 -1.0sd 为亏损底部区）；下栏为 MVRV Ratio 及其估值带。拖动中间横条可调上下图比例。</p>
+                <div class="chart-canvas-wrap chart-split-wrap" style="height:640px;position:relative;">
                     <canvas id="mvrv-chart"></canvas>
+                    <div class="chart-split-handle" data-chart="mvrv" title="拖动调整上下图比例"></div>
                 </div>
             </div>
 
@@ -334,8 +329,10 @@
                     <button class="chart-tool-btn fullscreen-btn px-3 py-1 rounded text-sm" data-target="card-etf">全屏</button>
                 </div>
             </div>
-            <div class="chart-canvas-wrap" style="height:560px">
+            <p class="text-gray-500 dark:text-gray-400 text-sm mb-3">上：BTC 价格，按<span class="text-accent-green">近 20 日滚动净流入</span>正/负分段着色（<span class="text-accent-green">绿=资金流入主导</span>、<span class="text-accent-red">红=流出主导</span>）——流入环境后市偏强。中：每日净流量柱（绿流入/红流出）。下：ETF 上市以来累计净流入。数据源 Farside。</p>
+            <div class="chart-canvas-wrap chart-split-wrap" style="height:560px;position:relative;">
                 <canvas id="etf-chart"></canvas>
+                <div class="chart-split-handle" data-chart="etf" title="拖动调整价格图与资金图比例"></div>
             </div>
         </section>
 

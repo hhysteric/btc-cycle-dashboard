@@ -148,6 +148,22 @@
             </div>
         </section>
 
+        <!-- Four Year Cycle - aligned from each cycle's bottom -->
+        <section id="card-cycle-trough" class="chart-card bg-white dark:bg-dark-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
+            <div class="flex items-center justify-between mb-1 flex-wrap gap-2">
+                <h2 class="text-lg font-semibold">四年大周期对比（从各轮最低点对齐）</h2>
+                <div class="flex gap-2 items-center">
+                    <button class="chart-tool-btn log-btn active px-3 py-1 rounded text-sm" data-chart="cycle-trough" data-axis="y">对数</button>
+                    <button class="zoom-reset-btn px-3 py-1 rounded text-sm" data-chart="cycle-trough">重置</button>
+                    <button class="chart-tool-btn fullscreen-btn px-3 py-1 rounded text-sm" data-target="card-cycle-trough">全屏</button>
+                </div>
+            </div>
+            <p class="text-gray-500 dark:text-gray-400 text-sm mb-4">每条曲线从该轮周期的熊市大底开始（起点=1.0），展示见底后的复苏与上涨；周期4 以「当下可看到的最低点」为起点，随每日数据推进</p>
+            <div class="chart-canvas-wrap h-80">
+                <canvas id="cycle-trough-chart"></canvas>
+            </div>
+        </section>
+
         <!-- Short-cycle (weekday) Regularity Analysis -->
         <section class="bg-white dark:bg-dark-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
             <h2 class="text-lg font-semibold mb-2">短周期规律分析 - 星期效应</h2>
@@ -381,9 +397,10 @@
     </footer>
 
     <!-- ?v 版本号：改代码时手动 +1，强制浏览器拉最新 JS，避免看到旧缓存版本 -->
-    <script src="js/data.js?v=20260722b"></script>
-    <script src="js/charts.js?v=20260722b"></script>
-    <script src="js/report.js?v=20260722b"></script>
-    <script src="js/app.js?v=20260722b"></script>
+    <script src="js/data.js?v=20260722c"></script>
+    <script src="js/charts.js?v=20260722c"></script>
+    <script src="js/cycle-trough.js?v=20260722c"></script>
+    <script src="js/report.js?v=20260722c"></script>
+    <script src="js/app.js?v=20260722c"></script>
 </body>
 </html>

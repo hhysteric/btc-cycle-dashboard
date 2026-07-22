@@ -23,9 +23,15 @@ const DataModule = {
     etfData: [],       // [{date, flow, cumulative}] 升序，flow 单位百万美元
     _mvrvBands: null,
 
+    // 每日缓存击穿参数：让浏览器每天重新拉一次 CSV，确保拿到当天 Actions 更新后的最新数据
+    _cacheBust() {
+        const d = new Date();
+        return '?v=' + d.getUTCFullYear() + String(d.getUTCMonth() + 1).padStart(2, '0') + String(d.getUTCDate()).padStart(2, '0');
+    },
+
     async loadCSV() {
         try {
-            const response = await fetch('data/btc_historical.csv');
+            const response = await fetch('data/btc_historical.csv' + this._cacheBust());
             const text = await response.text();
             this.rawData = this.parseCSV(text);
             this.processedData = this.rawData.sort((a, b) => a.date - b.date);
@@ -41,9 +47,9 @@ const DataModule = {
     async loadOnchainCSV() {
         try {
             const [mvrvText, rpText, nuplText] = await Promise.all([
-                fetch('data/mvrv.csv').then(r => r.text()),
-                fetch('data/realized_price.csv').then(r => r.text()),
-                fetch('data/nupl.csv').then(r => r.text()).catch(() => ''),
+                fetch('data/mvrv.csv' + this._cacheBust()).then(r => r.text()),
+                fetch('data/realized_price.csv' + this._cacheBust()).then(r => r.text()),
+                fetch('data/nupl.csv' + this._cacheBust()).then(r => r.text()).catch(() => ''),
             ]);
             const mvrv = this._parseOnchainCol(mvrvText);
             const rp = this._parseOnchainCol(rpText);
@@ -80,7 +86,7 @@ const DataModule = {
     // 加载 ETF 每日净流量 CSV（data/etf_flow.csv，单位百万美元），并算累计净流入。
     async loadEtfCSV() {
         try {
-            const text = await fetch('data/etf_flow.csv').then(r => r.text());
+            const text = await fetch('data/etf_flow.csv' + this._cacheBust()).then(r => r.text());
             const map = this._parseOnchainCol(text);
             const rows = Array.from(map.entries())
                 .map(([day, flow]) => ({ date: new Date(day), flow }))

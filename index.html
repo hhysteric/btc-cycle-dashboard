@@ -332,7 +332,8 @@
             <p class="text-gray-500 dark:text-gray-400 text-sm mb-3">上：BTC 价格，按<span class="text-accent-green">近 20 日滚动净流入</span>正/负分段着色（<span class="text-accent-green">绿=资金流入主导</span>、<span class="text-accent-red">红=流出主导</span>）——流入环境后市偏强。中：每日净流量柱（绿流入/红流出）。下：ETF 上市以来累计净流入。数据源 Farside。</p>
             <div class="chart-canvas-wrap chart-split-wrap" style="height:560px;position:relative;">
                 <canvas id="etf-chart"></canvas>
-                <div class="chart-split-handle" data-chart="etf" title="拖动调整价格图与资金图比例"></div>
+                <div class="chart-split-handle" data-chart="etf" data-split="pd" title="拖动调整价格图与日净流量图比例"></div>
+                <div class="chart-split-handle" data-chart="etf" data-split="dc" title="拖动调整日净流量图与累计图比例"></div>
             </div>
         </section>
 

@@ -496,19 +496,21 @@ function buildReportPreview(cycleInfo, data) {
     document.getElementById('report-preview').classList.remove('hidden');
 }
 
-// ===== 图表上下面板可拖动分隔把手（MVRV / ETF）=====
-// MVRV：分隔在 yMvrv(下栏) 顶部；拖动改价格栏占比。
-// ETF：分隔在 yPrice(上栏) 底部；拖动改价格栏占比。
+// ===== 图表面板可拖动分隔把手（MVRV 1 条 / ETF 2 条）=====
+// 把手定位到它所在的两栏边界像素 y。data-split 指明边界：
+//   MVRV 无 data-split：yMvrv(下栏)顶；ETF 'pd'：yDaily(中栏)顶；'dc'：yCum(下栏)顶。
+function splitBoundaryScale(chart, handle) {
+    const which = handle.dataset.split;
+    if (which === 'pd') return chart.scales.yDaily;   // 价格↔日净流量 边界 = yDaily 顶
+    if (which === 'dc') return chart.scales.yCum;     // 日净流量↔累计 边界 = yCum 顶
+    return chart.scales.yMvrv;                        // MVRV 单条
+}
 function positionSplitHandle(handle) {
-    const chartId = handle.dataset.chart;
-    const chart = ChartsModule.charts[chartId];
+    const chart = ChartsModule.charts[handle.dataset.chart];
     if (!chart || !chart.scales) return;
-    // 边界像素 y：MVRV 用 yMvrv.top（下栏顶=分界）；ETF 用 yPrice.bottom（上栏底=分界）
-    const boundary = chartId === 'mvrv'
-        ? (chart.scales.yMvrv && chart.scales.yMvrv.top)
-        : (chart.scales.yPrice && chart.scales.yPrice.bottom);
-    if (boundary == null) return;
-    handle.style.top = boundary + 'px';
+    const sc = splitBoundaryScale(chart, handle);
+    if (!sc || sc.top == null) return;
+    handle.style.top = sc.top + 'px';
 }
 
 function repositionAllSplitHandles() {
@@ -518,17 +520,26 @@ function repositionAllSplitHandles() {
 function setupSplitHandles() {
     document.querySelectorAll('.chart-split-handle').forEach(handle => {
         const chartId = handle.dataset.chart;
+        const which = handle.dataset.split;
         const wrap = handle.parentElement;
         let dragging = false;
         const onMove = (e) => {
             if (!dragging) return;
             const rect = wrap.getBoundingClientRect();
             const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
-            const ratio = y / rect.height;   // 顶部占比（=价格栏高度占比）
-            if (chartId === 'mvrv') ChartsModule.setMvrvSplit(ratio);
-            else if (chartId === 'etf') ChartsModule.setEtfSplit(ratio);
-            // 重绘后新 chart 的 scale 位置才可用，下一帧再定位把手
-            requestAnimationFrame(() => positionSplitHandle(handle));
+            const ratio = y / rect.height;   // 边界在整卡中的位置占比
+            if (chartId === 'mvrv') {
+                ChartsModule.setMvrvSplit(ratio);
+            } else if (chartId === 'etf') {
+                // ETF：把 ratio 换算成「上侧栏在这两栏合计高度中的占比」
+                const chart = ChartsModule.charts.etf;
+                const upScale = which === 'pd' ? chart.scales.yPrice : chart.scales.yDaily;
+                const dnScale = which === 'pd' ? chart.scales.yDaily : chart.scales.yCum;
+                const top = upScale.top, bottom = dnScale.bottom;
+                const local = Math.min(1, Math.max(0, (y - top) / (bottom - top)));
+                ChartsModule.setEtfSplit(which, local);
+            }
+            requestAnimationFrame(repositionAllSplitHandles);
         };
         const stop = () => { dragging = false; document.body.style.userSelect = ''; };
         handle.addEventListener('mousedown', (e) => { dragging = true; document.body.style.userSelect = 'none'; e.preventDefault(); });

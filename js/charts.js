@@ -56,48 +56,64 @@ if (typeof Chart !== 'undefined') Chart.register(crosshairPlugin);
 
 // 缩放/平移配置：
 //  重要——plugin-zoom v2 会把函数型 mode/scaleMode 归一化成字符串，导致「按修饰键选轴」失效。
-//  因此这里 **关闭插件自带的滚轮缩放**，改由 attachModifierZoom 挂一个原生 wheel 监听：
-//    无修饰键 = 横纵同时；Shift = 只缩（左）纵轴；Alt = 只缩右轴；Ctrl = 只缩横轴。
+//  因此这里 **关闭插件自带的滚轮缩放**，改由 attachModifierZoom 挂原生 wheel 监听（见其注释）。
 //  平移（拖动）仍用插件。pinch 保留横纵同时。
 const makeZoomConfig = () => ({
     pan: { enabled: true, mode: 'xy', modifierKey: null },
     zoom: { wheel: { enabled: false }, pinch: { enabled: true }, mode: 'xy' },
 });
 
-// 给某张图挂「按修饰键选轴」的原生滚轮缩放。axes 可选 { leftAxis, rightAxis }，
-// 单轴图默认纵轴 id = 'y'。所有交互图创建后调用一次即可（新增指标同样调用）。
+// 以光标为锚点缩放单条轴（支持 stacked / 对数轴），factor>1 放大、<1 缩小。
+function zoomOneAxis(chart, id, factor, pos) {
+    const sc = chart.scales[id];
+    if (!sc) return;
+    const anchor = sc.getValueForPixel(pos);
+    let lo = sc.min, hi = sc.max;
+    if (sc.type === 'logarithmic') {
+        const la = Math.log(anchor);
+        lo = Math.exp(la - (la - Math.log(lo)) / factor);
+        hi = Math.exp(la + (Math.log(hi) - la) / factor);
+    } else {
+        lo = anchor - (anchor - lo) / factor;
+        hi = anchor + (hi - anchor) / factor;
+    }
+    chart.zoomScale(id, { min: lo, max: hi }, 'none');
+}
+
+// 给某张图挂原生滚轮缩放。yAxes：该图所有 y 轴 id（按上→下顺序），支持多面板各自缩放。
+//   无修饰键 = 缩「光标所在面板的 y 轴」+ 横轴（单面板即普通 xy）；
+//   Shift = 只缩光标所在 y 轴；Ctrl = 只缩横轴。
+// 单轴图传 ['y']；多面板图（MVRV/ETF）传各栏 y 轴 id，即可各自独立缩放。
 function attachModifierZoom(chart, axes) {
     const canvas = chart.canvas;
     if (!canvas || canvas._modZoom) return;   // 避免重复挂载
     canvas._modZoom = true;
-    const left = (axes && axes.leftAxis) || 'y';
-    const right = axes && axes.rightAxis;
+    // 兼容旧调用：{leftAxis,rightAxis} → yAxes 列表
+    let yAxes = (axes && axes.yAxes) || null;
+    if (!yAxes) {
+        yAxes = [];
+        if (axes && axes.leftAxis) yAxes.push(axes.leftAxis);
+        if (axes && axes.rightAxis) yAxes.push(axes.rightAxis);
+        if (!yAxes.length) yAxes = ['y'];
+    }
+    // 找光标 y 落在哪条 y 轴的绘制区间内（多面板 stacked 各占一段）
+    const axisAtY = (py) => {
+        for (const id of yAxes) {
+            const sc = chart.scales[id];
+            if (sc && py >= sc.top && py <= sc.bottom) return id;
+        }
+        return yAxes[0];
+    };
     canvas.addEventListener('wheel', (e) => {
         if (!chart.scales) return;
         e.preventDefault();
-        const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;   // 上滚放大、下滚缩小
-        let target;
-        if (e.shiftKey) target = left;
-        else if (e.altKey) target = right || left;
-        else if (e.ctrlKey) target = 'x';
-        else { chart.zoom(factor); return; }            // 无修饰键：横纵同时
-        // 只缩指定轴：以光标处为锚点，按 factor 收缩该轴的 min/max 区间（支持 stacked / 对数轴）
-        const sc = chart.scales[target];
-        if (!sc) return;
+        const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
         const rect = canvas.getBoundingClientRect();
-        const pos = target === 'x' ? (e.clientX - rect.left) : (e.clientY - rect.top);
-        const anchor = sc.getValueForPixel(pos);
-        const log = sc.type === 'logarithmic';
-        let lo = sc.min, hi = sc.max;
-        if (log) {
-            const la = Math.log(anchor), lmin = Math.log(lo), lmax = Math.log(hi);
-            const nlo = la - (la - lmin) / factor, nhi = la + (lmax - la) / factor;
-            lo = Math.exp(nlo); hi = Math.exp(nhi);
-        } else {
-            lo = anchor - (anchor - lo) / factor;
-            hi = anchor + (hi - anchor) / factor;
-        }
-        chart.zoomScale(target, { min: lo, max: hi }, 'none');
+        const px = e.clientX - rect.left, py = e.clientY - rect.top;
+        if (e.ctrlKey) { zoomOneAxis(chart, 'x', factor, px); return; }      // Ctrl：只缩横轴
+        const yid = axisAtY(py);                                            // 光标所在面板的 y 轴
+        zoomOneAxis(chart, yid, factor, py);
+        if (!e.shiftKey) zoomOneAxis(chart, 'x', factor, px);               // 非 Shift 时同时缩横轴
     }, { passive: false });
 }
 
@@ -494,7 +510,8 @@ const ChartsModule = {
                     },
                     y: {
                         position: 'left',
-                        min: 0, max: 100,
+                        // 用 suggested 而非硬 min/max，否则 Shift+滚轮放大时会被夹在 0-100 无法放大
+                        suggestedMin: 0, suggestedMax: 100,
                         title: { display: true, text: 'RSI', color: '#a855f7' },
                         ticks: { color: this.t().tick },
                         grid: {
@@ -511,7 +528,7 @@ const ChartsModule = {
                 }
             }
         });
-        attachModifierZoom(this.charts['rsi'], { rightAxis: 'yPrice' });
+        attachModifierZoom(this.charts['rsi'], { yAxes: ['y', 'yPrice'] });
     },
 
     // Mayer Multiple = 价格 / MA200，基于 CSV 稳定计算（全历史，可缩放）
@@ -582,7 +599,7 @@ const ChartsModule = {
                 }
             }
         });
-        attachModifierZoom(this.charts['mayer'], { rightAxis: 'yPrice' });
+        attachModifierZoom(this.charts['mayer'], { yAxes: ['y', 'yPrice'] });
     },
 
     // 对数轴刻度格式化：$1.2k / $980 / $83（避免放大时出现 $83.36810381153265）
@@ -675,7 +692,7 @@ const ChartsModule = {
             }
         });
         // Shift=缩价格栏(yPrice)，Alt=缩 MVRV 栏(yMvrv)，Ctrl=横轴
-        attachModifierZoom(this.charts['mvrv'], { leftAxis: 'yPrice', rightAxis: 'yMvrv' });
+        attachModifierZoom(this.charts['mvrv'], { yAxes: ['yPrice', 'yMvrv'] });
     },
 
     // 调节 MVRV 上下栏高度比：priceRatio ∈ [0.2,0.8]，为价格栏占比。重绘保持对数状态。
@@ -740,7 +757,7 @@ const ChartsModule = {
                 }
             }
         });
-        attachModifierZoom(this.charts['nupl'], { rightAxis: 'yPrice' });
+        attachModifierZoom(this.charts['nupl'], { yAxes: ['y', 'yPrice'] });
     },
 
     // 4Y Rolling Realized Price Risk/Reward Ratio：R/R 比(对数,左轴) + 价格(对数,右轴) + 1.0 参考线
@@ -778,7 +795,7 @@ const ChartsModule = {
                 }
             }
         });
-        attachModifierZoom(this.charts['riskreward'], { leftAxis: 'y', rightAxis: 'yPrice' });
+        attachModifierZoom(this.charts['riskreward'], { yAxes: ['y', 'yPrice'] });
     },
 
     // ETF 资金流（同卡三栏，Chart.js 轴 stack，共享横轴）：
@@ -786,12 +803,16 @@ const ChartsModule = {
     //   中栏 yDaily：每日净流量柱（绿正红负）——每日细节
     //   下栏 yCum：ETF 上市以来累计净流入线——总水位趋势
     // 依据数据：ETF 流为同步指标（当日相关 0.39），20 日净流入正负对后市方向有区分力。
-    etfPriceWeight: 2.4,   // 价格栏权重（可由分隔条调节；两个流量栏各占 1.2 → 价格栏占比 = w/(w+2.4)）
+    // 三栏高度权重（可由两条分隔条调节）：price(上) / daily(中) / cum(下)
+    etfWeights: { price: 2.4, daily: 1.2, cum: 1.2 },
 
-    // 调节 ETF 价格栏占比：ratio ∈ [0.3,0.85]。两个流量栏合计权重固定 2.4。
-    setEtfSplit(ratio) {
-        const r = Math.min(0.85, Math.max(0.3, ratio));
-        this.etfPriceWeight = (2.4 * r) / (1 - r);
+    // 拖动分隔条时，把「上侧累计权重」按目标像素占比重新分配到相邻两栏（保持二者之和不变）。
+    // which='pd' 调价格↔日净流量边界；which='dc' 调日净流量↔累计边界。ratio=上侧栏在这两栏中的占比。
+    setEtfSplit(which, ratio) {
+        const w = this.etfWeights;
+        const r = Math.min(0.85, Math.max(0.15, ratio));
+        if (which === 'pd') { const sum = w.price + w.daily; w.price = sum * r; w.daily = sum * (1 - r); }
+        else { const sum = w.daily + w.cum; w.daily = sum * r; w.cum = sum * (1 - r); }
         this.renderEtfChart();
     },
 
@@ -828,20 +849,20 @@ const ChartsModule = {
                 scales: {
                     x: { type: 'time', time: { unit: 'quarter' }, min: labels[0], max: labels[labels.length - 1], ticks: { color: this.t().tick }, grid: { color: this.t().grid } },
                     // 声明顺序 = 从下往上：下栏累计、中栏日净流量、上栏价格
-                    yCum: { stack: 'etf', stackWeight: 1.2, offset: true,
+                    yCum: { stack: 'etf', stackWeight: this.etfWeights.cum, offset: true,
                             title: { display: true, text: '累计', color: '#f7931a' },
                             ticks: { color: '#f7931a', callback: v => '$' + (v / 1000).toFixed(1) + 'B' }, grid: { color: this.t().grid } },
-                    yDaily: { stack: 'etf', stackWeight: 1.2, offset: true,
+                    yDaily: { stack: 'etf', stackWeight: this.etfWeights.daily, offset: true,
                               title: { display: true, text: '日净流量', color: this.t().tick },
                               ticks: { color: this.t().tick, callback: v => this._fmtFlow(v) }, grid: { color: this.t().grid } },
-                    yPrice: { stack: 'etf', stackWeight: this.etfPriceWeight, offset: true, type: 'logarithmic',
+                    yPrice: { stack: 'etf', stackWeight: this.etfWeights.price, offset: true, type: 'logarithmic',
                               title: { display: true, text: 'BTC 价格', color: '#7c5cff' },
                               ticks: { color: '#7c5cff', callback: v => this._fmtPrice(v) }, grid: { color: this.t().grid } },
                 }
             }
         });
         // Shift=缩价格栏(yPrice)，Alt=缩日净流量栏(yDaily)，Ctrl=横轴
-        attachModifierZoom(this.charts['etf'], { leftAxis: 'yPrice', rightAxis: 'yDaily' });
+        attachModifierZoom(this.charts['etf'], { yAxes: ['yPrice', 'yDaily', 'yCum'] });
     },
 
     renderVolumeChart(data) {

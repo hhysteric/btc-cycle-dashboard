@@ -67,16 +67,19 @@ const makeZoomConfig = () => ({
 function zoomOneAxis(chart, id, factor, pos) {
     const sc = chart.scales[id];
     if (!sc) return;
-    const anchor = sc.getValueForPixel(pos);
+    let anchor = sc.getValueForPixel(pos);
+    if (anchor == null || !isFinite(anchor)) anchor = (sc.min + sc.max) / 2;   // 光标无效时以中点为锚
     let lo = sc.min, hi = sc.max;
     if (sc.type === 'logarithmic') {
+        if (anchor <= 0) anchor = Math.sqrt(Math.max(1e-9, lo) * Math.max(1e-9, hi));
         const la = Math.log(anchor);
-        lo = Math.exp(la - (la - Math.log(lo)) / factor);
-        hi = Math.exp(la + (Math.log(hi) - la) / factor);
+        lo = Math.exp(la - (la - Math.log(Math.max(1e-9, lo))) / factor);
+        hi = Math.exp(la + (Math.log(Math.max(1e-9, hi)) - la) / factor);
     } else {
         lo = anchor - (anchor - lo) / factor;
         hi = anchor + (hi - anchor) / factor;
     }
+    if (!isFinite(lo) || !isFinite(hi) || hi <= lo) return;   // 保护：区间非法则不缩放
     chart.zoomScale(id, { min: lo, max: hi }, 'none');
 }
 
@@ -107,7 +110,11 @@ function attachModifierZoom(chart, axes) {
     canvas.addEventListener('wheel', (e) => {
         if (!chart.scales) return;
         e.preventDefault();
-        const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+        // 兼容不同设备：deltaMode（0=像素/1=行/2=页）与横向滚轮。取 deltaY 主导、回退 deltaX。
+        let d = e.deltaY;
+        if (d === 0 && e.deltaX !== 0) d = e.deltaX;
+        if (d === 0) return;
+        const factor = d < 0 ? 1.15 : 1 / 1.15;     // 上滚放大、下滚缩小
         const rect = canvas.getBoundingClientRect();
         const px = e.clientX - rect.left, py = e.clientY - rect.top;
         if (e.ctrlKey) { zoomOneAxis(chart, 'x', factor, px); return; }      // Ctrl：只缩横轴

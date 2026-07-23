@@ -523,23 +523,35 @@ function setupSplitHandles() {
         const which = handle.dataset.split;
         const wrap = handle.parentElement;
         let dragging = false;
-        const onMove = (e) => {
+        let rafPending = false;
+        let lastY = 0;
+        // 实际应用拖动结果。用 rAF 节流：mousemove 每秒可触发 60+ 次，
+        // 若每次都更新图表会堆积；一帧只处理最后一次位置。
+        const apply = () => {
+            rafPending = false;
             if (!dragging) return;
             const rect = wrap.getBoundingClientRect();
-            const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+            const y = lastY - rect.top;
             const ratio = y / rect.height;   // 边界在整卡中的位置占比
             if (chartId === 'mvrv') {
                 ChartsModule.setMvrvSplit(ratio);
             } else if (chartId === 'etf') {
                 // ETF：把 ratio 换算成「上侧栏在这两栏合计高度中的占比」
                 const chart = ChartsModule.charts.etf;
-                const upScale = which === 'pd' ? chart.scales.yPrice : chart.scales.yDaily;
-                const dnScale = which === 'pd' ? chart.scales.yDaily : chart.scales.yCum;
-                const top = upScale.top, bottom = dnScale.bottom;
-                const local = Math.min(1, Math.max(0, (y - top) / (bottom - top)));
-                ChartsModule.setEtfSplit(which, local);
+                if (chart && chart.scales) {
+                    const upScale = which === 'pd' ? chart.scales.yPrice : chart.scales.yDaily;
+                    const dnScale = which === 'pd' ? chart.scales.yDaily : chart.scales.yCum;
+                    const top = upScale.top, bottom = dnScale.bottom;
+                    const local = Math.min(1, Math.max(0, (y - top) / (bottom - top)));
+                    ChartsModule.setEtfSplit(which, local);
+                }
             }
-            requestAnimationFrame(repositionAllSplitHandles);
+            repositionAllSplitHandles();
+        };
+        const onMove = (e) => {
+            if (!dragging) return;
+            lastY = e.touches ? e.touches[0].clientY : e.clientY;
+            if (!rafPending) { rafPending = true; requestAnimationFrame(apply); }
         };
         const stop = () => { dragging = false; document.body.style.userSelect = ''; };
         handle.addEventListener('mousedown', (e) => { dragging = true; document.body.style.userSelect = 'none'; e.preventDefault(); });

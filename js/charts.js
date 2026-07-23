@@ -89,8 +89,7 @@ function zoomOneAxis(chart, id, factor, pos) {
 // 单轴图传 ['y']；多面板图（MVRV/ETF）传各栏 y 轴 id，即可各自独立缩放。
 function attachModifierZoom(chart, axes) {
     const canvas = chart.canvas;
-    if (!canvas || canvas._modZoom) return;   // 避免重复挂载
-    canvas._modZoom = true;
+    if (!canvas) return;
     // 兼容旧调用：{leftAxis,rightAxis} → yAxes 列表
     let yAxes = (axes && axes.yAxes) || null;
     if (!yAxes) {
@@ -99,8 +98,15 @@ function attachModifierZoom(chart, axes) {
         if (axes && axes.rightAxis) yAxes.push(axes.rightAxis);
         if (!yAxes.length) yAxes = ['y'];
     }
+    // Chart.js 在重绘（切主题/对数）时会 destroy 旧图、复用同一个 <canvas> 建新图。
+    // 若把监听闭包绑定在旧 chart 上，重绘后监听会指向已销毁的图 → 缩放失灵。
+    // 因此把「当前图 + 轴列表」挂到 canvas 上，监听器每次都取最新的，只挂一次真实的 wheel 处理器。
+    canvas._modZoomChart = chart;
+    canvas._modZoomAxes = yAxes;
+    if (canvas._modZoom) return;   // 处理器已挂载，只更新引用即可
+    canvas._modZoom = true;
     // 找光标 y 落在哪条 y 轴的绘制区间内（多面板 stacked 各占一段）
-    const axisAtY = (py) => {
+    const axisAtY = (chart, yAxes, py) => {
         for (const id of yAxes) {
             const sc = chart.scales[id];
             if (sc && py >= sc.top && py <= sc.bottom) return id;
@@ -108,7 +114,9 @@ function attachModifierZoom(chart, axes) {
         return yAxes[0];
     };
     canvas.addEventListener('wheel', (e) => {
-        if (!chart.scales) return;
+        const chart = canvas._modZoomChart;
+        const yAxes = canvas._modZoomAxes;
+        if (!chart || !chart.scales) return;
         e.preventDefault();
         // 兼容不同设备：deltaMode（0=像素/1=行/2=页）与横向滚轮。取 deltaY 主导、回退 deltaX。
         let d = e.deltaY;
@@ -118,7 +126,7 @@ function attachModifierZoom(chart, axes) {
         const rect = canvas.getBoundingClientRect();
         const px = e.clientX - rect.left, py = e.clientY - rect.top;
         if (e.ctrlKey) { zoomOneAxis(chart, 'x', factor, px); return; }      // Ctrl：只缩横轴
-        const yid = axisAtY(py);                                            // 光标所在面板的 y 轴
+        const yid = axisAtY(chart, yAxes, py);                              // 光标所在面板的 y 轴
         zoomOneAxis(chart, yid, factor, py);
         if (!e.shiftKey) zoomOneAxis(chart, 'x', factor, px);               // 非 Shift 时同时缩横轴
     }, { passive: false });
@@ -698,15 +706,21 @@ const ChartsModule = {
                 }
             }
         });
-        // Shift=缩价格栏(yPrice)，Alt=缩 MVRV 栏(yMvrv)，Ctrl=横轴
-        attachModifierZoom(this.charts['mvrv'], { yAxes: ['yPrice', 'yMvrv'] });
+        // Shift=只缩光标所在栏，Ctrl=横轴。上栏价格轴 id 是 'y'（不是 yPrice），下栏是 yMvrv。
+        attachModifierZoom(this.charts['mvrv'], { yAxes: ['y', 'yMvrv'] });
     },
 
-    // 调节 MVRV 上下栏高度比：priceRatio ∈ [0.2,0.8]，为价格栏占比。重绘保持对数状态。
+    // 调节 MVRV 上下栏高度比：priceRatio ∈ [0.2,0.8]，为价格栏占比。
+    // 关键：只改 stackWeight 后 chart.update('none') **原地更新**，不销毁重建——
+    //   否则拖动时每次 mousemove 都会 destroy+new Chart（上千点），既卡又会让缩放监听指向已销毁的旧图而失效。
     setMvrvSplit(priceRatio) {
         const r = Math.min(0.8, Math.max(0.2, priceRatio));
         this.mvrvWeights = { price: r, mvrv: 1 - r };
-        this.renderMvrvChart(this._mvrvLog !== false);
+        const chart = this.charts['mvrv'];
+        if (!chart || !chart.options.scales) { this.renderMvrvChart(this._mvrvLog !== false); return; }
+        chart.options.scales.y.stackWeight = this.mvrvWeights.price;
+        chart.options.scales.yMvrv.stackWeight = this.mvrvWeights.mvrv;
+        chart.update('none');
     },
 
     // zZ 交叉点竖线：价格上穿 MA110（上涨信号）、MA6 上穿 MA103（买入信号）
@@ -820,7 +834,13 @@ const ChartsModule = {
         const r = Math.min(0.85, Math.max(0.15, ratio));
         if (which === 'pd') { const sum = w.price + w.daily; w.price = sum * r; w.daily = sum * (1 - r); }
         else { const sum = w.daily + w.cum; w.daily = sum * r; w.cum = sum * (1 - r); }
-        this.renderEtfChart();
+        // 原地更新 stackWeight，不销毁重建（同 setMvrvSplit 的理由：避免卡顿 + 保持缩放监听有效）。
+        const chart = this.charts['etf'];
+        if (!chart || !chart.options.scales) { this.renderEtfChart(); return; }
+        chart.options.scales.yPrice.stackWeight = w.price;
+        chart.options.scales.yDaily.stackWeight = w.daily;
+        chart.options.scales.yCum.stackWeight = w.cum;
+        chart.update('none');
     },
 
     renderEtfChart() {

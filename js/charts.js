@@ -1103,7 +1103,7 @@ const ChartsModule = {
         const c = this.t();
         const zoom = {
             pan: { enabled: true, mode: 'xy' },
-            zoom: { wheel: { enabled: true }, pinch: { enabled: true }, drag: { enabled: true, modifierKey: 'shift' }, mode: wheelMode },
+            zoom: { wheel: { enabled: true }, pinch: { enabled: true }, drag: { enabled: true, modifierKey: 'shift' }, mode: 'xy' },
         };
         const common = (scales) => ({ responsive: true, maintainAspectRatio: false, animation: false,
             plugins: { legend: { display: false }, zoom }, scales });

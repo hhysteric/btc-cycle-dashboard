@@ -892,6 +892,51 @@ const ChartsModule = {
         attachModifierZoom(this.charts['etf'], { yAxes: ['yPrice', 'yDaily', 'yCum'] });
     },
 
+    // ETF 累计净流入斜率 vs BTC 价格（双轴叠加一张图）：
+    //   右轴 yPrice(对数,金)：BTC 价格走势
+    //   左轴 y(线性)：累计净流入的滚动斜率（30 日粗线、7 日细线），单位 百万美元/日
+    // 斜率>0=资金净流入(累计线上行)、越陡流入越猛；斜率<0=净流出。零线为资金环境分界。
+    renderEtfSlopeChart() {
+        this.destroyChart('etfslope');
+        const el = document.getElementById('etfslope-chart');
+        if (!el) return;
+        const series = DataModule.getEtfSlopeSeries();
+        if (!series || !series.length) return;
+        const labels = series.map(s => s.date);
+        this.charts['etfslope'] = new Chart(el.getContext('2d'), {
+            data: {
+                labels,
+                datasets: [
+                    { type: 'line', label: 'BTC 价格', yAxisID: 'yPrice', data: series.map(s => s.price),
+                      borderColor: 'rgba(247,147,26,0.55)', borderWidth: 1, pointRadius: 0, order: 3 },
+                    { type: 'line', label: '30日斜率', yAxisID: 'y', data: series.map(s => s.slope30),
+                      borderColor: '#7c5cff', borderWidth: 1.8, pointRadius: 0, spanGaps: true, order: 1 },
+                    { type: 'line', label: '7日斜率', yAxisID: 'y', data: series.map(s => s.slope7),
+                      borderColor: 'rgba(0,211,149,0.75)', borderWidth: 1, pointRadius: 0, spanGaps: true, order: 2 },
+                ]
+            },
+            options: {
+                ...this.defaults(),
+                plugins: {
+                    ...this.defaults().plugins,
+                    annotation: { annotations: {
+                        zero: { type: 'line', yMin: 0, yMax: 0, yScaleID: 'y', borderColor: 'rgba(107,114,128,0.7)', borderDash: [4, 4], borderWidth: 1,
+                            label: { display: true, content: '0（流入/流出分界）', position: 'start', color: '#9ca3af', backgroundColor: 'rgba(0,0,0,0)', font: { size: 9 } } }
+                    } },
+                    zoom: makeZoomConfig()
+                },
+                scales: {
+                    x: { type: 'time', time: { unit: 'quarter' }, min: labels[0], max: labels[labels.length - 1], ticks: { color: this.t().tick }, grid: { color: this.t().grid } },
+                    y: { position: 'left', type: 'linear', title: { display: true, text: '累计斜率 ($M/日)', color: '#7c5cff' },
+                         ticks: { color: '#7c5cff', callback: v => this._fmtFlow(v) }, grid: { color: this.t().grid } },
+                    yPrice: { position: 'right', type: 'logarithmic', title: { display: true, text: 'BTC 价格', color: '#f7931a' },
+                              ticks: { color: '#f7931a', callback: v => this._fmtPrice(v) }, grid: { drawOnChartArea: false } }
+                }
+            }
+        });
+        attachModifierZoom(this.charts['etfslope'], { yAxes: ['y', 'yPrice'] });
+    },
+
     renderVolumeChart(data) {
         this.destroyChart('volume');
         const recent = data.slice(-90);
@@ -1195,6 +1240,16 @@ const ChartsModule = {
                 options: common({ x: { type: 'time', time: { unit: 'quarter' }, ticks: { color: c.tick }, grid: { color: c.grid } },
                     yP: { position: 'left', type: 'logarithmic', ticks: { color: c.tick, callback: v => this._fmtPrice(v) }, grid: { color: c.grid } },
                     yFlow: { position: 'right', ticks: { color: c.tick, callback: v => this._fmtFlow(v) }, grid: { drawOnChartArea: false } } }) };
+        } else if (key === 'etfslope') {
+            const series = DataModule.getEtfSlopeSeries();
+            if (!series || !series.length) return false;
+            cfg = { type: 'line', data: { labels: series.map(s => s.date), datasets: [
+                { label: 'BTC', yAxisID: 'yP', data: series.map(s => s.price), borderColor: 'rgba(247,147,26,0.55)', borderWidth: 1, pointRadius: 0 },
+                { label: '30日斜率', yAxisID: 'y', data: series.map(s => s.slope30), borderColor: '#7c5cff', borderWidth: 1.6, pointRadius: 0, spanGaps: true },
+                { label: '7日斜率', yAxisID: 'y', data: series.map(s => s.slope7), borderColor: 'rgba(0,211,149,0.75)', borderWidth: 1, pointRadius: 0, spanGaps: true } ] },
+                options: common({ x: { type: 'time', time: { unit: 'quarter' }, ticks: { color: c.tick }, grid: { color: c.grid } },
+                    y: { position: 'left', type: 'linear', ticks: { color: c.tick, callback: v => this._fmtFlow(v) }, grid: { color: c.grid } },
+                    yP: { position: 'right', type: 'logarithmic', ticks: { color: c.tick, callback: v => this._fmtPrice(v) }, grid: { drawOnChartArea: false } } }) };
         } else {
             return false; // cointime 等无图
         }
@@ -1366,6 +1421,33 @@ const ChartsModule = {
         });
     },
 
+    // ETF 累计净流入斜率离屏图（周报用）：价格(右轴对数) + 30日/7日累计斜率(左轴线性) + 零线。
+    reportEtfSlopeImage(crop) {
+        const series = DataModule.getEtfSlopeSeries();
+        if (!series || !series.length) return null;
+        return this._offscreenChart({
+            data: {
+                labels: series.map(s => s.date),
+                datasets: [
+                    { type: 'line', label: 'BTC 价格', yAxisID: 'yP', data: series.map(s => s.price), borderColor: 'rgba(247,147,26,0.7)', borderWidth: 1.4, pointRadius: 0, order: 3 },
+                    { type: 'line', label: '30日累计斜率', yAxisID: 'y', data: series.map(s => s.slope30), borderColor: '#7c5cff', borderWidth: 2, pointRadius: 0, spanGaps: true, order: 1 },
+                    { type: 'line', label: '7日累计斜率', yAxisID: 'y', data: series.map(s => s.slope7), borderColor: 'rgba(0,211,149,0.85)', borderWidth: 1.1, pointRadius: 0, spanGaps: true, order: 2 },
+                ]
+            },
+            options: {
+                plugins: {
+                    legend: { labels: { color: '#cbd5e1', font: { size: 11 } } },
+                    annotation: { annotations: { zero: { type: 'line', yMin: 0, yMax: 0, yScaleID: 'y', borderColor: 'rgba(148,163,184,0.7)', borderDash: [4, 4], borderWidth: 1 } } }
+                },
+                scales: {
+                    x: this._cropScale({ type: 'time', time: { unit: 'quarter' }, ticks: { color: '#94a3b8' }, grid: { color: '#1f2937' } }, crop, 'x'),
+                    y: { position: 'left', type: 'linear', title: { display: true, text: '累计斜率 ($M/日)', color: '#94a3b8' }, ticks: { color: '#94a3b8', callback: v => this._fmtFlow(v) }, grid: { color: '#1f2937' } },
+                    yP: { position: 'right', type: 'logarithmic', title: { display: true, text: '价格', color: '#f7931a' }, ticks: { color: '#94a3b8', callback: v => this._fmtPrice(v) }, grid: { drawOnChartArea: false } },
+                }
+            }
+        });
+    },
+
     // 返回各指标 dataURL 映射。crops: { key: {xMin,xMax,yMin,yMax} } 可选，用于「划选区域入周报」。
     reportImages(crops = {}) {
         return {
@@ -1378,6 +1460,7 @@ const ChartsModule = {
             riskreward: this.reportRiskRewardImage(crops.riskreward),
             rsi: this.reportRSIImage(crops.rsi),
             etf: this.reportEtfImage(crops.etf),
+            etfslope: this.reportEtfSlopeImage(crops.etfslope),
         };
     }
 };

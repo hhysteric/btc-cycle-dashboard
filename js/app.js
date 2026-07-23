@@ -117,6 +117,7 @@ function renderPriceCharts(data) {
     ChartsModule.renderNuplChart();
     ChartsModule.renderRiskRewardChart(true);
     ChartsModule.renderEtfChart();
+    ChartsModule.renderEtfSlopeChart();
     if (typeof repositionAllSplitHandles === 'function') setTimeout(repositionAllSplitHandles, 150);
 
     const etf = DataModule.etfData;
@@ -128,6 +129,21 @@ function renderPriceCharts(data) {
         etfEl.style.color = last.flow >= 0 ? '#00d395' : '#ff4757';
     } else if (etfEl) {
         etfEl.textContent = 'ETF 数据未加载';
+    }
+
+    const slopeSeries = DataModule.getEtfSlopeSeries();
+    const slopeEl = document.getElementById('etfslope-current');
+    if (slopeSeries && slopeSeries.length && slopeEl) {
+        const last = slopeSeries[slopeSeries.length - 1];
+        if (last.slope30 != null) {
+            const fmt = v => (v >= 0 ? '+' : '') + '$' + Math.abs(v).toFixed(0) + 'M/日';
+            slopeEl.textContent = '30日斜率 ' + fmt(last.slope30);
+            slopeEl.style.color = last.slope30 >= 0 ? '#00d395' : '#ff4757';
+        } else {
+            slopeEl.textContent = '数据不足';
+        }
+    } else if (slopeEl) {
+        slopeEl.textContent = 'ETF 数据未加载';
     }
 
     const mayer = DataModule.getMayerMultiple();
@@ -291,7 +307,7 @@ function setupEventListeners(data, priceInfo, cycleInfo) {
 }
 
 // ===== 周报配置面板 =====
-const CHARTABLE_KEYS = ['cycle', 'ma', 'mayer', 'mvrv', 'realized', 'nupl', 'riskreward', 'rsi', 'etf']; // 有图可裁剪的指标
+const CHARTABLE_KEYS = ['cycle', 'ma', 'mayer', 'mvrv', 'realized', 'nupl', 'riskreward', 'rsi', 'etf', 'etfslope']; // 有图可裁剪的指标
 
 let reportCrops = {};
 let reportUploads = {};   // key -> dataURL（内置指标上传的覆盖图）

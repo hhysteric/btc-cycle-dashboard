@@ -822,6 +822,58 @@ const DataModule = {
         return { key: 'cointime', title: 'Cointime Price / 时间加权成本线', text };
     },
 
+    // ETF 累计净流入的「斜率」序列：累计线的上升速度（= 单位时间进场的增量资金）。
+    // 用滚动窗口最小二乘拟合斜率，平滑日噪声。斜率>0 资金净流入（累计线上行）、越陡流入越猛；
+    // 斜率<0 资金净流出。窗口越短越灵敏、越长越平滑。单位：百万美元/天。
+    //   返回 [{date, price, slope7, slope30}]（升序，price 取当日 BTC 收盘，缺失为 null）。
+    getEtfSlopeSeries() {
+        const d = this.etfData;
+        if (!d || !d.length) return null;
+        const priceByDay = new Map();
+        for (const p of this.processedData) priceByDay.set(p.date.toISOString().slice(0, 10), p.close);
+        // 对窗口内的累计值做 y=a+b·t 最小二乘，返回斜率 b（t=0..n-1，单位=天）
+        const slopeAt = (i, win) => {
+            const start = i - win + 1;
+            if (start < 0) return null;
+            const n = win;
+            let sx = 0, sy = 0, sxy = 0, sxx = 0;
+            for (let k = 0; k < n; k++) {
+                const t = k, y = d[start + k].cumulative;
+                sx += t; sy += y; sxy += t * y; sxx += t * t;
+            }
+            const denom = n * sxx - sx * sx;
+            if (denom === 0) return null;
+            return (n * sxy - sx * sy) / denom;
+        };
+        return d.map((x, i) => ({
+            date: x.date,
+            price: priceByDay.get(x.date.toISOString().slice(0, 10)) ?? null,
+            slope7: slopeAt(i, 7),
+            slope30: slopeAt(i, 30),
+        }));
+    },
+
+    // ETF 累计净流入斜率分析（周报用）：斜率 = 增量资金进场速度，斜率转向常领先价格。
+    analyzeEtfSlope() {
+        const series = this.getEtfSlopeSeries();
+        if (!series || !series.length) return null;
+        const last = series[series.length - 1];
+        if (last.slope30 == null) return null;
+        const fmt = v => (v >= 0 ? '+' : '') + '$' + (Math.abs(v) >= 1000 ? (v / 1000).toFixed(2) + 'B' : v.toFixed(0) + 'M') + '/日';
+        // 找最近一次 30 日斜率穿越 0 的日期（资金环境切换点）
+        let flipDate = null, flipDir = null;
+        for (let i = series.length - 1; i > 0; i--) {
+            const a = series[i - 1].slope30, b = series[i].slope30;
+            if (a == null || b == null) continue;
+            if ((a < 0 && b >= 0) || (a >= 0 && b < 0)) { flipDate = series[i].date; flipDir = b >= 0 ? '转正（流入）' : '转负（流出）'; break; }
+        }
+        let text = `ETF 累计净流入的「斜率」衡量增量资金的进场速度：斜率为正=资金持续净流入（累计线上行），越陡流入越猛；斜率为负=资金净流出。`;
+        text += `当前 30 日斜率 ${fmt(last.slope30)}${last.slope7 != null ? `、7 日斜率 ${fmt(last.slope7)}` : ''}（${this.fmtDate(last.date)}）——${last.slope30 >= 0 ? '中期资金仍在净流入，为价格提供增量支撑' : '中期资金转为净流出，增量推力减弱'}${last.slope7 != null && last.slope30 != null ? (last.slope7 > last.slope30 ? '，且短期流入在加速' : last.slope7 < last.slope30 ? '，短期流入较中期已放缓' : '') : ''}。`;
+        if (flipDate) text += `最近一次 30 日斜率${flipDir}发生在 ${this.fmtDate(flipDate)}。`;
+        text += `斜率的方向转换往往与价格拐点同步或略微领先，可与价格叠加观察资金与走势的共振。`;
+        return { key: 'etfslope', title: 'ETF 累计净流入斜率（资金进场速度）', text };
+    },
+
     // ETF 资金流分析：现货 ETF 净流量是当前最可量化的「增量资金」，与 BTC 走势强相关。
     analyzeEtf() {
         const d = this.etfData;
@@ -865,6 +917,7 @@ const DataModule = {
             this.analyzeRiskReward(),
             this.analyzeRSI(),
             this.analyzeEtf(),
+            this.analyzeEtfSlope(),
             this.analyzeCointime(),
         ].filter(Boolean);
     },

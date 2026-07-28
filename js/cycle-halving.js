@@ -48,7 +48,7 @@ DataModule.analyzeCycleHalving = function () {
     const gDayList = past.map(p => p.gainDay).join(' / ');
     let text = `以每轮减半日为起点（第0天=1.0）到下一次减半：此前 3 轮减半后至周期顶的最大涨幅约 ${gList}，见顶分别在减半后第 ${gDayList} 天；涨幅逐轮递减，见顶时间大致集中在减半后约 1 年至 1 年半。`;
     text += `本轮（2024-04-19 减半）至今 ${curDays} 天，期间最高 ${cur.gain.toFixed(2)}x（第 ${cur.gainDay} 天）、最低 ${cur.low.toFixed(2)}x（第 ${cur.lowDay} 天）。`;
-    text += `按「峰值对齐」视角看，各轮从减半日涨到顶的比例在收敛，可据此横比本轮相对历史处于偏早/偏晚位置（历史类比，非预测）。`;
+    text += `按「两端对齐（减半日=0、峰值=1）」视角看，各轮从减半日涨到顶的相对进度形态可直接叠比，据此横比本轮相对历史处于偏早/偏晚位置（历史类比，非预测）。`;
     return { key: 'cyclehalving', title: '四年大周期对比（从各轮减半日对齐）', text };
 };
 
@@ -59,8 +59,9 @@ ChartsModule.renderCycleHalvingChart = function (cycles) {
     if (!el) return;
     const ctx = el.getContext('2d');
 
-    // peakMode=true：每轮除以自身最高点，使各轮峰值统一为 1.0（减半日仍为 x=0 起点），
-    //   便于对比"从减半日涨到顶的比例"与"顶后回撤深度"的形态；否则以减半日价=1.0 归一。
+    // peakMode=true：两端对齐——把「减半日→峰值」这段做 min-max 归一化，
+    //   使各轮 减半日=0、最高点=1，便于对比各轮从减半日涨到顶的相对进度/形态。
+    //   (0 无法在对数轴显示，故 peakMode 用线性轴；普通模式仍对数)
     const peakMode = !!this._halvingPeakMode;
     const datasets = [];
     const annotations = {};
@@ -72,9 +73,11 @@ ChartsModule.renderCycleHalvingChart = function (cycles) {
             if (p.normalized > high.normalized) high = p;
             if (p.normalized < low.normalized) low = p;
         }
+        const base = cycle.data[0].normalized;   // 减半日值（=1.0）
         const peakVal = high.normalized || 1;
-        // 显示用换算：peakMode 下所有值除以峰值（峰=1.0）
-        const yOf = v => peakMode ? v / peakVal : v;
+        const span = (peakVal - base) || 1;
+        // 显示用换算：peakMode 下 减半日→0、峰值→1（低于减半日则为负，线性轴可显示）
+        const yOf = v => peakMode ? (v - base) / span : v;
         const name = cycle.label.replace(/ .*/, '');
 
         datasets.push({
@@ -137,8 +140,9 @@ ChartsModule.renderCycleHalvingChart = function (cycles) {
                     grid: { color: this.t().grid },
                 },
                 y: {
-                    type: 'logarithmic',   // 两种模式均对数显示
-                    title: { display: true, text: peakMode ? '相对各轮峰值 (峰=1.0)' : '相对减半日 (倍)', color: this.t().tick },
+                    // peakMode 两端对齐(减半日=0、峰=1)含 0/负值，需线性轴；普通模式用对数
+                    type: peakMode ? 'linear' : 'logarithmic',
+                    title: { display: true, text: peakMode ? '减半日→峰值 归一化 (0→1)' : '相对减半日 (倍)', color: this.t().tick },
                     ticks: { color: this.t().tick, callback: v => v.toFixed(2) + (peakMode ? '' : 'x') },
                     grid: { color: this.t().grid },
                 }
@@ -167,8 +171,8 @@ ChartsModule.reportCycleHalvingImage = function (crop) {
         const color = CHART_COLORS.cycleColors[i];
         let high = cy.data[0], low = cy.data[0];
         for (const p of cy.data) { if (p.normalized > high.normalized) high = p; if (p.normalized < low.normalized) low = p; }
-        const peakVal = high.normalized || 1;
-        const yOf = v => peakMode ? v / peakVal : v;
+        const base = cy.data[0].normalized, peakVal = high.normalized || 1, span = (peakVal - base) || 1;
+        const yOf = v => peakMode ? (v - base) / span : v;
         const name = cy.label.replace(/ .*/, '');
         datasets.push({ label: cy.label, data: cy.data.map(d => ({ x: d.day, y: yOf(d.normalized) })),
             borderColor: color, borderWidth: 1.4, pointRadius: 0, tension: 0.1 });
@@ -190,7 +194,7 @@ ChartsModule.reportCycleHalvingImage = function (crop) {
             },
             scales: {
                 x: this._cropScale({ type: 'linear', title: { display: true, text: '距该轮减半日天数', color: '#94a3b8' }, ticks: { color: '#94a3b8' }, grid: { color: '#1f2937' } }, crop, 'x'),
-                y: this._cropScale({ type: 'logarithmic', title: { display: true, text: peakMode ? '相对各轮峰值(峰=1.0)' : '相对减半日(倍)', color: '#94a3b8' }, ticks: { color: '#94a3b8', callback: v => v.toFixed(2) + (peakMode ? '' : 'x') }, grid: { color: '#1f2937' } }, crop, 'y')
+                y: this._cropScale({ type: peakMode ? 'linear' : 'logarithmic', title: { display: true, text: peakMode ? '减半日→峰值 归一化(0→1)' : '相对减半日(倍)', color: '#94a3b8' }, ticks: { color: '#94a3b8', callback: v => v.toFixed(2) + (peakMode ? '' : 'x') }, grid: { color: '#1f2937' } }, crop, 'y')
             }
         }
     });

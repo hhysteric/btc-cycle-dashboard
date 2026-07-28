@@ -169,13 +169,13 @@
             <div class="flex items-center justify-between mb-1 flex-wrap gap-2">
                 <h2 class="text-lg font-semibold">四年大周期对比（从各轮减半日对齐）</h2>
                 <div class="flex gap-2 items-center">
-                    <button id="btn-halving-peak" class="chart-tool-btn px-3 py-1 rounded text-sm" data-chart="cycle-halving">峰值对齐(峰=1)</button>
+                    <button id="btn-halving-peak" class="chart-tool-btn px-3 py-1 rounded text-sm" data-chart="cycle-halving">两端对齐(减半=0 峰=1)</button>
                     <button class="chart-tool-btn log-btn active px-3 py-1 rounded text-sm" data-chart="cycle-halving" data-axis="y">对数</button>
                     <button class="zoom-reset-btn px-3 py-1 rounded text-sm" data-chart="cycle-halving">重置</button>
                     <button class="chart-tool-btn fullscreen-btn px-3 py-1 rounded text-sm" data-target="card-cycle-halving">全屏</button>
                 </div>
             </div>
-            <p class="text-gray-500 dark:text-gray-400 text-sm mb-4">每条曲线以该轮<span class="text-accent-gold">减半日为起点</span>（第0天，归一化=1.0），到<span class="text-accent-gold">下一次减半</span>为终点，展示一个减半周期内的完整轨迹；<span style="color:#fbbf24">▲ 标注该周期最高点（牛市顶）</span>、<span class="text-accent-green">● 标注最低点</span>（相对减半日的倍数）。周期4 仍进行中，随每日数据推进。</p>
+            <p class="text-gray-500 dark:text-gray-400 text-sm mb-4">每条曲线以该轮<span class="text-accent-gold">减半日为起点</span>（第0天，归一化=1.0），到<span class="text-accent-gold">下一次减半</span>为终点；<span style="color:#fbbf24">▲ 标注该周期最高点（牛市顶）</span>、<span class="text-accent-green">● 标注最低点</span>。点<span class="text-accent-gold">「两端对齐」</span>后，各轮把「减半日→峰值」这段归一化为 <span class="text-accent-gold">减半日=0、峰值=1</span>（线性轴），便于横比各轮涨到顶的相对进度形态。周期4 仍进行中，随每日数据推进。</p>
             <div class="chart-canvas-wrap h-80">
                 <canvas id="cycle-halving-chart"></canvas>
             </div>
@@ -431,11 +431,11 @@
     </footer>
 
     <!-- ?v 版本号：改代码时手动 +1，强制浏览器拉最新 JS，避免看到旧缓存版本 -->
-    <script src="js/data.js?v=20260728a"></script>
-    <script src="js/charts.js?v=20260728a"></script>
-    <script src="js/cycle-trough.js?v=20260728a"></script>
-    <script src="js/cycle-halving.js?v=20260728a"></script>
-    <script src="js/report.js?v=20260728a"></script>
-    <script src="js/app.js?v=20260728a"></script>
+    <script src="js/data.js?v=20260728b"></script>
+    <script src="js/charts.js?v=20260728b"></script>
+    <script src="js/cycle-trough.js?v=20260728b"></script>
+    <script src="js/cycle-halving.js?v=20260728b"></script>
+    <script src="js/report.js?v=20260728b"></script>
+    <script src="js/app.js?v=20260728b"></script>
 </body>
 </html>

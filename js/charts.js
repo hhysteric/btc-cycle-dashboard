@@ -1175,11 +1175,11 @@ const ChartsModule = {
             const peakMode = !!this._halvingPeakMode;
             cfg = { type: 'line', data: { datasets: cycles.map((cy, i) => {
                 let hi = cy.data[0]; for (const p of cy.data) if (p.normalized > hi.normalized) hi = p;
-                const pk = hi.normalized || 1;
-                return { label: cy.label, data: cy.data.map(d => ({ x: d.day, y: peakMode ? d.normalized / pk : d.normalized })),
+                const base = cy.data[0].normalized, pk = hi.normalized || 1, span = (pk - base) || 1;
+                return { label: cy.label, data: cy.data.map(d => ({ x: d.day, y: peakMode ? (d.normalized - base) / span : d.normalized })),
                     borderColor: CHART_COLORS.cycleColors[i], borderWidth: 1.2, pointRadius: 0, tension: 0.1 }; }) },
                 options: common({ x: { type: 'linear', ticks: { color: c.tick }, grid: { color: c.grid } },
-                    y: { type: 'logarithmic', ticks: { color: c.tick, callback: v => v.toFixed(1) + (peakMode ? '' : 'x') }, grid: { color: c.grid } } }) };
+                    y: { type: peakMode ? 'linear' : 'logarithmic', ticks: { color: c.tick, callback: v => v.toFixed(1) + (peakMode ? '' : 'x') }, grid: { color: c.grid } } }) };
         } else if (key === 'ma') {
             // zZ 指标小图：价格 + MA6/103/110
             const data = DataModule.processedData.slice(-730);

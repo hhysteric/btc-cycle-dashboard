@@ -224,7 +224,15 @@ function setupEventListeners(data, priceInfo, cycleInfo) {
         halvingPeakBtn.addEventListener('click', () => {
             const on = ChartsModule.toggleHalvingPeakMode();
             halvingPeakBtn.classList.toggle('active', on);
-            halvingPeakBtn.textContent = on ? '恢复(相对减半日)' : '峰值对齐(峰=1)';
+            halvingPeakBtn.textContent = on ? '恢复(相对减半日)' : '两端对齐(减半=0 峰=1)';
+            // 两端对齐用线性轴（含0/负值），对数按钮此时不适用：禁用并置灰；恢复时解禁
+            const logBtn = document.querySelector('.log-btn[data-chart="cycle-halving"]');
+            if (logBtn) {
+                logBtn.disabled = on;
+                logBtn.classList.toggle('opacity-40', on);
+                logBtn.classList.toggle('cursor-not-allowed', on);
+                if (!on) logBtn.classList.add('active');   // 恢复后普通模式默认对数
+            }
         });
     }
 

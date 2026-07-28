@@ -325,7 +325,7 @@ function setupEventListeners(data, priceInfo, cycleInfo) {
 }
 
 // ===== 周报配置面板 =====
-const CHARTABLE_KEYS = ['cycle', 'cycletrough', 'cyclehalving', 'ma', 'mayer', 'mvrv', 'realized', 'nupl', 'riskreward', 'rsi', 'etf', 'etfslope']; // 有图可裁剪的指标
+const CHARTABLE_KEYS = ['cycle', 'cycletrough', 'cyclehalving', 'cyclestrength', 'ma', 'mayer', 'mvrv', 'realized', 'nupl', 'riskreward', 'rsi', 'etf', 'etfslope']; // 有图可裁剪的指标
 
 let reportCrops = {};
 let reportUploads = {};   // key -> dataURL（内置指标上传的覆盖图）

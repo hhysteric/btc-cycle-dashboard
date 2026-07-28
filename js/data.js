@@ -911,6 +911,7 @@ const DataModule = {
             this.analyzeCycle(),
             this.analyzeCycleTrough ? this.analyzeCycleTrough() : null,
             this.analyzeCycleHalving ? this.analyzeCycleHalving() : null,
+            this.analyzeCycleStrength ? this.analyzeCycleStrength() : null,
             this.analyzeMA(),
             this.analyzeMayer(),
             this.analyzeMvrv(),

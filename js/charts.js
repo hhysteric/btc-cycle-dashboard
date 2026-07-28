@@ -1161,6 +1161,25 @@ const ChartsModule = {
                 borderWidth: 1.2, pointRadius: 0, tension: 0.1 })) },
                 options: common({ x: { type: 'linear', ticks: { color: c.tick }, grid: { color: c.grid } },
                     y: { type: 'logarithmic', ticks: { color: c.tick, callback: v => v.toFixed(1) + 'x' }, grid: { color: c.grid } } }) };
+        } else if (key === 'cycletrough') {
+            const cycles = DataModule.getCycleDataFromTrough ? DataModule.getCycleDataFromTrough() : [];
+            if (!cycles.length) return false;
+            cfg = { type: 'line', data: { datasets: cycles.map((cy, i) => ({ label: cy.label,
+                data: cy.data.map(d => ({ x: d.day, y: d.normalized })), borderColor: CHART_COLORS.cycleColors[i],
+                borderWidth: 1.2, pointRadius: 0, tension: 0.1 })) },
+                options: common({ x: { type: 'linear', ticks: { color: c.tick }, grid: { color: c.grid } },
+                    y: { type: 'logarithmic', ticks: { color: c.tick, callback: v => v.toFixed(1) + 'x' }, grid: { color: c.grid } } }) };
+        } else if (key === 'cyclehalving') {
+            const cycles = DataModule.getCycleDataFromHalving ? DataModule.getCycleDataFromHalving() : [];
+            if (!cycles.length) return false;
+            const peakMode = !!this._halvingPeakMode;
+            cfg = { type: 'line', data: { datasets: cycles.map((cy, i) => {
+                let hi = cy.data[0]; for (const p of cy.data) if (p.normalized > hi.normalized) hi = p;
+                const pk = hi.normalized || 1;
+                return { label: cy.label, data: cy.data.map(d => ({ x: d.day, y: peakMode ? d.normalized / pk : d.normalized })),
+                    borderColor: CHART_COLORS.cycleColors[i], borderWidth: 1.2, pointRadius: 0, tension: 0.1 }; }) },
+                options: common({ x: { type: 'linear', ticks: { color: c.tick }, grid: { color: c.grid } },
+                    y: { type: 'logarithmic', ticks: { color: c.tick, callback: v => v.toFixed(1) + (peakMode ? '' : 'x') }, grid: { color: c.grid } } }) };
         } else if (key === 'ma') {
             // zZ 指标小图：价格 + MA6/103/110
             const data = DataModule.processedData.slice(-730);
@@ -1263,7 +1282,7 @@ const ChartsModule = {
         if (!chart) return null;
         const xs = chart.scales.x, ys = chart.scales.y;
         const crop = { xMin: xs.min, xMax: xs.max };
-        if (key === 'cycle') { crop.yMin = ys.min; crop.yMax = ys.max; }
+        if (key === 'cycle' || key === 'cycletrough' || key === 'cyclehalving') { crop.yMin = ys.min; crop.yMax = ys.max; }
         return crop;
     },
 
@@ -1452,6 +1471,8 @@ const ChartsModule = {
     reportImages(crops = {}) {
         return {
             cycle: this.reportCycleImage(crops.cycle),
+            cycletrough: this.reportCycleTroughImage ? this.reportCycleTroughImage(crops.cycletrough) : null,
+            cyclehalving: this.reportCycleHalvingImage ? this.reportCycleHalvingImage(crops.cyclehalving) : null,
             ma: this.reportMAImage(crops.ma),
             mayer: this.reportMayerImage(crops.mayer),
             mvrv: this.reportMvrvImage(crops.mvrv),

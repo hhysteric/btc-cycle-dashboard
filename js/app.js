@@ -218,6 +218,16 @@ function setupEventListeners(data, priceInfo, cycleInfo) {
         btn.addEventListener('click', () => ChartsModule.resetZoom(btn.dataset.chart));
     });
 
+    // 减半对齐图「峰值对齐」切换：各轮峰值统一为 1.0（对数显示），再点恢复
+    const halvingPeakBtn = document.getElementById('btn-halving-peak');
+    if (halvingPeakBtn) {
+        halvingPeakBtn.addEventListener('click', () => {
+            const on = ChartsModule.toggleHalvingPeakMode();
+            halvingPeakBtn.classList.toggle('active', on);
+            halvingPeakBtn.textContent = on ? '恢复(相对减半日)' : '峰值对齐(峰=1)';
+        });
+    }
+
     // 纵轴 线性/对数 切换
     document.querySelectorAll('.log-btn').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -307,7 +317,7 @@ function setupEventListeners(data, priceInfo, cycleInfo) {
 }
 
 // ===== 周报配置面板 =====
-const CHARTABLE_KEYS = ['cycle', 'ma', 'mayer', 'mvrv', 'realized', 'nupl', 'riskreward', 'rsi', 'etf', 'etfslope']; // 有图可裁剪的指标
+const CHARTABLE_KEYS = ['cycle', 'cycletrough', 'cyclehalving', 'ma', 'mayer', 'mvrv', 'realized', 'nupl', 'riskreward', 'rsi', 'etf', 'etfslope']; // 有图可裁剪的指标
 
 let reportCrops = {};
 let reportUploads = {};   // key -> dataURL（内置指标上传的覆盖图）

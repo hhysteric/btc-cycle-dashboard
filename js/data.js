@@ -909,6 +909,8 @@ const DataModule = {
     getReportAnalysis() {
         return [
             this.analyzeCycle(),
+            this.analyzeCycleTrough ? this.analyzeCycleTrough() : null,
+            this.analyzeCycleHalving ? this.analyzeCycleHalving() : null,
             this.analyzeMA(),
             this.analyzeMayer(),
             this.analyzeMvrv(),

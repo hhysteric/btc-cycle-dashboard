@@ -53,6 +53,28 @@ DataModule.getCycleDataFromTrough = function () {
     return cycles;
 };
 
+// ===== 周报分析：从各轮最低点的复苏形态与最大涨幅 =====
+DataModule.analyzeCycleTrough = function () {
+    const cycles = this.getCycleDataFromTrough();
+    if (!cycles || cycles.length < 2) return null;
+    // 前 3 轮（已完成）从底部的最大涨幅倍数 + 达峰天数
+    const past = cycles.slice(0, 3).map(c => {
+        let high = c.data[0];
+        for (const p of c.data) if (p.normalized > high.normalized) high = p;
+        return { gain: high.normalized, day: high.day };
+    });
+    const cur = cycles[cycles.length - 1];
+    let curHigh = cur.data[0];
+    for (const p of cur.data) if (p.normalized > curHigh.normalized) curHigh = p;
+    const curDays = cur.data[cur.data.length - 1].day;
+    const gList = past.map(p => p.gain.toFixed(1) + 'x').join(' / ');
+    const dayMin = Math.min(...past.map(p => p.day)), dayMax = Math.max(...past.map(p => p.day));
+    let text = `从各轮熊市大底对齐看复苏节奏：此前 3 轮周期见底后的最大涨幅约 ${gList}（分别在第 ${past.map(p => p.day).join(' / ')} 天见顶），达峰耗时 ${dayMin}–${dayMax} 天。`;
+    text += `本轮自「当下可看到的最低点」以来已 ${curDays} 天，期间最大反弹 ${curHigh.normalized.toFixed(2)}x。`;
+    text += `若历史复苏斜率仍成立，可用上述涨幅区间与达峰天数，横向比对本轮当前所处的复苏位置（此为历史类比，非预测）。`;
+    return { key: 'cycletrough', title: '四年大周期对比（从各轮最低点对齐）', text };
+};
+
 // ===== 图表：镜像 renderCycleChart，标注各轮从最低点的最高涨幅（倍数）=====
 ChartsModule.renderCycleTroughChart = function (cycles) {
     this.destroyChart('cycle-trough');
@@ -138,6 +160,35 @@ ChartsModule.renderCycleTroughChart = function (cycles) {
         }
     });
     attachModifierZoom(this.charts['cycle-trough']);
+};
+
+// ===== 周报离屏图（深色）：从各轮最低点对齐，标注各轮最大涨幅倍数 =====
+ChartsModule.reportCycleTroughImage = function (crop) {
+    const cycles = DataModule.getCycleDataFromTrough();
+    if (!cycles || !cycles.length) return null;
+    const datasets = [];
+    const ann = {};
+    cycles.forEach((cy, i) => {
+        const color = CHART_COLORS.cycleColors[i];
+        datasets.push({ label: cy.label, data: cy.data.map(d => ({ x: d.day, y: d.normalized })),
+            borderColor: color, borderWidth: 1.4, pointRadius: 0, tension: 0.1 });
+        let high = cy.data[0];
+        for (const p of cy.data) if (p.normalized > high.normalized) high = p;
+        ann['h' + i] = { type: 'label', xValue: high.day, yValue: high.normalized,
+            content: `${cy.label.replace(/ .*/, '')}: ${high.normalized.toFixed(1)}x (第${high.day}天)`,
+            color: '#fff', font: { size: 12, weight: 'bold' }, xAdjust: -40, yAdjust: 8 + i * 18,
+            backgroundColor: color, borderRadius: 3, padding: 4 };
+    });
+    return this._offscreenChart({
+        type: 'line', data: { datasets },
+        options: {
+            plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 11 } } }, annotation: { annotations: ann } },
+            scales: {
+                x: this._cropScale({ type: 'linear', title: { display: true, text: '距该轮最低点天数', color: '#94a3b8' }, ticks: { color: '#94a3b8' }, grid: { color: '#1f2937' } }, crop, 'x'),
+                y: this._cropScale({ type: 'logarithmic', title: { display: true, text: '相对最低点(倍)', color: '#94a3b8' }, ticks: { color: '#94a3b8', callback: v => v.toFixed(2) + 'x' }, grid: { color: '#1f2937' } }, crop, 'y')
+            }
+        }
+    });
 };
 
 // ===== 挂到渲染流程 =====

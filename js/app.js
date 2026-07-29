@@ -236,6 +236,15 @@ function setupEventListeners(data, priceInfo, cycleInfo) {
         });
     }
 
+    // MVRV 四年大周期对比：三种对齐方式切换（最高点/最低点/减半日）
+    document.querySelectorAll('.mvrv-cycle-mode-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.mvrv-cycle-mode-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            if (ChartsModule.renderMvrvCycleChart) ChartsModule.renderMvrvCycleChart(btn.dataset.mode);
+        });
+    });
+
     // 纵轴 线性/对数 切换
     document.querySelectorAll('.log-btn').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -325,7 +334,7 @@ function setupEventListeners(data, priceInfo, cycleInfo) {
 }
 
 // ===== 周报配置面板 =====
-const CHARTABLE_KEYS = ['cycle', 'cycletrough', 'cyclehalving', 'cyclestrength', 'ma', 'mayer', 'mvrv', 'realized', 'nupl', 'riskreward', 'rsi', 'etf', 'etfslope']; // 有图可裁剪的指标
+const CHARTABLE_KEYS = ['cycle', 'cycletrough', 'cyclehalving', 'cyclestrength', 'ma', 'mayer', 'mvrv', 'mvrvcycle', 'realized', 'nupl', 'riskreward', 'rsi', 'etf', 'etfslope']; // 有图可裁剪的指标
 
 let reportCrops = {};
 let reportUploads = {};   // key -> dataURL（内置指标上传的覆盖图）

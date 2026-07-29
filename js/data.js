@@ -915,6 +915,7 @@ const DataModule = {
             this.analyzeMA(),
             this.analyzeMayer(),
             this.analyzeMvrv(),
+            this.analyzeMvrvCycle ? this.analyzeMvrvCycle() : null,
             this.analyzeRealizedPrice(),
             this.analyzeNupl(),
             this.analyzeRiskReward(),

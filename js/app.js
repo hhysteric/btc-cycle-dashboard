@@ -54,6 +54,7 @@ async function init() {
 async function loadLivePrice(cycleInfo) {
     const live = await DataModule.fetchLivePrice();
     if (live && live.price) {
+        DataModule.livePrice = live.price;   // 供各分析函数统一取价（周报「当前价」= 实时价）
         appState.priceInfo = live;
         updateOverview(live, cycleInfo);
         document.getElementById('last-update').textContent = '更新: ' + new Date().toLocaleTimeString('zh-CN') + '（实时）';

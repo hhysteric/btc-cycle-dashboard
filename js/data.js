@@ -151,6 +151,17 @@ const DataModule = {
         return this.processedData[this.processedData.length - 1];
     },
 
+    // 实时价（fetchLivePrice 成功后由 app.js 写入）；拿不到时为 null。
+    livePrice: null,
+
+    // 统一的「当前价」入口：优先实时价，回退 CSV 最新收盘价。
+    // 概览卡与周报分析文字都应经此取价，避免两者口径不一致。
+    getCurrentPrice() {
+        if (this.livePrice != null && isFinite(this.livePrice) && this.livePrice > 0) return this.livePrice;
+        const latest = this.getLatest();
+        return latest ? latest.close : null;
+    },
+
     getDataForPeriod(days) {
         if (days === 'all') return this.processedData;
         const cutoff = new Date();
@@ -186,7 +197,8 @@ const DataModule = {
     getZzSignals() {
         const data = this.processedData;
         if (data.length < 110) return null;
-        const price = data[data.length - 1].close;
+        // 显示与外推锚点用「当前价」（优先实时价，回退 CSV 收盘），与概览卡口径一致
+        const price = this.getCurrentPrice() ?? data[data.length - 1].close;
         const lastDate = data[data.length - 1].date;
 
         // 当前 MA 值 + 用于外推的窗口（最近 period 天收盘价）

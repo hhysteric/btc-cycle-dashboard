@@ -211,13 +211,18 @@ const DataModule = {
             }
         }
 
-        // 求交叉天数：找第一处符号翻转（从下方到上方）
+        // 求交叉天数：找第一处从下方「触及/上穿」的位置。
+        // 用 diff>=0（含相等）而非严格 diff>0：价格恒定时，MA 会随旧值滚出而收敛到当前价，
+        // 与价格只会「相切」而非严格穿越（如价格低于 MA110 的熊市行情）。若只认严格上穿，
+        // 这类收敛就判不出交叉→掉进无日期的兜底句。改为「触及即算触发」，可稳定给出天数/日期，
+        // 且日期随行情每日变化。
+        const EPS = 1e-9;
         const findCross = (aArr, bArr, aStart, bStart) => {
             // aArr/bArr 为随 t 变化的数组（index=t）；aStart>bStart 表示已在上方
             let prevDiff = aStart - bStart;
             for (let t = 1; t < aArr.length; t++) {
                 const diff = aArr[t] - bArr[t];
-                if (prevDiff <= 0 && diff > 0) return t; // 上穿
+                if (prevDiff < -EPS && diff >= -EPS) return t; // 从下方触及/上穿
                 prevDiff = diff;
             }
             return null;
@@ -688,9 +693,9 @@ const DataModule = {
         if (zz.aboveMA110) {
             text += `已触发上涨信号（价格在 MA110 上方）。`;
         } else if (zz.crossPriceMA110 != null) {
-            text += `尚未触发上涨信号。若维持当前价格不变，约 ${zz.crossPriceMA110} 天后 ${this.fmtDate(zz.crossPriceMA110Date)}，触发上涨/牛市启动信号。`;
+            text += `尚未触发上涨信号，若维持当前价格不变，约 ${zz.crossPriceMA110} 天后 ${this.fmtDate(zz.crossPriceMA110Date)}，触发上涨/牛市启动信号。`;
         } else {
-            text += `尚未触发上涨信号，短期内不会上穿 MA110。`;
+            text += `尚未触发上涨信号，按当前价格外推 ${this.ZZ_MAX_PROJECT} 天内价格仍不会上穿 MA110。`;
         }
 
         // 组B：买入信号（MA6 上穿 MA103 金叉）
@@ -699,7 +704,7 @@ const DataModule = {
         } else if (zz.crossMA6MA103 != null) {
             text += `约 ${zz.crossMA6MA103} 天后 ${this.fmtDate(zz.crossMA6MA103Date)}，触发买入信号。`;
         } else {
-            text += `买入信号尚未临近。`;
+            text += `按当前价格外推 ${this.ZZ_MAX_PROJECT} 天内 MA6 仍不会上穿 MA103，买入信号尚未临近。`;
         }
         return { key: 'ma', title: 'zZ 指标', text };
     },

@@ -140,7 +140,7 @@ ChartsModule.renderMvrvCycleChart = function (mode) {
 
 // ===== 周报分析 =====
 DataModule.analyzeMvrvCycle = function () {
-    const mode = (typeof ChartsModule !== 'undefined' && ChartsModule._mvrvCycleMode) || 'peak';
+    const mode = 'halving';   // 周报默认「减半日对齐」，与页面所选模式解耦
     const cycles = this.getMvrvCycleData(mode);
     if (!cycles || cycles.length < 2) return null;
     const modeText = { peak: '从各轮最高点对齐', trough: '从各轮最低点对齐', halving: '从各轮减半日对齐' }[mode];
@@ -155,9 +155,9 @@ DataModule.analyzeMvrvCycle = function () {
     return { key: 'mvrvcycle', title: `MVRV 四年大周期对比（${modeText}）`, text };
 };
 
-// ===== 周报离屏图（深色，跟随当前对齐模式）=====
+// ===== 周报离屏图（深色）：默认「减半日对齐」，与页面上用户所选模式解耦 =====
 ChartsModule.reportMvrvCycleImage = function (crop) {
-    const m = this._mvrvCycleMode || 'peak';
+    const m = 'halving';
     const cycles = DataModule.getMvrvCycleData(m);
     if (!cycles || !cycles.length) return null;
     const datasets = [];

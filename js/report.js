@@ -119,10 +119,6 @@ const ReportModule = {
             html += `</div>`;
         }
 
-        html += `<div style="font-size:11px;color:#6b7280;text-align:center;margin-top:8px;">
-            本周报基于历史周期模型与本地行情数据自动生成，价格/日期为区间推演，不构成投资建议 · 生成于 ${new Date().toLocaleString('zh-CN')}
-        </div>`;
-
         wrap.innerHTML = html;
         return wrap;
     },

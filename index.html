@@ -421,6 +421,24 @@
             </div>
         </section>
 
+        <!-- BTC/AAPL 比率（相对强弱） -->
+        <section id="card-btcaapl" class="chart-card bg-white dark:bg-dark-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
+            <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                <h2 class="text-lg font-semibold">BTC/AAPL 比率（相对强弱）</h2>
+                <div class="flex gap-2 items-center">
+                    <span id="btcaapl-current" class="text-sm text-accent-gold font-semibold">--</span>
+                    <span class="w-px h-5 bg-gray-400 dark:bg-gray-600 mx-1"></span>
+                    <button class="chart-tool-btn log-btn active px-3 py-1 rounded text-sm" data-chart="btcaapl" data-axis="y">对数</button>
+                    <button class="zoom-reset-btn px-3 py-1 rounded text-sm" data-chart="btcaapl">重置</button>
+                    <button class="chart-tool-btn fullscreen-btn px-3 py-1 rounded text-sm" data-target="card-btcaapl">全屏</button>
+                </div>
+            </div>
+            <p class="text-gray-500 dark:text-gray-400 text-sm mb-3">BTC/AAPL = BTC 价格 ÷ AAPL 股价，衡量 BTC 相对美股龙头的购买力。该比率呈现明显的 <span class="text-accent-gold">4 年周期性</span>：每轮牛市 BTC/AAPL 创新高，熊市回落，形成<span style="color:#6366f1">长期上升通道</span>。比率处于通道下沿时 BTC 相对低估、接近上沿时相对高估。<span class="text-accent-gold">▮ 竖线</span>=BTC 减半日。叠加 MA50（<span style="color:#3b82f6">蓝</span>）/ MA200（<span style="color:#ef4444">红</span>）趋势线。数据源 Market Data。</p>
+            <div class="chart-canvas-wrap" style="height:420px;position:relative;">
+                <canvas id="btcaapl-chart"></canvas>
+            </div>
+        </section>
+
     </main>
 
     <!-- Report Modal（周报始终为深色成品，弹窗固定深色，不随页面主题变） -->
@@ -459,19 +477,19 @@
     <!-- Footer -->
     <footer class="bg-white dark:bg-dark-800 border-t border-gray-200 dark:border-gray-700 mt-8 py-4">
         <div class="max-w-7xl mx-auto px-4 text-center text-gray-500 text-sm">
-            <p>BTC 周期分析 | 历史数据: CoinMarketCap (至2026-04) + Blockchain.info 日线补全 (至2026-07) | 实时: CoinGecko API</p>
+            <p>BTC 周期分析 | 历史数据: CoinMarketCap (至2026-04) + Blockchain.info 日线补全 | AAPL: Market Data | 实时: CoinGecko API</p>
             <p class="mt-1">仅供学习研究，不构成投资建议</p>
         </div>
     </footer>
 
     <!-- ?v 版本号：改代码时手动 +1，强制浏览器拉最新 JS，避免看到旧缓存版本 -->
-    <script src="js/data.js?v=20260728g"></script>
-    <script src="js/charts.js?v=20260728g"></script>
-    <script src="js/cycle-trough.js?v=20260728g"></script>
-    <script src="js/cycle-halving.js?v=20260728g"></script>
-    <script src="js/cycle-strength.js?v=20260728g"></script>
-    <script src="js/mvrv-cycle.js?v=20260728g"></script>
-    <script src="js/report.js?v=20260728g"></script>
-    <script src="js/app.js?v=20260728g"></script>
+    <script src="js/data.js?v=20260814a"></script>
+    <script src="js/charts.js?v=20260814a"></script>
+    <script src="js/cycle-trough.js?v=20260814a"></script>
+    <script src="js/cycle-halving.js?v=20260814a"></script>
+    <script src="js/cycle-strength.js?v=20260814a"></script>
+    <script src="js/mvrv-cycle.js?v=20260814a"></script>
+    <script src="js/report.js?v=20260814a"></script>
+    <script src="js/app.js?v=20260814a"></script>
 </body>
 </html>

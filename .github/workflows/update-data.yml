@@ -37,13 +37,16 @@ jobs:
       - name: Run incremental update (ETF 资金流, Farside)
         run: python scripts/update_etf.py
 
+      - name: Run incremental update (BTC/AAPL 比率, Market Data)
+        run: python scripts/update_btc_aapl.py
+
       - name: Commit changes if any
         run: |
-          if [ -n "$(git status --porcelain data/btc_historical.csv data/mvrv.csv data/realized_price.csv data/nupl.csv data/etf_flow.csv)" ]; then
+          if [ -n "$(git status --porcelain data/btc_historical.csv data/mvrv.csv data/realized_price.csv data/nupl.csv data/etf_flow.csv data/btc_aapl.csv)" ]; then
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add data/btc_historical.csv data/mvrv.csv data/realized_price.csv data/nupl.csv data/etf_flow.csv
-            git commit -m "data: auto-update BTC daily + on-chain + ETF data [skip ci]"
+            git add data/btc_historical.csv data/mvrv.csv data/realized_price.csv data/nupl.csv data/etf_flow.csv data/btc_aapl.csv
+            git commit -m "data: auto-update BTC daily + on-chain + ETF + BTC/AAPL data [skip ci]"
             git push
           else
             echo "No new data; nothing to commit."

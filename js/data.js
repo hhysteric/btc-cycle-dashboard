@@ -21,6 +21,7 @@ const DataModule = {
     processedData: [],
     onchainData: [],   // [{date, mvrv, realizedPrice}] 升序
     etfData: [],       // [{date, flow, cumulative}] 升序，flow 单位百万美元
+    btcAaplData: [],   // [{date, aapl, btc, ratio}] 升序
     _mvrvBands: null,
 
     // 每日缓存击穿参数：让浏览器每天重新拉一次 CSV，确保拿到当天 Actions 更新后的最新数据
@@ -104,6 +105,32 @@ const DataModule = {
         } catch (e) {
             console.warn('Failed to load ETF CSV:', e.message);
             this.etfData = [];
+            return [];
+        }
+    },
+
+    // 加载 BTC/AAPL 比率 CSV（data/btc_aapl.csv）。
+    // 格式：Datetime,AAPL Close,BTC Close,BTC/AAPL Ratio。降序。
+    async loadBtcAaplCSV() {
+        try {
+            const text = await fetch('data/btc_aapl.csv' + this._cacheBust()).then(r => r.text());
+            const lines = text.trim().split('\n');
+            const rows = [];
+            for (let i = 1; i < lines.length; i++) {
+                const cols = lines[i].split(',');
+                if (cols.length < 4) continue;
+                const day = cols[0].trim().slice(0, 10);
+                const aapl = parseFloat(cols[1]);
+                const btc = parseFloat(cols[2]);
+                const ratio = parseFloat(cols[3]);
+                if (!day || isNaN(ratio)) continue;
+                rows.push({ date: new Date(day), aapl, btc, ratio });
+            }
+            this.btcAaplData = rows.sort((a, b) => a.date - b.date);
+            return this.btcAaplData;
+        } catch (e) {
+            console.warn('Failed to load BTC/AAPL CSV:', e.message);
+            this.btcAaplData = [];
             return [];
         }
     },
@@ -922,7 +949,45 @@ const DataModule = {
         return { key: 'etf', title: 'ETF 资金流（增量资金）', text };
     },
 
-    // 汇总所有分析。顺序：大周期 → 均线 → 估值(Mayer/MVRV) → 链上成本(已实现价格) → 情绪(NUPL/RSI) → 资金(ETF) → Cointime
+    // BTC/AAPL 比率分析：衡量 BTC 相对美股龙头的相对强弱，周期性明显
+    analyzeBtcAapl() {
+        const d = this.btcAaplData;
+        if (!d || d.length < 30) return null;
+        const latest = d[d.length - 1];
+        // 找历史最高比率和最低比率
+        let peak = d[0], trough = d[0];
+        for (const r of d) {
+            if (r.ratio > peak.ratio) peak = r;
+            if (r.ratio < trough.ratio) trough = r;
+        }
+        // 近 30 日变化
+        const d30ago = d[Math.max(0, d.length - 31)];
+        const change30 = ((latest.ratio - d30ago.ratio) / d30ago.ratio * 100).toFixed(1);
+        // 距峰值的回撤
+        const drawdown = ((1 - latest.ratio / peak.ratio) * 100).toFixed(1);
+        let text = `当前 BTC/AAPL 比率 = ${latest.ratio.toFixed(1)}（${this.fmtDate(latest.date)}），`;
+        text += `即 1 个 BTC 可换约 ${Math.round(latest.ratio)} 股 AAPL。`;
+        text += `历史最高 ${peak.ratio.toFixed(1)}（${this.fmtDate(peak.date)}），距峰值回撤 ${drawdown}%。`;
+        text += `近 30 日变化 ${change30}%。`;
+        if (latest.ratio > peak.ratio * 0.8) {
+            text += `比率处于历史高位区间，BTC 相对 AAPL 表现强势。`;
+        } else if (latest.ratio < peak.ratio * 0.3) {
+            text += `比率处于历史低位，BTC 相对 AAPL 表现较弱，可能是底部区域。`;
+        } else {
+            text += `比率处于中间区间，关注趋势方向。`;
+        }
+        text += `该指标呈现明显的 4 年周期性，每轮牛市 BTC/AAPL 比率均创新高，熊市回落形成长期上升通道。`;
+        return { key: 'btcaapl', title: 'BTC/AAPL 比率（相对强弱）', text };
+    },
+
+    // BTC/AAPL 当前值（供页面显示）
+    getBtcAaplCurrent() {
+        const d = this.btcAaplData;
+        if (!d || !d.length) return null;
+        return d[d.length - 1];
+    },
+
+    // 汇总所有分析。顺序：大周期 → 均线 → 估值(Mayer/MVRV) → 链上成本(已实现价格) → 情绪(NUPL/RSI) → 资金(ETF) → BTC/AAPL → Cointime
     getReportAnalysis() {
         return [
             this.analyzeCycle(),
@@ -939,6 +1004,7 @@ const DataModule = {
             this.analyzeRSI(),
             this.analyzeEtf(),
             this.analyzeEtfSlope(),
+            this.analyzeBtcAapl(),
             this.analyzeCointime(),
         ].filter(Boolean);
     },

@@ -26,8 +26,8 @@ async function init() {
         console.error('数据加载失败，请确保 data/btc_historical.csv 文件存在');
         return;
     }
-    // 链上 CSV + ETF 资金流 CSV 与行情并行加载；失败不阻塞主看板
-    await Promise.all([DataModule.loadOnchainCSV(), DataModule.loadEtfCSV()]);
+    // 链上 CSV + ETF 资金流 CSV + BTC/AAPL 与行情并行加载；失败不阻塞主看板
+    await Promise.all([DataModule.loadOnchainCSV(), DataModule.loadEtfCSV(), DataModule.loadBtcAaplCSV()]);
 
     // 先用 CSV 数据（本地即可得）立即渲染，不被外部 API 阻塞
     const latest = DataModule.getLatest();
@@ -119,6 +119,7 @@ function renderPriceCharts(data) {
     ChartsModule.renderRiskRewardChart(true);
     ChartsModule.renderEtfChart();
     ChartsModule.renderEtfSlopeChart();
+    ChartsModule.renderBtcAaplChart(true);
     if (typeof repositionAllSplitHandles === 'function') setTimeout(repositionAllSplitHandles, 150);
 
     const etf = DataModule.etfData;
@@ -178,6 +179,15 @@ function renderPriceCharts(data) {
         rrEl.style.color = rrCur.rr >= 3 ? '#00d395' : rrCur.rr <= 0.3 ? '#ff4757' : '#f7931a';
     } else if (rrEl) {
         rrEl.textContent = '链上数据未加载';
+    }
+
+    const btcAaplCur = DataModule.getBtcAaplCurrent();
+    const btcAaplEl = document.getElementById('btcaapl-current');
+    if (btcAaplCur && btcAaplEl) {
+        btcAaplEl.textContent = 'BTC/AAPL ' + btcAaplCur.ratio.toFixed(1);
+        btcAaplEl.style.color = '#6366f1';
+    } else if (btcAaplEl) {
+        btcAaplEl.textContent = '数据未加载';
     }
 }
 

@@ -937,6 +937,66 @@ const ChartsModule = {
         attachModifierZoom(this.charts['etfslope'], { yAxes: ['y', 'yPrice'] });
     },
 
+    // BTC/AAPL 比率图：上栏比率（对数轴）+ BTC 价格叠加（右轴对数），标注减半日与周期性特征
+    renderBtcAaplChart(logScale = true) {
+        this.destroyChart('btcaapl');
+        const el = document.getElementById('btcaapl-chart');
+        if (!el) return;
+        const d = DataModule.btcAaplData;
+        if (!d || !d.length) return;
+        const labels = d.map(r => r.date);
+        // 计算 MA50 和 MA200 用于趋势判断
+        const ratios = d.map(r => r.ratio);
+        const ma50 = ratios.map((_, i) => i < 49 ? null : ratios.slice(i - 49, i + 1).reduce((a, b) => a + b, 0) / 50);
+        const ma200 = ratios.map((_, i) => i < 199 ? null : ratios.slice(i - 199, i + 1).reduce((a, b) => a + b, 0) / 200);
+
+        // 减半日注解
+        const ann = {};
+        HALVING_DATES.forEach((h, i) => {
+            if (h < d[0].date) return;
+            ann['h' + i] = {
+                type: 'line', scaleID: 'x', value: h.toISOString().slice(0, 10),
+                borderColor: 'rgba(247,147,26,0.6)', borderWidth: 1.5, borderDash: [5, 4],
+                label: { display: true, content: '减半', position: 'start', color: '#f7931a', backgroundColor: 'rgba(0,0,0,0)', font: { size: 9 } },
+            };
+        });
+
+        this.charts['btcaapl'] = new Chart(el.getContext('2d'), {
+            data: {
+                labels,
+                datasets: [
+                    { type: 'line', label: 'BTC/AAPL', yAxisID: 'y', data: ratios,
+                      borderColor: '#6366f1', borderWidth: 1.8, pointRadius: 0, order: 1 },
+                    { type: 'line', label: 'MA50', yAxisID: 'y', data: ma50,
+                      borderColor: 'rgba(59,130,246,0.6)', borderWidth: 1, pointRadius: 0, borderDash: [3, 2], spanGaps: true, order: 2 },
+                    { type: 'line', label: 'MA200', yAxisID: 'y', data: ma200,
+                      borderColor: 'rgba(239,68,68,0.6)', borderWidth: 1, pointRadius: 0, borderDash: [5, 3], spanGaps: true, order: 3 },
+                    { type: 'line', label: 'BTC 价格', yAxisID: 'yPrice', data: d.map(r => r.btc),
+                      borderColor: 'rgba(247,147,26,0.4)', borderWidth: 1, pointRadius: 0, order: 4 },
+                ]
+            },
+            options: {
+                ...this.defaults(),
+                plugins: {
+                    ...this.defaults().plugins,
+                    annotation: { annotations: ann },
+                    zoom: makeZoomConfig()
+                },
+                scales: {
+                    x: { type: 'time', time: { unit: 'year' }, min: labels[0], max: labels[labels.length - 1],
+                         ticks: { color: this.t().tick }, grid: { color: this.t().grid } },
+                    y: { position: 'left', type: logScale ? 'logarithmic' : 'linear',
+                         title: { display: true, text: 'BTC/AAPL Ratio', color: '#6366f1' },
+                         ticks: { color: '#6366f1', callback: v => v.toLocaleString() }, grid: { color: this.t().grid } },
+                    yPrice: { position: 'right', type: 'logarithmic',
+                              title: { display: true, text: 'BTC ($)', color: '#f7931a' },
+                              ticks: { color: '#f7931a', callback: v => this._fmtPrice(v) }, grid: { drawOnChartArea: false } }
+                }
+            }
+        });
+        attachModifierZoom(this.charts['btcaapl'], { yAxes: ['y', 'yPrice'] });
+    },
+
     renderVolumeChart(data) {
         this.destroyChart('volume');
         const recent = data.slice(-90);

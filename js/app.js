@@ -119,7 +119,7 @@ function renderPriceCharts(data) {
     ChartsModule.renderRiskRewardChart(true);
     ChartsModule.renderEtfChart();
     ChartsModule.renderEtfSlopeChart();
-    ChartsModule.renderBtcAaplChart(true);
+    ChartsModule.renderBtcAaplChart();
     if (typeof repositionAllSplitHandles === 'function') setTimeout(repositionAllSplitHandles, 150);
 
     const etf = DataModule.etfData;

@@ -937,8 +937,8 @@ const ChartsModule = {
         attachModifierZoom(this.charts['etfslope'], { yAxes: ['y', 'yPrice'] });
     },
 
-    // BTC/AAPL 比率图：上栏比率（对数轴）+ BTC 价格叠加（右轴对数），标注减半日与周期性特征
-    renderBtcAaplChart(logScale = true) {
+    // BTC/AAPL 比率图：比率（默认线性）+ BTC 价格叠加（右轴默认对数），标注周期底部
+    renderBtcAaplChart(logScale = false) {
         this.destroyChart('btcaapl');
         const el = document.getElementById('btcaapl-chart');
         if (!el) return;

@@ -950,14 +950,14 @@ const ChartsModule = {
         const ma50 = ratios.map((_, i) => i < 49 ? null : ratios.slice(i - 49, i + 1).reduce((a, b) => a + b, 0) / 50);
         const ma200 = ratios.map((_, i) => i < 199 ? null : ratios.slice(i - 199, i + 1).reduce((a, b) => a + b, 0) / 200);
 
-        // 减半日注解
+        // 周期底部竖线注解
         const ann = {};
-        HALVING_DATES.forEach((h, i) => {
-            if (h < d[0].date) return;
-            ann['h' + i] = {
-                type: 'line', scaleID: 'x', value: h.toISOString().slice(0, 10),
-                borderColor: 'rgba(247,147,26,0.6)', borderWidth: 1.5, borderDash: [5, 4],
-                label: { display: true, content: '减半', position: 'start', color: '#f7931a', backgroundColor: 'rgba(0,0,0,0)', font: { size: 9 } },
+        this.CYCLE_BOTTOM_DATES.forEach((b, i) => {
+            if (new Date(b.date) < d[0].date) return;
+            ann['cb' + i] = {
+                type: 'line', scaleID: 'x', value: b.date,
+                borderColor: 'rgba(0,211,149,0.55)', borderWidth: 1.5, borderDash: [5, 4],
+                label: { display: true, content: b.label, position: 'start', color: '#00d395', backgroundColor: 'rgba(0,0,0,0)', font: { size: 9 } },
             };
         });
 

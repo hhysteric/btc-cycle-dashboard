@@ -1345,6 +1345,15 @@ const ChartsModule = {
                 options: common({ x: { type: 'time', time: { unit: 'quarter' }, ticks: { color: c.tick }, grid: { color: c.grid } },
                     y: { position: 'left', type: 'linear', ticks: { color: c.tick, callback: v => this._fmtFlow(v) }, grid: { color: c.grid } },
                     yP: { position: 'right', type: 'logarithmic', ticks: { color: c.tick, callback: v => this._fmtPrice(v) }, grid: { drawOnChartArea: false } } }) };
+        } else if (key === 'btcaapl') {
+            const d = DataModule.btcAaplData;
+            if (!d || !d.length) return false;
+            cfg = { type: 'line', data: { labels: d.map(r => r.date), datasets: [
+                { label: 'BTC/AAPL', data: d.map(r => r.ratio), borderColor: '#6366f1', borderWidth: 1.4, pointRadius: 0 },
+                { label: 'BTC', yAxisID: 'yP', data: d.map(r => r.btc), borderColor: 'rgba(247,147,26,0.5)', borderWidth: 1, pointRadius: 0 } ] },
+                options: common({ x: { type: 'time', time: { unit: 'year' }, ticks: { color: c.tick }, grid: { color: c.grid } },
+                    y: { position: 'left', type: 'linear', ticks: { color: c.tick }, grid: { color: c.grid } },
+                    yP: { position: 'right', type: 'logarithmic', ticks: { color: c.tick, callback: v => this._fmtPrice(v) }, grid: { drawOnChartArea: false } } }) };
         } else {
             return false; // cointime 等无图
         }
@@ -1573,7 +1582,7 @@ const ChartsModule = {
                 },
                 scales: {
                     x: this._cropScale({ type: 'time', time: { unit: 'year' }, ticks: { color: '#94a3b8' }, grid: { color: '#1f2937' } }, crop, 'x'),
-                    y: { position: 'left', type: 'logarithmic', title: { display: true, text: 'BTC/AAPL', color: '#6366f1' }, ticks: { color: '#94a3b8', callback: v => v.toLocaleString() }, grid: { color: '#1f2937' } },
+                    y: { position: 'left', type: 'linear', title: { display: true, text: 'BTC/AAPL', color: '#6366f1' }, ticks: { color: '#94a3b8', callback: v => v.toLocaleString() }, grid: { color: '#1f2937' } },
                     yP: { position: 'right', type: 'logarithmic', title: { display: true, text: 'BTC ($)', color: '#f7931a' }, ticks: { color: '#94a3b8', callback: v => this._fmtPrice(v) }, grid: { drawOnChartArea: false } },
                 }
             }

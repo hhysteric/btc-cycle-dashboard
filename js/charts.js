@@ -1543,6 +1543,43 @@ const ChartsModule = {
         });
     },
 
+    // BTC/AAPL 比率离屏图（周报用）：比率线 + MA50/MA200 + BTC 价格（右轴对数）+ 周期底部竖线
+    reportBtcAaplImage(crop) {
+        const d = DataModule.btcAaplData;
+        if (!d || !d.length) return null;
+        const ratios = d.map(r => r.ratio);
+        const ma50 = ratios.map((_, i) => i < 49 ? null : ratios.slice(i - 49, i + 1).reduce((a, b) => a + b, 0) / 50);
+        const ma200 = ratios.map((_, i) => i < 199 ? null : ratios.slice(i - 199, i + 1).reduce((a, b) => a + b, 0) / 200);
+        const ann = {};
+        this.CYCLE_BOTTOM_DATES.forEach((b, i) => {
+            if (new Date(b.date) < d[0].date) return;
+            ann['cb' + i] = { type: 'line', scaleID: 'x', value: b.date, borderColor: 'rgba(0,211,149,0.55)', borderWidth: 1.5, borderDash: [5, 4],
+                label: { display: true, content: b.label, position: 'start', color: '#00d395', backgroundColor: 'rgba(0,0,0,0)', font: { size: 9 } } };
+        });
+        return this._offscreenChart({
+            data: {
+                labels: d.map(r => r.date),
+                datasets: [
+                    { type: 'line', label: 'BTC/AAPL', yAxisID: 'y', data: ratios, borderColor: '#6366f1', borderWidth: 2, pointRadius: 0, order: 1 },
+                    { type: 'line', label: 'MA50', yAxisID: 'y', data: ma50, borderColor: 'rgba(59,130,246,0.6)', borderWidth: 1, pointRadius: 0, borderDash: [3, 2], spanGaps: true, order: 2 },
+                    { type: 'line', label: 'MA200', yAxisID: 'y', data: ma200, borderColor: 'rgba(239,68,68,0.6)', borderWidth: 1, pointRadius: 0, borderDash: [5, 3], spanGaps: true, order: 3 },
+                    { type: 'line', label: 'BTC 价格', yAxisID: 'yP', data: d.map(r => r.btc), borderColor: 'rgba(247,147,26,0.5)', borderWidth: 1, pointRadius: 0, order: 4 },
+                ]
+            },
+            options: {
+                plugins: {
+                    legend: { labels: { color: '#cbd5e1', font: { size: 11 } } },
+                    annotation: { annotations: ann }
+                },
+                scales: {
+                    x: this._cropScale({ type: 'time', time: { unit: 'year' }, ticks: { color: '#94a3b8' }, grid: { color: '#1f2937' } }, crop, 'x'),
+                    y: { position: 'left', type: 'logarithmic', title: { display: true, text: 'BTC/AAPL', color: '#6366f1' }, ticks: { color: '#94a3b8', callback: v => v.toLocaleString() }, grid: { color: '#1f2937' } },
+                    yP: { position: 'right', type: 'logarithmic', title: { display: true, text: 'BTC ($)', color: '#f7931a' }, ticks: { color: '#94a3b8', callback: v => this._fmtPrice(v) }, grid: { drawOnChartArea: false } },
+                }
+            }
+        });
+    },
+
     // 返回各指标 dataURL 映射。crops: { key: {xMin,xMax,yMin,yMax} } 可选，用于「划选区域入周报」。
     reportImages(crops = {}) {
         return {
@@ -1560,6 +1597,7 @@ const ChartsModule = {
             rsi: this.reportRSIImage(crops.rsi),
             etf: this.reportEtfImage(crops.etf),
             etfslope: this.reportEtfSlopeImage(crops.etfslope),
+            btcaapl: this.reportBtcAaplImage(crops.btcaapl),
         };
     }
 };

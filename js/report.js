@@ -63,61 +63,65 @@ const ReportModule = {
     buildReportElement(report) {
         const o = report.overview;
         const wrap = document.createElement('div');
-        wrap.style.cssText = 'width:1000px;background:#0f0f23;color:#e5e7eb;padding:32px;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,sans-serif;';
+        wrap.style.cssText = 'width:1000px;background:#0d0d1a;color:#c9cdd4;padding:28px 32px;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,sans-serif;';
 
         const changeColor = o.change24h >= 0 ? '#00d395' : '#ff4757';
+        const changeSign = o.change24h >= 0 ? '+' : '';
+
+        // === Header: 标题+价格一行 ===
         let html = `
-            <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #f7931a;padding-bottom:14px;margin-bottom:20px;">
-                <div>
-                    <div style="font-size:26px;font-weight:800;color:#f7931a;">${report.title}</div>
-                    <div style="font-size:13px;color:#9ca3af;margin-top:4px;">${report.dateStr}</div>
-                </div>
-                <div style="text-align:right;">
-                    <div style="font-size:22px;font-weight:700;">$${Math.round(o.price).toLocaleString()}</div>
-                    <div style="font-size:13px;color:${changeColor};">${o.change24h >= 0 ? '+' : ''}${o.change24h.toFixed(2)}% (24h)</div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                <div style="font-size:22px;font-weight:800;color:#f7931a;letter-spacing:0.5px;">${report.title}</div>
+                <div style="display:flex;align-items:baseline;gap:12px;">
+                    <span style="font-size:22px;font-weight:700;color:#ffffff;">$${Math.round(o.price).toLocaleString()}</span>
+                    <span style="font-size:13px;font-weight:600;color:${changeColor};">${changeSign}${o.change24h.toFixed(2)}%</span>
+                    <span style="font-size:12px;color:#6b7280;">${report.dateStr}</span>
                 </div>
             </div>
-            <div style="display:flex;gap:16px;margin-bottom:22px;font-size:13px;flex-wrap:wrap;">
-                <div style="background:#1a1a2e;border:1px solid #374151;border-radius:10px;padding:10px 14px;">
-                    <span style="color:#9ca3af;">四年周期阶段</span><br>
-                    <span style="font-size:16px;font-weight:700;color:${o.cyclePhaseColor};">${o.cyclePhase}（${o.cycleYear}年）</span>
-                </div>
-                <div style="background:#1a1a2e;border:1px solid #374151;border-radius:10px;padding:10px 14px;">
-                    <span style="color:#9ca3af;">市值</span><br>
-                    <span style="font-size:16px;font-weight:700;">$${(o.marketCap / 1e9).toFixed(0)}B</span>
-                </div>
-                <div style="background:#1a1a2e;border:1px solid #374151;border-radius:10px;padding:10px 14px;flex:1;min-width:280px;">
-                    <span style="color:#9ca3af;">短周期规律</span><br>
-                    <span style="font-size:13px;">${o.weekday}</span>
-                </div>
+            <div style="height:1px;background:linear-gradient(90deg,#f7931a 0%,rgba(247,147,26,0.1) 100%);margin-bottom:12px;"></div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:22px;font-size:12px;color:#9ca3af;">
+                <span style="background:#151528;border:1px solid rgba(247,147,26,0.25);border-radius:20px;padding:4px 12px;color:${o.cyclePhaseColor};font-weight:600;">${o.cyclePhase}（${o.cycleYear}年）</span>
+                <span style="color:#374151;">│</span>
+                <span>市值 <b style="color:#e5e7eb;">$${(o.marketCap / 1e9).toFixed(0)}B</b></span>
+                <span style="color:#374151;">│</span>
+                <span>${o.weekday}</span>
             </div>
         `;
 
-        for (const s of report.sections) {
-            // 单段连贯叙述；图左文右（有图时两列），无图时文字占满
-            const opinionHtml = `<div style="font-size:14px;line-height:1.7;color:#d1d5db;white-space:pre-wrap;">${s.text || ''}</div>`;
+        // === 指标段：图上文下 ===
+        report.sections.forEach((s, i) => {
+            // 每 4 段之间加分隔线，增加视觉节奏
+            if (i > 0 && i % 4 === 0) {
+                html += `<div style="height:1px;background:rgba(247,147,26,0.08);margin:6px 0 18px;"></div>`;
+            }
 
-            html += `<div style="background:#1a1a2e;border:1px solid #374151;border-radius:12px;padding:18px;margin-bottom:18px;">
-                <div style="font-size:17px;font-weight:700;color:#f7931a;margin-bottom:12px;">${s.title}</div>`;
+            html += `<div style="background:#151528;border:1px solid rgba(247,147,26,0.12);border-radius:10px;padding:16px;margin-bottom:14px;">`;
+            html += `<div style="font-size:15px;font-weight:700;color:#f7931a;margin-bottom:10px;display:flex;align-items:center;gap:6px;">
+                <span style="display:inline-block;width:6px;height:6px;background:#f7931a;border-radius:50%;"></span>${s.title}</div>`;
+
             if (s.image) {
-                // 上传图可能含白底/透明：放到白色卡片里加内边距，保证白图也可见；
-                // object-fit:contain + max-height 保持原始比例、避免被拉伸或过大。
-                // 自动生成的图表本身是深色成品，直接铺满即可。
                 const imgWrapStyle = s.uploaded
-                    ? 'background:#ffffff;border-radius:8px;padding:8px;box-sizing:border-box;'
-                    : '';
+                    ? 'background:#ffffff;border-radius:8px;padding:6px;box-sizing:border-box;margin-bottom:10px;'
+                    : 'margin-bottom:10px;';
                 const imgStyle = s.uploaded
-                    ? 'width:100%;max-height:360px;object-fit:contain;border-radius:4px;display:block;'
+                    ? 'width:100%;max-height:340px;object-fit:contain;border-radius:6px;display:block;'
                     : 'width:100%;border-radius:8px;display:block;';
-                html += `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;">
-                    <div style="flex:1 1 58%;min-width:340px;"><div style="${imgWrapStyle}"><img src="${s.image}" style="${imgStyle}"></div></div>
-                    <div style="flex:1 1 38%;min-width:220px;">${opinionHtml}</div>
-                </div>`;
-            } else {
-                html += opinionHtml;
+                html += `<div style="${imgWrapStyle}"><img src="${s.image}" style="${imgStyle}"></div>`;
+            }
+
+            if (s.text) {
+                html += `<div style="font-size:13px;line-height:1.75;color:#b0b5be;white-space:pre-wrap;">${s.text}</div>`;
             }
             html += `</div>`;
-        }
+        });
+
+        // === Footer ===
+        html += `
+            <div style="height:1px;background:rgba(247,147,26,0.15);margin-top:8px;margin-bottom:10px;"></div>
+            <div style="text-align:center;font-size:11px;color:#6b7280;">
+                生成于 ${new Date().toISOString().slice(0, 10)} · 不构成投资建议
+            </div>
+        `;
 
         wrap.innerHTML = html;
         return wrap;
@@ -160,7 +164,7 @@ const ReportModule = {
         await Promise.all(imgs.map(img => img.complete ? Promise.resolve()
             : new Promise(res => { img.onload = img.onerror = res; })));
 
-        const canvas = await html2canvas(el, { backgroundColor: '#0f0f23', scale: 2, useCORS: true, logging: false });
+        const canvas = await html2canvas(el, { backgroundColor: '#0d0d1a', scale: 2, useCORS: true, logging: false });
         document.body.removeChild(el);
 
         const link = document.createElement('a');

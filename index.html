@@ -256,6 +256,28 @@
             </div>
         </section>
 
+        <!-- SMM 复合周期评分 -->
+        <section id="card-smm" class="chart-card bg-white dark:bg-dark-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
+            <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                <h2 class="text-lg font-semibold">SMM 复合周期评分（自研）</h2>
+                <div class="flex gap-2 items-center">
+                    <span id="smm-score" class="text-2xl font-bold">--</span>
+                    <span id="smm-zone" class="text-sm font-semibold ml-1">--</span>
+                    <span id="smm-raw" class="text-xs text-gray-400 ml-2">--</span>
+                    <span class="w-px h-5 bg-gray-400 dark:bg-gray-600 mx-1"></span>
+                    <button class="zoom-reset-btn px-3 py-1 rounded text-sm" data-chart="smm">重置</button>
+                    <button class="chart-tool-btn fullscreen-btn px-3 py-1 rounded text-sm" data-target="card-smm">全屏</button>
+                </div>
+            </div>
+            <p class="text-gray-500 dark:text-gray-400 text-sm mb-3">复刻 SatoshiMacro Model 方法论：基于本地数据计算 ~13 个核心指标的 expanding-window percentile rank，按 6 tier 加权合成 + 校准曲线。Timing 30% + Valuation 25% + Sentiment 20% + Rotation 10% + Miner 10% + Macro 5%。Zone: <span style="color:#0d7d5a">极度低估(0-15)</span> · <span style="color:#3da06b">积累(15-30)</span> · <span style="color:#c9a961">中性(30-50)</span> · <span style="color:#d97758">警戒(50-70)</span> · <span style="color:#bc5c3f">派发(70-85)</span> · <span style="color:#a53b3b">顶部(85-100)</span></p>
+            <!-- Tier 细分 -->
+            <div id="smm-tier-grid" class="grid grid-cols-1 gap-1 mb-4"></div>
+            <!-- 历史走势图 -->
+            <div class="chart-canvas-wrap h-80">
+                <canvas id="smm-chart"></canvas>
+            </div>
+        </section>
+
         <!-- On-chain embedded charts (official sources) -->
         <section class="space-y-4">
             <div class="bg-white dark:bg-dark-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
@@ -484,13 +506,14 @@
     </footer>
 
     <!-- ?v 版本号：改代码时手动 +1，强制浏览器拉最新 JS，避免看到旧缓存版本 -->
-    <script src="js/data.js?v=20260814c"></script>
-    <script src="js/charts.js?v=20260814d"></script>
+    <script src="js/data.js?v=20260818"></script>
+    <script src="js/charts.js?v=20260818"></script>
+    <script src="js/smm.js?v=20260818"></script>
     <script src="js/cycle-trough.js?v=20260814c"></script>
     <script src="js/cycle-halving.js?v=20260814c"></script>
     <script src="js/cycle-strength.js?v=20260814c"></script>
     <script src="js/mvrv-cycle.js?v=20260814c"></script>
     <script src="js/report.js?v=20260814d"></script>
-    <script src="js/app.js?v=20260814d"></script>
+    <script src="js/app.js?v=20260818"></script>
 </body>
 </html>

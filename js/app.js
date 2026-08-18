@@ -43,6 +43,13 @@ async function init() {
     updateOverview(priceInfo, cycleInfo);
     highlightCurrentPhase(cycleInfo);
     renderPriceCharts(data);
+    // SMM 复合周期评分（依赖所有数据已加载）
+    if (typeof SmmModule !== 'undefined') {
+        try {
+            SmmModule.compute();
+            renderSmmSection();
+        } catch (e) { console.warn('SMM compute failed:', e); }
+    }
     setupEventListeners(data, priceInfo, cycleInfo);
 
     document.getElementById('last-update').textContent = '更新: ' + new Date().toLocaleTimeString('zh-CN');
@@ -189,6 +196,43 @@ function renderPriceCharts(data) {
     } else if (btcAaplEl) {
         btcAaplEl.textContent = '数据未加载';
     }
+}
+
+// ===== SMM 复合周期评分 Section =====
+function renderSmmSection() {
+    const cur = SmmModule.getCurrent();
+    if (!cur || cur.smm == null) return;
+    const zone = SmmModule.getZone(cur.smm);
+
+    // 概览卡片
+    const scoreEl = document.getElementById('smm-score');
+    const zoneEl = document.getElementById('smm-zone');
+    const rawEl = document.getElementById('smm-raw');
+    if (scoreEl) { scoreEl.textContent = cur.smm.toFixed(1); scoreEl.style.color = zone.color; }
+    if (zoneEl) { zoneEl.textContent = zone.label; zoneEl.style.color = zone.color; }
+    if (rawEl) rawEl.textContent = 'raw ' + cur.raw_smm.toFixed(1);
+
+    // Tier 细分进度条
+    const tierNames = { timing: '周期时序', valuation: '估值', sentiment: '情绪', rotation: '资金轮动', miner: '矿工', macro: '宏观' };
+    const tierGrid = document.getElementById('smm-tier-grid');
+    if (tierGrid) {
+        tierGrid.innerHTML = Object.entries(SmmModule.WEIGHTS).map(([key, weight]) => {
+            const val = cur.tiers[key];
+            const pct = val != null ? val : 50;
+            const barColor = pct > 70 ? '#d97758' : pct > 50 ? '#c9a961' : pct > 30 ? '#3da06b' : '#0d7d5a';
+            return `<div class="flex items-center gap-2 text-xs">
+                <span class="w-16 text-gray-500 dark:text-gray-400">${tierNames[key]}</span>
+                <span class="text-gray-400 dark:text-gray-500 w-8">${(weight * 100).toFixed(0)}%</span>
+                <div class="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                    <div class="h-full rounded-full transition-all" style="width:${pct}%;background:${barColor}"></div>
+                </div>
+                <span class="w-8 text-right font-mono" style="color:${barColor}">${val != null ? val.toFixed(0) : '—'}</span>
+            </div>`;
+        }).join('');
+    }
+
+    // 图表渲染
+    ChartsModule.renderSmmChart(SmmModule._series);
 }
 
 // 主题切换：切 class、存 localStorage、更新按钮、重渲染所有交互图（离屏周报图不受影响）

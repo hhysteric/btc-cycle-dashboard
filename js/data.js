@@ -987,9 +987,10 @@ const DataModule = {
         return d[d.length - 1];
     },
 
-    // 汇总所有分析。顺序：大周期 → 均线 → 估值(Mayer/MVRV) → 链上成本(已实现价格) → 情绪(NUPL/RSI) → 资金(ETF) → BTC/AAPL → Cointime
+    // 汇总所有分析。顺序：SMM复合 → 大周期 → 均线 → 估值(Mayer/MVRV) → 链上成本(已实现价格) → 情绪(NUPL/RSI) → 资金(ETF) → BTC/AAPL → Cointime
     getReportAnalysis() {
         return [
+            typeof SmmModule !== 'undefined' ? SmmModule.analyzeSmm() : null,
             this.analyzeCycle(),
             this.analyzeCycleTrough ? this.analyzeCycleTrough() : null,
             this.analyzeCycleHalving ? this.analyzeCycleHalving() : null,

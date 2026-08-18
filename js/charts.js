@@ -1589,6 +1589,92 @@ const ChartsModule = {
         });
     },
 
+    // ===== SMM 复合周期评分 历史走势图 =====
+    renderSmmChart(series) {
+        this.destroyChart('smm');
+        const el = document.getElementById('smm-chart');
+        if (!el || !series || !series.length) return;
+
+        // 过滤有效 SMM 值
+        const valid = series.filter(d => d.smm != null);
+        if (!valid.length) return;
+
+        const ctx = el.getContext('2d');
+
+        // Zone band annotations（横向色带）
+        const zones = typeof SmmModule !== 'undefined' ? SmmModule.ZONES : [];
+        const bandAnnotations = {};
+        zones.forEach((z, i) => {
+            bandAnnotations['zone' + i] = {
+                type: 'box', yScaleID: 'y', yMin: z.min, yMax: z.max,
+                backgroundColor: z.color + '18', borderWidth: 0,
+            };
+        });
+
+        // 减半标注
+        const halvingAnnotations = {};
+        HALVING_DATES.forEach((h, i) => {
+            halvingAnnotations['halving' + i] = {
+                type: 'line', xMin: h, xMax: h, xScaleID: 'x',
+                borderColor: 'rgba(199,169,97,0.5)', borderWidth: 1, borderDash: [3, 3],
+                label: { display: true, content: 'H' + (i + 1), position: 'start', backgroundColor: 'transparent', color: 'rgba(199,169,97,0.7)', font: { size: 10 } }
+            };
+        });
+
+        this.charts['smm'] = new Chart(ctx, {
+            data: {
+                labels: valid.map(d => d.date),
+                datasets: [
+                    {
+                        type: 'line',
+                        label: 'BTC 价格',
+                        data: valid.map(d => d.price),
+                        borderColor: 'rgba(247,147,26,0.55)',
+                        borderWidth: 1.2,
+                        pointRadius: 0,
+                        yAxisID: 'yPrice'
+                    },
+                    {
+                        type: 'line',
+                        label: 'SMM',
+                        data: valid.map(d => d.smm),
+                        borderColor: '#0a1628',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        yAxisID: 'y'
+                    }
+                ]
+            },
+            options: {
+                ...this.defaults(),
+                plugins: {
+                    ...this.defaults().plugins,
+                    annotation: { annotations: { ...bandAnnotations, ...halvingAnnotations } },
+                    zoom: makeZoomConfig(),
+                    crosshair: { enabled: true, color: this.t().crosshair }
+                },
+                scales: {
+                    x: { type: 'time', time: { unit: 'year' }, ticks: { color: this.t().tick }, grid: { color: this.t().grid } },
+                    y: {
+                        position: 'left',
+                        min: 0, max: 100,
+                        title: { display: true, text: 'SMM (0-100)', color: '#0a1628' },
+                        ticks: { color: this.t().tick, stepSize: 15 },
+                        grid: { color: this.t().grid }
+                    },
+                    yPrice: {
+                        position: 'right',
+                        type: 'logarithmic',
+                        title: { display: true, text: 'BTC 价格 (log)', color: '#f7931a' },
+                        ticks: { color: '#f7931a', callback: v => this._fmtPrice(v) },
+                        grid: { drawOnChartArea: false }
+                    }
+                }
+            }
+        });
+        attachModifierZoom(this.charts['smm'], { yAxes: ['y', 'yPrice'] });
+    },
+
     // 返回各指标 dataURL 映射。crops: { key: {xMin,xMax,yMin,yMax} } 可选，用于「划选区域入周报」。
     reportImages(crops = {}) {
         return {

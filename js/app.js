@@ -234,21 +234,22 @@ function renderSmmSection() {
         }
     }
 
-    // Tier 细分进度条
+    // Tier 细分进度条（5 级颜色，加粗条）
     const tierNames = { timing: '周期时序', valuation: '估值', sentiment: '情绪', rotation: '资金轮动', miner: '矿工', macro: '宏观' };
+    const tierColor = (v) => v >= 80 ? '#a53b3b' : v >= 60 ? '#d97758' : v >= 40 ? '#c9a961' : v >= 20 ? '#3da06b' : '#0d7d5a';
     const tierGrid = document.getElementById('smm-tier-grid');
     if (tierGrid) {
         tierGrid.innerHTML = Object.entries(SmmModule.WEIGHTS).map(([key, weight]) => {
             const val = cur.tiers[key];
             const pct = val != null ? val : 50;
-            const barColor = pct > 70 ? '#d97758' : pct > 50 ? '#c9a961' : pct > 30 ? '#3da06b' : '#0d7d5a';
-            return `<div class="flex items-center gap-2 text-xs">
-                <span class="w-16 text-gray-500 dark:text-gray-400">${tierNames[key]}</span>
-                <span class="text-gray-400 dark:text-gray-500 w-8">${(weight * 100).toFixed(0)}%</span>
-                <div class="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                    <div class="h-full rounded-full transition-all" style="width:${pct}%;background:${barColor}"></div>
+            const color = tierColor(pct);
+            return `<div class="flex items-center gap-2 py-0.5">
+                <span class="w-16 text-xs font-medium text-gray-600 dark:text-gray-300 truncate">${tierNames[key]}</span>
+                <span class="text-xs text-gray-400 dark:text-gray-500 w-7 text-right">${(weight * 100).toFixed(0)}%</span>
+                <div class="flex-1 h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                    <div class="h-full rounded-full transition-all" style="width:${pct}%;background:${color}"></div>
                 </div>
-                <span class="w-8 text-right font-mono" style="color:${barColor}">${val != null ? val.toFixed(0) : '—'}</span>
+                <span class="w-9 text-right text-sm font-semibold" style="color:${color}">${val != null ? val.toFixed(0) : '—'}</span>
             </div>`;
         }).join('');
     }

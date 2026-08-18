@@ -1601,13 +1601,14 @@ const ChartsModule = {
 
         const ctx = el.getContext('2d');
 
-        // Zone band annotations（横向色带）
+        // Zone band annotations（横向色带，透明度提高至 30/25 让分区更清晰）
         const zones = typeof SmmModule !== 'undefined' ? SmmModule.ZONES : [];
+        const isDark = this._theme === 'dark';
         const bandAnnotations = {};
         zones.forEach((z, i) => {
             bandAnnotations['zone' + i] = {
                 type: 'box', yScaleID: 'y', yMin: z.min, yMax: z.max,
-                backgroundColor: z.color + '18', borderWidth: 0,
+                backgroundColor: z.color + (isDark ? '25' : '30'), borderWidth: 0,
             };
         });
 
@@ -1621,6 +1622,16 @@ const ChartsModule = {
             };
         });
 
+        // SMM 线逐段着色：根据当前值映射 zone 颜色
+        const smmZoneColor = (val) => {
+            if (val >= 85) return '#a53b3b';
+            if (val >= 70) return '#bc5c3f';
+            if (val >= 50) return '#d97758';
+            if (val >= 30) return '#c9a961';
+            if (val >= 15) return '#3da06b';
+            return '#0d7d5a';
+        };
+
         this.charts['smm'] = new Chart(ctx, {
             data: {
                 labels: valid.map(d => d.date),
@@ -1629,7 +1640,7 @@ const ChartsModule = {
                         type: 'line',
                         label: 'BTC 价格',
                         data: valid.map(d => d.price),
-                        borderColor: 'rgba(247,147,26,0.55)',
+                        borderColor: 'rgba(247,147,26,0.45)',
                         borderWidth: 1.2,
                         pointRadius: 0,
                         yAxisID: 'yPrice'
@@ -1638,8 +1649,11 @@ const ChartsModule = {
                         type: 'line',
                         label: 'SMM',
                         data: valid.map(d => d.smm),
-                        borderColor: '#0a1628',
-                        borderWidth: 2,
+                        segment: {
+                            borderColor: ctx => smmZoneColor(ctx.p1.parsed.y)
+                        },
+                        borderColor: '#c9a961',  // fallback
+                        borderWidth: 2.5,
                         pointRadius: 0,
                         yAxisID: 'y'
                     }
@@ -1658,7 +1672,7 @@ const ChartsModule = {
                     y: {
                         position: 'left',
                         min: 0, max: 100,
-                        title: { display: true, text: 'SMM (0-100)', color: '#0a1628' },
+                        title: { display: true, text: 'SMM (0-100)', color: this.t().tick },
                         ticks: { color: this.t().tick, stepSize: 15 },
                         grid: { color: this.t().grid }
                     },

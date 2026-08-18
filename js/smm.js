@@ -2,17 +2,21 @@
  * SatoshiMacro Model (SMM) — 自研简化版复合周期评分
  *
  * 复刻 https://satoshimacro.com/tools/crypto/satoshimacro-model/ 的方法论：
- *   - 48 个指标 → 简化为 ~13 个可本地计算的核心指标
+ *   - 48 个指标 → 本地 13 个 + CryptoQuant API 9 个 = ~22 个核心指标
  *   - 6 个 tier 加权合成（Timing 30%, Valuation 25%, Sentiment 20%, Rotation 10%, Miner 10%, Macro 5%）
  *   - expanding-window percentile rank（无前视偏差）
+ *   - CQ 指标使用经验阈值映射法（绝对值 → 0-100 分数）
  *   - 分段校准曲线（拉伸上半区以匹配历史顶/底标定）
  *
  * 依赖：DataModule（btc_historical.csv / mvrv.csv / etf_flow.csv 已加载）
+ * 可选：CryptoQuantModule（提供 Sentiment/Miner/Macro/Rotation 真实链上数据）
  */
 const SmmModule = {
     // 缓存
     _series: null,   // [{date, smm, raw_smm, tiers:{...}, price}]
     _current: null,
+    _cqData: null,   // CryptoQuant 数据 Map<'YYYY-MM-DD', {...}>
+    _cqActive: false, // CQ 数据是否参与了当前评分
 
     // Tier 权重（与原版一致）
     WEIGHTS: { timing: 0.30, valuation: 0.25, sentiment: 0.20, rotation: 0.10, miner: 0.10, macro: 0.05 },
@@ -27,13 +31,41 @@ const SmmModule = {
         { min: 85, max: 100, label: '周期顶部', color: '#a53b3b' },
     ],
 
+    // ===== 经验阈值映射表（CQ 指标绝对值 → 0-100 分数）=====
+    // 基于历史周期研究确定的阈值，用分段线性映射
+    CQ_THRESHOLDS: {
+        // Sentiment tier
+        sopr:       { low: 0.95, mid: 1.0, high: 1.05 },       // <0.95=底部恐慌, >1.05=顶部贪婪
+        nupl:       { low: -0.05, mid: 0.4, high: 0.75 },      // <0=极度恐惧, >0.75=极度贪婪
+        funding_rates: { low: -0.01, mid: 0.005, high: 0.03 }, // 负=看空, 正=看多
+        taker_buy_sell_ratio: { low: 0.85, mid: 1.0, high: 1.2 }, // <0.85=卖压, >1.2=买盘
+        coinbase_premium_index: { low: -0.15, mid: 0, high: 0.15 }, // 美国机构买压
+        // Miner tier
+        puell_multiple: { low: 0.4, mid: 1.0, high: 2.5 },     // <0.5=矿工投降, >2.5=过热
+        mpi:            { low: -1.5, mid: 0, high: 2.0 },      // 矿工抛压 Z-score
+        // Macro tier
+        stablecoin_supply_ratio: { low: 4, mid: 10, high: 20 }, // 低=稳定币买力强
+        estimated_leverage_ratio: { low: 0.12, mid: 0.2, high: 0.35 }, // 高=杠杆过热
+        open_interest: { low: 10e9, mid: 20e9, high: 40e9 },   // USD，高=投机过热
+        // Rotation tier
+        netflow_total: { low: -5000, mid: 0, high: 5000 },     // BTC, 正=流入交易所(卖压)
+        exchange_whale_ratio: { low: 0.15, mid: 0.3, high: 0.5 }, // 高=鲸鱼活跃
+        // Valuation (CQ MVRV 替代本地 proxy)
+        mvrv:   { low: 0.8, mid: 1.5, high: 3.5 },
+        nvt:    { low: 10, mid: 30, high: 80 },                // 高=价格相对交易量过高
+    },
+
     // ===== 核心入口 =====
     /**
      * 计算全历史 SMM series。依赖 DataModule 已加载。
+     * @param {Map|null} cqData - CryptoQuantModule.fetchAll() 返回的 Map，可选
      * 返回 [{date, smm, raw_smm, tiers, price}] 升序。
      */
-    compute() {
-        if (this._series) return this._series;
+    compute(cqData = null) {
+        if (this._series && this._cqData === cqData) return this._series;
+        // CQ 数据变化时重算
+        this._cqData = cqData;
+        this._cqActive = false;
 
         const data = DataModule.processedData;
         if (!data || data.length < 400) { this._series = []; return []; }
@@ -84,37 +116,73 @@ const SmmModule = {
             if (r.profitable_days != null) { history.profitable_days.push(r.profitable_days); timingScores.push(this._expandingPctRank(history.profitable_days)); }
             if (r.quarterly_return != null) { history.quarterly_return.push(r.quarterly_return); timingScores.push(this._expandingPctRank(history.quarterly_return)); }
 
+            // --- CryptoQuant 数据（该日） ---
+            const cq = cqData ? cqData.get(day) : null;
+
             // --- Valuation Tier ---
             const valuationScores = [];
             if (r.mayer != null) { history.mayer.push(r.mayer); valuationScores.push(this._expandingPctRank(history.mayer)); }
             if (r.pi_cycle != null) { history.pi_cycle.push(r.pi_cycle); valuationScores.push(this._expandingPctRank(history.pi_cycle)); }
             if (r.two_year_ma != null) { history.two_year_ma.push(r.two_year_ma); valuationScores.push(this._expandingPctRank(history.two_year_ma)); }
             if (r.week200_dist != null) { history.week200_dist.push(r.week200_dist); valuationScores.push(this._expandingPctRank(history.week200_dist)); }
-            // MVRV Z-Score proxy
-            const mvrv = mvrvByDay.get(day);
-            if (mvrv != null) {
-                // expanding Z = (mvrv - mean) / sd，再 percentile rank 该 Z 值
-                history.mvrv_z.push(mvrv);
-                valuationScores.push(this._expandingPctRank(history.mvrv_z));
+            // MVRV: prefer CQ data, fallback to local mvrv.csv
+            if (cq && cq.mvrv != null) {
+                valuationScores.push(this._thresholdMap(cq.mvrv, 'mvrv'));
+            } else {
+                const mvrv = mvrvByDay.get(day);
+                if (mvrv != null) {
+                    history.mvrv_z.push(mvrv);
+                    valuationScores.push(this._expandingPctRank(history.mvrv_z));
+                }
+            }
+            // NVT (CQ only)
+            if (cq && cq.nvt != null) {
+                valuationScores.push(this._thresholdMap(cq.nvt, 'nvt'));
             }
 
-            // --- Sentiment Tier (placeholder: 50) ---
-            const sentimentScore = 50;
+            // --- Sentiment Tier ---
+            let sentimentScore = 50;
+            if (cq) {
+                const sList = [];
+                if (cq.sopr != null) sList.push(this._thresholdMap(cq.sopr, 'sopr'));
+                if (cq.nupl != null) sList.push(this._thresholdMap(cq.nupl, 'nupl'));
+                if (cq.funding_rates != null) sList.push(this._thresholdMap(cq.funding_rates, 'funding_rates'));
+                if (cq.taker_buy_sell_ratio != null) sList.push(this._thresholdMap(cq.taker_buy_sell_ratio, 'taker_buy_sell_ratio'));
+                if (cq.coinbase_premium_index != null) sList.push(this._thresholdMap(cq.coinbase_premium_index, 'coinbase_premium_index'));
+                if (sList.length >= 2) { sentimentScore = this._avg(sList); this._cqActive = true; }
+            }
 
-            // --- Rotation Tier (ETF-based) ---
+            // --- Rotation Tier (ETF + CQ exchange flows) ---
             const rotationScores = [];
             const etf = etfByDay.get(day);
             if (etf != null) {
                 if (etf.roll20 != null) { history.etf_30d.push(etf.roll20); rotationScores.push(this._expandingPctRank(history.etf_30d)); }
                 if (etf.cumulative != null) { history.etf_cum.push(etf.cumulative); rotationScores.push(this._expandingPctRank(history.etf_cum)); }
             }
+            if (cq) {
+                if (cq.netflow_total != null) rotationScores.push(this._thresholdMap(cq.netflow_total, 'netflow_total'));
+                if (cq.exchange_whale_ratio != null) rotationScores.push(this._thresholdMap(cq.exchange_whale_ratio, 'exchange_whale_ratio'));
+            }
 
-            // --- Miner Tier (Puell proxy) ---
+            // --- Miner Tier (CQ Puell + MPI, fallback to local proxy) ---
             const minerScores = [];
-            if (r.puell != null) { history.puell.push(r.puell); minerScores.push(this._expandingPctRank(history.puell)); }
+            if (cq && cq.puell_multiple != null) {
+                minerScores.push(this._thresholdMap(cq.puell_multiple, 'puell_multiple'));
+                if (cq.mpi != null) minerScores.push(this._thresholdMap(cq.mpi, 'mpi'));
+            } else if (r.puell != null) {
+                history.puell.push(r.puell);
+                minerScores.push(this._expandingPctRank(history.puell));
+            }
 
-            // --- Macro Tier (placeholder: 50) ---
-            const macroScore = 50;
+            // --- Macro Tier (CQ: SSR + Leverage + OI) ---
+            let macroScore = 50;
+            if (cq) {
+                const mList = [];
+                if (cq.stablecoin_supply_ratio != null) mList.push(this._thresholdMap(cq.stablecoin_supply_ratio, 'stablecoin_supply_ratio'));
+                if (cq.estimated_leverage_ratio != null) mList.push(this._thresholdMap(cq.estimated_leverage_ratio, 'estimated_leverage_ratio'));
+                if (cq.open_interest != null) mList.push(this._thresholdMap(cq.open_interest, 'open_interest'));
+                if (mList.length >= 2) macroScore = this._avg(mList);
+            }
 
             // --- Aggregate ---
             const tierScores = {
@@ -167,7 +235,12 @@ const SmmModule = {
     reset() {
         this._series = null;
         this._current = null;
+        this._cqData = null;
+        this._cqActive = false;
     },
+
+    /** CQ 数据是否参与了当前评分 */
+    isCqActive() { return this._cqActive; },
 
     // ===== 指标原始值计算 =====
     _computeRawIndicators(data) {
@@ -289,6 +362,23 @@ const SmmModule = {
         return (below / (n - 1)) * 100;
     },
 
+    /**
+     * 经验阈值映射：将 CQ 指标绝对值通过分段线性映射到 0-100。
+     * low → 0, mid → 50, high → 100，超出两端 clamp。
+     */
+    _thresholdMap(value, key) {
+        const t = this.CQ_THRESHOLDS[key];
+        if (!t) return 50;
+        if (value <= t.low) return 0;
+        if (value >= t.high) return 100;
+        if (value <= t.mid) {
+            // low → mid 映射到 0 → 50
+            return ((value - t.low) / (t.mid - t.low)) * 50;
+        }
+        // mid → high 映射到 50 → 100
+        return 50 + ((value - t.mid) / (t.high - t.mid)) * 50;
+    },
+
     _avg(arr) {
         if (!arr.length) return null;
         return arr.reduce((a, b) => a + b, 0) / arr.length;
@@ -303,25 +393,40 @@ const SmmModule = {
     },
 
     /**
-     * 校准曲线（适配简化版更窄的动态范围）：
-     * 由于 Sentiment/Rotation/Macro 占 35% 权重但固定为 50，我们的 raw 范围被压缩到 ~25-61。
-     * 需要一条更积极的拉伸曲线将此映射到完整 0-100 zone 体系。
+     * 校准曲线（双模式）：
      *
-     * 分段设计（基于实测分布）：
-     *   Raw ≤30: 线性映射到 0-15（Deep Value zone）
-     *   Raw 30-40: 映射到 15-30（Accumulation）
-     *   Raw 40-48: 映射到 30-50（Neutral）
-     *   Raw 48-55: 映射到 50-70（Caution）
-     *   Raw 55-60: 映射到 70-90（Distribution）
-     *   Raw >60: 映射到 90-100（Cycle Top），clamp 100
+     * 无 CQ 数据时（历史段，raw 压缩在 ~25-61）：
+     *   用积极拉伸曲线，确保 2021 双顶 raw~55 能读到 75-80+
+     *
+     * 有 CQ 数据时（最近 365 天，raw 范围 ~15-80）：
+     *   用更平缓曲线，真实 tier 波动已提供足够分辨率
      */
     _calibrate(raw) {
-        if (raw <= 30) return raw * (15 / 30);                       // 0-30 → 0-15
-        if (raw <= 40) return 15 + (raw - 30) * (15 / 10);          // 30-40 → 15-30
-        if (raw <= 48) return 30 + (raw - 40) * (20 / 8);           // 40-48 → 30-50
-        if (raw <= 55) return 50 + (raw - 48) * (20 / 7);           // 48-55 → 50-70
-        if (raw <= 60) return 70 + (raw - 55) * (20 / 5);           // 55-60 → 70-90
-        if (raw <= 65) return 90 + (raw - 60) * (10 / 5);           // 60-65 → 90-100
+        if (this._cqActive) {
+            return this._calibrateCQ(raw);
+        }
+        return this._calibrateLocal(raw);
+    },
+
+    // 本地模式：raw ~25-61，积极拉伸
+    _calibrateLocal(raw) {
+        if (raw <= 28) return raw * (10 / 28);                       // 0-28 → 0-10
+        if (raw <= 35) return 10 + (raw - 28) * (15 / 7);           // 28-35 → 10-25
+        if (raw <= 43) return 25 + (raw - 35) * (25 / 8);           // 35-43 → 25-50
+        if (raw <= 52) return 50 + (raw - 43) * (25 / 9);           // 43-52 → 50-75
+        if (raw <= 58) return 75 + (raw - 52) * (15 / 6);           // 52-58 → 75-90
+        if (raw <= 65) return 90 + (raw - 58) * (10 / 7);           // 58-65 → 90-100
+        return 100;
+    },
+
+    // CQ 模式：raw ~15-80，平缓映射
+    _calibrateCQ(raw) {
+        if (raw <= 20) return raw * (10 / 20);                       // 0-20 → 0-10
+        if (raw <= 35) return 10 + (raw - 20) * (15 / 15);          // 20-35 → 10-25
+        if (raw <= 50) return 25 + (raw - 35) * (25 / 15);          // 35-50 → 25-50
+        if (raw <= 65) return 50 + (raw - 50) * (25 / 15);          // 50-65 → 50-75
+        if (raw <= 80) return 75 + (raw - 65) * (20 / 15);          // 65-80 → 75-95
+        if (raw <= 90) return 95 + (raw - 80) * (5 / 10);           // 80-90 → 95-100
         return 100;
     },
 
@@ -356,7 +461,8 @@ const SmmModule = {
         const maxTier = tierEntries.reduce((a, b) => (b[1] * this.WEIGHTS[b[0]] > a[1] * this.WEIGHTS[a[0]]) ? b : a);
         const tierNames = { timing: '周期时序', valuation: '估值', sentiment: '情绪', rotation: '资金轮动', miner: '矿工', macro: '宏观' };
 
-        let text = `当前自研 SMM 复合评分 = ${cur.smm.toFixed(1)}（raw ${cur.raw_smm.toFixed(1)}），处于「${zone.label}」区间。`;
+        const dataSource = this._cqActive ? '（含 CryptoQuant 链上数据）' : '（仅本地数据）';
+        let text = `当前自研 SMM 复合评分 = ${cur.smm.toFixed(1)}（raw ${cur.raw_smm.toFixed(1)}），处于「${zone.label}」区间${dataSource}。`;
         text += `各 tier 得分：`;
         for (const [key, val] of tierEntries) {
             text += `${tierNames[key] || key} ${val != null ? val.toFixed(1) : 'N/A'}、`;

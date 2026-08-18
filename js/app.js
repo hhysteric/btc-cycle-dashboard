@@ -46,9 +46,20 @@ async function init() {
     // SMM 复合周期评分（依赖所有数据已加载）
     if (typeof SmmModule !== 'undefined') {
         try {
-            SmmModule.compute();
+            SmmModule.compute();       // 先用本地数据渲染
             renderSmmSection();
         } catch (e) { console.warn('SMM compute failed:', e); }
+        // 异步加载 CryptoQuant 数据，到达后用真实链上指标重算
+        if (typeof CryptoQuantModule !== 'undefined') {
+            CryptoQuantModule.fetchAll().then(cqData => {
+                if (cqData && cqData.size > 0) {
+                    SmmModule.reset();
+                    SmmModule.compute(cqData);
+                    renderSmmSection();
+                    console.log(`[SMM] CryptoQuant data loaded (${cqData.size} days), tiers updated`);
+                }
+            }).catch(e => console.warn('[SMM] CryptoQuant fetch failed, using local data:', e));
+        }
     }
     setupEventListeners(data, priceInfo, cycleInfo);
 
@@ -211,6 +222,17 @@ function renderSmmSection() {
     if (scoreEl) { scoreEl.textContent = cur.smm.toFixed(1); scoreEl.style.color = zone.color; }
     if (zoneEl) { zoneEl.textContent = zone.label; zoneEl.style.color = zone.color; }
     if (rawEl) rawEl.textContent = 'raw ' + cur.raw_smm.toFixed(1);
+
+    // CQ 数据状态指示
+    const cqStatus = document.getElementById('smm-cq-status');
+    if (cqStatus) {
+        if (SmmModule.isCqActive()) {
+            const days = typeof CryptoQuantModule !== 'undefined' ? CryptoQuantModule.coverage() : 0;
+            cqStatus.innerHTML = `<span class="text-green-600 dark:text-green-400">✓ CryptoQuant ${days}天</span>`;
+        } else {
+            cqStatus.innerHTML = `<span class="text-gray-400">仅本地数据</span>`;
+        }
+    }
 
     // Tier 细分进度条
     const tierNames = { timing: '周期时序', valuation: '估值', sentiment: '情绪', rotation: '资金轮动', miner: '矿工', macro: '宏观' };

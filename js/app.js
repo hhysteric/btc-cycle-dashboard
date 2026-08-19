@@ -267,6 +267,7 @@ function toggleTheme() {
     const btn = document.getElementById('btn-theme-toggle');
     if (btn) btn.textContent = toDark ? '☀️' : '🌙';
     if (appState.data) renderPriceCharts(appState.data);
+    renderSmmSection(); // SMM 图需要重绘以适配主题色
 }
 
 function setupEventListeners(data, priceInfo, cycleInfo) {
@@ -412,7 +413,7 @@ function setupEventListeners(data, priceInfo, cycleInfo) {
 }
 
 // ===== 周报配置面板 =====
-const CHARTABLE_KEYS = ['cycle', 'cycletrough', 'cyclehalving', 'cyclestrength', 'ma', 'mayer', 'mvrv', 'mvrvcycle', 'realized', 'nupl', 'riskreward', 'rsi', 'etf', 'etfslope', 'btcaapl']; // 有图可裁剪的指标
+const CHARTABLE_KEYS = ['smm', 'cycle', 'cycletrough', 'cyclehalving', 'cyclestrength', 'ma', 'mayer', 'mvrv', 'mvrvcycle', 'realized', 'nupl', 'riskreward', 'rsi', 'etf', 'etfslope', 'btcaapl']; // 有图可裁剪的指标
 
 let reportCrops = {};
 let reportUploads = {};   // key -> dataURL（内置指标上传的覆盖图）

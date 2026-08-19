@@ -1354,6 +1354,24 @@ const ChartsModule = {
                 options: common({ x: { type: 'time', time: { unit: 'year' }, ticks: { color: c.tick }, grid: { color: c.grid } },
                     y: { position: 'left', type: 'linear', ticks: { color: c.tick }, grid: { color: c.grid } },
                     yP: { position: 'right', type: 'logarithmic', ticks: { color: c.tick, callback: v => this._fmtPrice(v) }, grid: { drawOnChartArea: false } } }) };
+        } else if (key === 'smm') {
+            if (typeof SmmModule === 'undefined' || !SmmModule._series) return false;
+            const smmData = SmmModule._series.filter(d => d.smm != null).slice(-730);
+            if (!smmData.length) return false;
+            const smmColor = (val) => {
+                if (val >= 85) return '#f87171';
+                if (val >= 70) return '#fb923c';
+                if (val >= 50) return '#fbbf24';
+                if (val >= 30) return '#a3e635';
+                if (val >= 15) return '#34d399';
+                return '#2dd4bf';
+            };
+            cfg = { data: { labels: smmData.map(d => d.date), datasets: [
+                { type: 'line', label: 'BTC', yAxisID: 'yP', data: smmData.map(d => d.price), borderColor: 'rgba(247,147,26,0.45)', borderWidth: 1, pointRadius: 0 },
+                { type: 'line', label: 'SMM', yAxisID: 'y', data: smmData.map(d => d.smm), segment: { borderColor: ctx => smmColor(ctx.p1.parsed.y) }, borderColor: '#a3e635', borderWidth: 2, pointRadius: 0 } ] },
+                options: common({ x: { type: 'time', time: { unit: 'month' }, ticks: { color: c.tick }, grid: { color: c.grid } },
+                    y: { position: 'left', min: 0, max: 100, ticks: { color: c.tick, stepSize: 20 }, grid: { color: c.grid } },
+                    yP: { position: 'right', type: 'logarithmic', ticks: { color: c.tick, callback: v => this._fmtPrice(v) }, grid: { drawOnChartArea: false } } }) };
         } else {
             return false; // cointime 等无图
         }
@@ -1603,7 +1621,7 @@ const ChartsModule = {
 
         // Zone band annotations（横向色带，透明度提高至 30/25 让分区更清晰）
         const zones = typeof SmmModule !== 'undefined' ? SmmModule.ZONES : [];
-        const isDark = this._theme === 'dark';
+        const isDark = this.themeName === 'dark';
         const bandAnnotations = {};
         zones.forEach((z, i) => {
             bandAnnotations['zone' + i] = {
@@ -1622,15 +1640,24 @@ const ChartsModule = {
             };
         });
 
-        // SMM 线逐段着色：根据当前值映射 zone 颜色
-        const smmZoneColor = (val) => {
-            if (val >= 85) return '#a53b3b';
-            if (val >= 70) return '#bc5c3f';
-            if (val >= 50) return '#d97758';
-            if (val >= 30) return '#c9a961';
-            if (val >= 15) return '#3da06b';
-            return '#0d7d5a';
-        };
+        // SMM 线逐段着色：暗色模式用更明亮的颜色保证可见度
+        const smmZoneColor = isDark
+            ? (val) => {
+                if (val >= 85) return '#f87171';   // bright red
+                if (val >= 70) return '#fb923c';   // bright orange
+                if (val >= 50) return '#fbbf24';   // bright amber
+                if (val >= 30) return '#a3e635';   // lime
+                if (val >= 15) return '#34d399';   // emerald
+                return '#2dd4bf';                   // teal
+            }
+            : (val) => {
+                if (val >= 85) return '#dc2626';   // red-600
+                if (val >= 70) return '#ea580c';   // orange-600
+                if (val >= 50) return '#d97706';   // amber-600
+                if (val >= 30) return '#65a30d';   // lime-600
+                if (val >= 15) return '#059669';   // emerald-600
+                return '#0d9488';                   // teal-600
+            };
 
         this.charts['smm'] = new Chart(ctx, {
             data: {
@@ -1689,9 +1716,86 @@ const ChartsModule = {
         attachModifierZoom(this.charts['smm'], { yAxes: ['y', 'yPrice'] });
     },
 
+    // SMM 离屏周报图：渐变色 SMM 线 + BTC 价格 + zone 色带
+    reportSmmImage(crop) {
+        if (typeof SmmModule === 'undefined' || !SmmModule._series) return null;
+        const series = SmmModule._series.filter(d => d.smm != null);
+        if (!series.length) return null;
+
+        // 只取最近 2 年数据让图更聚焦
+        const recent = series.slice(-730);
+
+        // 颜色映射（明亮版，深色背景用）
+        const zoneColor = (val) => {
+            if (val >= 85) return '#f87171';
+            if (val >= 70) return '#fb923c';
+            if (val >= 50) return '#fbbf24';
+            if (val >= 30) return '#a3e635';
+            if (val >= 15) return '#34d399';
+            return '#2dd4bf';
+        };
+
+        // Zone 色带
+        const zones = SmmModule.ZONES || [];
+        const bandAnnotations = {};
+        zones.forEach((z, i) => {
+            bandAnnotations['zone' + i] = {
+                type: 'box', yScaleID: 'y', yMin: z.min, yMax: z.max,
+                backgroundColor: z.color + '25', borderWidth: 0,
+            };
+        });
+
+        // 当前值标注
+        const cur = recent[recent.length - 1];
+        bandAnnotations['curLine'] = {
+            type: 'line', yScaleID: 'y', yMin: cur.smm, yMax: cur.smm,
+            borderColor: '#ffffff80', borderWidth: 1, borderDash: [4, 3],
+            label: { display: true, content: `SMM ${cur.smm.toFixed(1)}`, position: 'end',
+                backgroundColor: 'transparent', color: '#fff', font: { size: 11, weight: 'bold' } }
+        };
+
+        return this._offscreenChart({
+            type: 'line',
+            data: {
+                labels: recent.map(d => d.date),
+                datasets: [
+                    {
+                        label: 'BTC 价格',
+                        data: recent.map(d => d.price),
+                        borderColor: 'rgba(247,147,26,0.5)',
+                        borderWidth: 1.2,
+                        pointRadius: 0,
+                        yAxisID: 'yPrice'
+                    },
+                    {
+                        label: 'SMM',
+                        data: recent.map(d => d.smm),
+                        segment: { borderColor: ctx => zoneColor(ctx.p1.parsed.y) },
+                        borderColor: '#a3e635',
+                        borderWidth: 2.5,
+                        pointRadius: 0,
+                        yAxisID: 'y'
+                    }
+                ]
+            },
+            options: {
+                plugins: {
+                    legend: { labels: { color: '#cbd5e1', font: { size: 11 } } },
+                    annotation: { annotations: bandAnnotations }
+                },
+                scales: {
+                    x: this._cropScale({ type: 'time', time: { unit: 'month' }, ticks: { color: '#94a3b8' }, grid: { color: '#1f2937' } }, crop, 'x'),
+                    y: this._cropScale({ position: 'left', min: 0, max: 100, title: { display: true, text: 'SMM', color: '#94a3b8' }, ticks: { color: '#94a3b8', stepSize: 20 }, grid: { color: '#1f2937' } }, crop, 'y'),
+                    yPrice: { position: 'right', type: 'logarithmic', title: { display: true, text: 'BTC (log)', color: '#f7931a' }, ticks: { color: '#f7931a', callback: v => this._fmtPrice(v) }, grid: { drawOnChartArea: false } }
+                }
+            }
+        });
+    },
+
     // 返回各指标 dataURL 映射。crops: { key: {xMin,xMax,yMin,yMax} } 可选，用于「划选区域入周报」。
     reportImages(crops = {}) {
         return {
+            smm: this.reportSmmImage(crops.smm),
             cycle: this.reportCycleImage(crops.cycle),
             cycletrough: this.reportCycleTroughImage ? this.reportCycleTroughImage(crops.cycletrough) : null,
             cyclehalving: this.reportCycleHalvingImage ? this.reportCycleHalvingImage(crops.cyclehalving) : null,

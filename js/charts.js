@@ -1722,9 +1722,6 @@ const ChartsModule = {
         const series = SmmModule._series.filter(d => d.smm != null);
         if (!series.length) return null;
 
-        // 只取最近 2 年数据让图更聚焦
-        const recent = series.slice(-730);
-
         // 颜色映射（明亮版，深色背景用）
         const zoneColor = (val) => {
             if (val >= 85) return '#f87171';
@@ -1746,7 +1743,7 @@ const ChartsModule = {
         });
 
         // 当前值标注
-        const cur = recent[recent.length - 1];
+        const cur = series[series.length - 1];
         bandAnnotations['curLine'] = {
             type: 'line', yScaleID: 'y', yMin: cur.smm, yMax: cur.smm,
             borderColor: '#ffffff80', borderWidth: 1, borderDash: [4, 3],
@@ -1757,11 +1754,11 @@ const ChartsModule = {
         return this._offscreenChart({
             type: 'line',
             data: {
-                labels: recent.map(d => d.date),
+                labels: series.map(d => d.date),
                 datasets: [
                     {
                         label: 'BTC 价格',
-                        data: recent.map(d => d.price),
+                        data: series.map(d => d.price),
                         borderColor: 'rgba(247,147,26,0.5)',
                         borderWidth: 1.2,
                         pointRadius: 0,
@@ -1769,7 +1766,7 @@ const ChartsModule = {
                     },
                     {
                         label: 'SMM',
-                        data: recent.map(d => d.smm),
+                        data: series.map(d => d.smm),
                         segment: { borderColor: ctx => zoneColor(ctx.p1.parsed.y) },
                         borderColor: '#a3e635',
                         borderWidth: 2.5,
@@ -1784,7 +1781,7 @@ const ChartsModule = {
                     annotation: { annotations: bandAnnotations }
                 },
                 scales: {
-                    x: this._cropScale({ type: 'time', time: { unit: 'month' }, ticks: { color: '#94a3b8' }, grid: { color: '#1f2937' } }, crop, 'x'),
+                    x: this._cropScale({ type: 'time', time: { unit: 'year' }, ticks: { color: '#94a3b8' }, grid: { color: '#1f2937' } }, crop, 'x'),
                     y: this._cropScale({ position: 'left', min: 0, max: 100, title: { display: true, text: 'SMM', color: '#94a3b8' }, ticks: { color: '#94a3b8', stepSize: 20 }, grid: { color: '#1f2937' } }, crop, 'y'),
                     yPrice: { position: 'right', type: 'logarithmic', title: { display: true, text: 'BTC (log)', color: '#f7931a' }, ticks: { color: '#f7931a', callback: v => this._fmtPrice(v) }, grid: { drawOnChartArea: false } }
                 }

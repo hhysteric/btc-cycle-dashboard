@@ -389,6 +389,23 @@
                 </div>
             </div>
 
+            <!-- 卖方衰竭指数 (Seller Exhaustion Index) -->
+            <div id="card-seller-exhaustion" class="chart-card bg-white dark:bg-dark-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
+                <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                    <h2 class="text-lg font-semibold">卖方衰竭指数</h2>
+                    <div class="flex gap-2 items-center">
+                        <span id="sec-current" class="text-sm text-accent-gold font-semibold">--</span>
+                        <span class="w-px h-5 bg-gray-400 dark:bg-gray-600 mx-1"></span>
+                        <button class="zoom-reset-btn px-3 py-1 rounded text-sm" data-chart="sellerExhaustion">重置</button>
+                        <button class="chart-tool-btn fullscreen-btn px-3 py-1 rounded text-sm" data-target="card-seller-exhaustion">全屏</button>
+                    </div>
+                </div>
+                <p class="text-gray-500 dark:text-gray-400 text-sm mb-3">SEC = 4Y滚动盈利占比 × 30日年化波动率。两者同时极低（多数人亏损 + 波动枯竭）表明卖方已无力抛售。< 0.20 为极端衰竭区，历史上精准标记 2015/2018/2022 熊底。</p>
+                <div class="chart-canvas-wrap h-80">
+                    <canvas id="seller-exhaustion-chart"></canvas>
+                </div>
+            </div>
+
             <div id="card-nupl" class="chart-card bg-white dark:bg-dark-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
                 <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
                     <a href="https://charts.checkonchain.com/btconchain/unrealised/nupl/nupl_light.html" target="_blank" class="font-semibold text-accent-gold hover:underline">NUPL 净未实现盈亏（CheckOnChain 官方，参考对照）↗</a>
@@ -527,16 +544,16 @@
     </footer>
 
     <!-- ?v 版本号：改代码时手动 +1，强制浏览器拉最新 JS，避免看到旧缓存版本 -->
-    <script src="js/data.js?v=20260818"></script>
-    <script src="js/charts.js?v=20260818"></script>
-    <script src="js/cryptoquant.js?v=20260818b"></script>
-    <script src="js/smm.js?v=20260818b"></script>
+    <script src="js/data.js?v=20260820"></script>
+    <script src="js/charts.js?v=20260820"></script>
+    <script src="js/cryptoquant.js?v=20260820"></script>
+    <script src="js/smm.js?v=20260820"></script>
     <script src="js/jlst.js?v=20260820"></script>
     <script src="js/cycle-trough.js?v=20260814c"></script>
     <script src="js/cycle-halving.js?v=20260814c"></script>
     <script src="js/cycle-strength.js?v=20260814c"></script>
     <script src="js/mvrv-cycle.js?v=20260814c"></script>
     <script src="js/report.js?v=20260814d"></script>
-    <script src="js/app.js?v=20260818b"></script>
+    <script src="js/app.js?v=20260820"></script>
 </body>
 </html>

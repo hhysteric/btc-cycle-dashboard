@@ -351,6 +351,83 @@ const DataModule = {
         return data[data.length - 1].close / ma200;
     },
 
+    // ===== 卖方衰竭指数 (Seller Exhaustion Index) =====
+    // 公式: SEC = Supply_in_Profit_Proxy × 30d_Annualized_Volatility
+    // Supply in Profit Proxy = 历史成交量中低于当前价格的占比（volume-weighted）
+    // 当 SEC < 0.01 → 极端衰竭区（历史底部信号）
+    _sellerExhaustion: null,
+
+    getSellerExhaustion() {
+        if (this._sellerExhaustion) return this._sellerExhaustion;
+        const data = this.processedData;
+        if (!data || data.length < 252) return null;
+
+        const n = data.length;
+        const closes = data.map(d => d.close);
+        const volumes = data.map(d => d.volume || 0);
+
+        // ─── 30-day Annualized Volatility ───
+        const vol30 = new Array(n).fill(null);
+        for (let i = 30; i < n; i++) {
+            let sum = 0, sum2 = 0, cnt = 0;
+            for (let j = i - 29; j <= i; j++) {
+                if (closes[j - 1] > 0) {
+                    const ret = Math.log(closes[j] / closes[j - 1]);
+                    sum += ret; cnt++;
+                }
+            }
+            if (cnt < 20) continue;
+            const mean = sum / cnt;
+            for (let j = i - 29; j <= i; j++) {
+                if (closes[j - 1] > 0) {
+                    const ret = Math.log(closes[j] / closes[j - 1]);
+                    sum2 += (ret - mean) * (ret - mean);
+                }
+            }
+            vol30[i] = Math.sqrt(sum2 / (cnt - 1)) * Math.sqrt(365);
+        }
+
+        // ─── Supply in Profit Proxy (4Y rolling percentile) ───
+        // 当前价格在过去 4 年价格分布中的百分位（0-1）
+        // 熊市底部时，当前价格位于 4Y 范围底部 → percentile 极低
+        // 这是对 Glassnode "Supply in Profit %" 的最佳本地近似
+        const WINDOW = 1460;  // 4 years
+        const supplyProfit = new Array(n).fill(null);
+        for (let i = 365; i < n; i++) {
+            const winStart = Math.max(0, i - WINDOW);
+            const curPrice = closes[i];
+            let below = 0, total = 0;
+            for (let j = winStart; j <= i; j++) {
+                total++;
+                if (closes[j] < curPrice) below++;
+            }
+            supplyProfit[i] = below / total;
+        }
+
+        // ─── Seller Exhaustion Index = supplyProfit × vol30 ───
+        const result = [];
+        for (let i = 0; i < n; i++) {
+            if (vol30[i] == null || supplyProfit[i] == null) continue;
+            const sec = supplyProfit[i] * vol30[i];
+            result.push({
+                date: data[i].date,
+                price: closes[i],
+                sec,
+                supplyProfit: supplyProfit[i],
+                vol30: vol30[i],
+            });
+        }
+
+        this._sellerExhaustion = result;
+        return result;
+    },
+
+    getSellerExhaustionCurrent() {
+        const se = this.getSellerExhaustion();
+        if (!se || !se.length) return null;
+        return se[se.length - 1];
+    },
+
     // ===== MVRV Pricing Bands（本地自绘，数据来自 CryptoQuant 导出的 CSV）=====
     // 模型（对齐 CheckOnChain MVRV Pricing Bands）：
     //   逐日用「从最早到当天」的累计(expanding) MVRV 均值 mean_i 与总体标准差 std_i，

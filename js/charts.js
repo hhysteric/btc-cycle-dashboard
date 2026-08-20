@@ -819,6 +819,110 @@ const ChartsModule = {
         attachModifierZoom(this.charts['riskreward'], { yAxes: ['y', 'yPrice'] });
     },
 
+    // ===== 卖方衰竭指数 (Seller Exhaustion Index) =====
+    renderSellerExhaustionChart() {
+        this.destroyChart('sellerExhaustion');
+        const el = document.getElementById('seller-exhaustion-chart');
+        if (!el) return;
+        const series = DataModule.getSellerExhaustion();
+        if (!series || !series.length) return;
+
+        // 过滤掉极早期数据（2012 年起显示）
+        const pts = series.filter(d => d.date >= new Date('2012-01-01') && d.sec > 0);
+        if (!pts.length) return;
+
+        const THRESHOLD = 0.20;  // 本地代理校准值（对应 Glassnode 原版 0.01）
+        const labels = pts.map(d => d.date);
+        const secData = pts.map(d => d.sec);
+        const priceData = pts.map(d => d.price);
+
+        // 找进入/离开衰竭区的位置
+        const annotations = {};
+        let inZone = false;
+        const entries = [];
+        const exits = [];
+        for (let i = 1; i < pts.length; i++) {
+            if (!inZone && pts[i].sec < THRESHOLD && pts[i - 1].sec >= THRESHOLD) {
+                inZone = true;
+                entries.push(i);
+            } else if (inZone && pts[i].sec >= THRESHOLD && pts[i - 1].sec < THRESHOLD) {
+                inZone = false;
+                exits.push(i);
+            }
+        }
+
+        // 衰竭区 box 标注（粉色竖条带）
+        for (let k = 0; k < entries.length; k++) {
+            const exitIdx = k < exits.length ? exits[k] : pts.length - 1;
+            annotations[`zone${k}`] = {
+                type: 'box',
+                xMin: labels[entries[k]],
+                xMax: labels[exitIdx],
+                yScaleID: 'y',
+                backgroundColor: 'rgba(255, 107, 129, 0.10)',
+                borderWidth: 0,
+            };
+        }
+
+        // 阈值线
+        annotations['threshold'] = {
+            type: 'line',
+            yMin: THRESHOLD, yMax: THRESHOLD,
+            yScaleID: 'y',
+            borderColor: 'rgba(255, 107, 129, 0.7)',
+            borderDash: [5, 3],
+            borderWidth: 1.5,
+            label: { display: true, content: '0.20 极端衰竭', position: 'start', color: '#ff6b81', backgroundColor: 'rgba(0,0,0,0)', font: { size: 9 } }
+        };
+
+        // 减半标注
+        Object.assign(annotations, this.cycleBottomAnnotations('start'));
+
+        this.charts['sellerExhaustion'] = new Chart(el.getContext('2d'), {
+            data: {
+                labels,
+                datasets: [
+                    {
+                        type: 'line', label: 'BTC 价格', yAxisID: 'yPrice',
+                        data: priceData,
+                        borderColor: 'rgba(247,147,26,0.5)', borderWidth: 1, pointRadius: 0,
+                    },
+                    {
+                        type: 'line', label: '卖方衰竭指数', yAxisID: 'y',
+                        data: secData,
+                        borderColor: '#3b82f6', borderWidth: 1.5, pointRadius: 0,
+                        fill: { target: { value: THRESHOLD }, below: 'rgba(255,107,129,0.12)' },
+                    },
+                ]
+            },
+            options: {
+                ...this.defaults(),
+                plugins: {
+                    ...this.defaults().plugins,
+                    annotation: { annotations },
+                    zoom: makeZoomConfig(),
+                },
+                scales: {
+                    x: { type: 'time', time: { unit: 'year' }, ticks: { color: this.t().tick }, grid: { color: this.t().grid } },
+                    y: {
+                        position: 'left', type: 'logarithmic',
+                        title: { display: true, text: '卖方衰竭指数', color: '#3b82f6' },
+                        ticks: { color: '#3b82f6', callback: v => v >= 1 ? v.toFixed(1) : v >= 0.1 ? v.toFixed(2) : v.toFixed(3) },
+                        grid: { color: this.t().grid },
+                        min: 0.05, max: 4.0,
+                    },
+                    yPrice: {
+                        position: 'right', type: 'logarithmic',
+                        title: { display: true, text: 'BTC', color: '#f7931a' },
+                        ticks: { color: '#f7931a', callback: v => this._fmtPrice(v) },
+                        grid: { drawOnChartArea: false },
+                    }
+                }
+            }
+        });
+        attachModifierZoom(this.charts['sellerExhaustion'], { yAxes: ['y', 'yPrice'] });
+    },
+
     // ETF 资金流（同卡三栏，Chart.js 轴 stack，共享横轴）：
     //   上栏 yPrice(对数)：BTC 价格，按「近20日滚动净流入」正/负分段着色（绿=流入主导、红=流出主导）
     //   中栏 yDaily：每日净流量柱（绿正红负）——每日细节

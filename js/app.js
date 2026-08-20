@@ -146,6 +146,7 @@ function renderPriceCharts(data) {
     ChartsModule.renderMvrvChart(true);
     ChartsModule.renderNuplChart();
     ChartsModule.renderRiskRewardChart(true);
+    ChartsModule.renderSellerExhaustionChart();
     ChartsModule.renderEtfChart();
     ChartsModule.renderEtfSlopeChart();
     ChartsModule.renderBtcAaplChart();
@@ -208,6 +209,15 @@ function renderPriceCharts(data) {
         rrEl.style.color = rrCur.rr >= 3 ? '#00d395' : rrCur.rr <= 0.3 ? '#ff4757' : '#f7931a';
     } else if (rrEl) {
         rrEl.textContent = '链上数据未加载';
+    }
+
+    const secCur = DataModule.getSellerExhaustionCurrent();
+    const secEl = document.getElementById('sec-current');
+    if (secCur && secEl) {
+        secEl.textContent = 'SEC ' + secCur.sec.toFixed(3);
+        secEl.style.color = secCur.sec < 0.20 ? '#ff6b81' : secCur.sec < 0.40 ? '#f7931a' : '#3b82f6';
+    } else if (secEl) {
+        secEl.textContent = '计算中...';
     }
 
     const btcAaplCur = DataModule.getBtcAaplCurrent();

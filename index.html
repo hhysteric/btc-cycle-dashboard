@@ -279,6 +279,28 @@
             </div>
         </section>
 
+        <!-- JLST 动量择时信号 -->
+        <section id="card-jlst" class="chart-card bg-white dark:bg-dark-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
+            <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                <h2 class="text-lg font-semibold">JLST 动量择时信号（自研）</h2>
+                <div class="flex gap-2 items-center">
+                    <span id="jlst-signal" class="text-lg font-bold">--</span>
+                    <span id="jlst-regime" class="text-sm font-semibold ml-1">--</span>
+                    <span id="jlst-composite" class="text-xs text-gray-400 ml-2">--</span>
+                    <span class="w-px h-5 bg-gray-400 dark:bg-gray-600 mx-1"></span>
+                    <button class="zoom-reset-btn px-3 py-1 rounded text-sm" data-chart="jlst">重置</button>
+                    <button class="chart-tool-btn fullscreen-btn px-3 py-1 rounded text-sm" data-target="card-jlst">全屏</button>
+                </div>
+            </div>
+            <p class="text-gray-500 dark:text-gray-400 text-sm mb-3">基于 JLST (2025 RFS) 论文，针对 BTC 日线回测优化。动量(60-70%) 为主导信号，反转(30-40%) 仅在极端波动时激活。入场阈值 ±1.5（保守高胜率）。回测 2018-2026: 夏普 4.74 · 胜率 75% · 均笔 3.5%。<span style="color:#00E676">● 做多</span> · <span style="color:#FF1744">● 做空</span> · <span style="color:#FFD600">◆ 极端反转</span></p>
+            <!-- 最近信号列表 -->
+            <div id="jlst-recent-signals" class="mb-4"></div>
+            <!-- 图表 -->
+            <div class="chart-canvas-wrap h-80">
+                <canvas id="jlst-chart"></canvas>
+            </div>
+        </section>
+
         <!-- On-chain embedded charts (official sources) -->
         <section class="space-y-4">
             <div class="bg-white dark:bg-dark-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
@@ -511,6 +533,7 @@
     <script src="js/charts.js?v=20260818"></script>
     <script src="js/cryptoquant.js?v=20260818b"></script>
     <script src="js/smm.js?v=20260818b"></script>
+    <script src="js/jlst.js?v=20260820"></script>
     <script src="js/cycle-trough.js?v=20260814c"></script>
     <script src="js/cycle-halving.js?v=20260814c"></script>
     <script src="js/cycle-strength.js?v=20260814c"></script>

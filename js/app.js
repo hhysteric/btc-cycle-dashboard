@@ -61,6 +61,13 @@ async function init() {
             }).catch(e => console.warn('[SMM] CryptoQuant fetch failed, using local data:', e));
         }
     }
+    // JLST 动量择时信号（仅依赖本地历史数据）
+    if (typeof JlstModule !== 'undefined') {
+        try {
+            JlstModule.compute();
+            renderJlstSection();
+        } catch (e) { console.warn('JLST compute failed:', e); }
+    }
     setupEventListeners(data, priceInfo, cycleInfo);
 
     document.getElementById('last-update').textContent = '更新: ' + new Date().toLocaleTimeString('zh-CN');
@@ -258,6 +265,57 @@ function renderSmmSection() {
     ChartsModule.renderSmmChart(SmmModule._series);
 }
 
+// ===== JLST 动量择时信号 Section =====
+function renderJlstSection() {
+    const cur = JlstModule.getCurrent();
+    if (!cur || cur.composite == null) return;
+
+    // 当前信号状态
+    const signalEl = document.getElementById('jlst-signal');
+    const regimeEl = document.getElementById('jlst-regime');
+    const compEl = document.getElementById('jlst-composite');
+
+    if (signalEl) {
+        if (cur.composite >= JlstModule.PARAMS.entryTh) {
+            signalEl.textContent = '● 做多';
+            signalEl.style.color = '#00E676';
+        } else if (cur.composite <= -JlstModule.PARAMS.entryTh) {
+            signalEl.textContent = '● 做空';
+            signalEl.style.color = '#FF1744';
+        } else {
+            signalEl.textContent = '— 观望';
+            signalEl.style.color = '';
+        }
+    }
+    if (regimeEl) {
+        regimeEl.textContent = JlstModule.regimeName(cur.regime);
+        regimeEl.style.color = JlstModule.regimeColor(cur.regime);
+    }
+    if (compEl) {
+        compEl.textContent = '综合 ' + cur.composite.toFixed(2) + ' · 动量 ' + (cur.momentum != null ? cur.momentum.toFixed(2) : '--');
+    }
+
+    // 最近信号列表
+    const listEl = document.getElementById('jlst-recent-signals');
+    if (listEl) {
+        const recent = JlstModule.getRecentSignals(8);
+        if (recent.length) {
+            listEl.innerHTML = `<div class="flex flex-wrap gap-2 text-xs">` +
+                recent.slice().reverse().map(s => {
+                    const color = s.type === 'long' ? '#00E676' : s.type === 'short' ? '#FF1744' : '#FFD600';
+                    const dateStr = s.date.toISOString().slice(0, 10);
+                    const priceStr = '$' + Math.round(s.price).toLocaleString();
+                    return `<span class="px-2 py-1 rounded border" style="border-color:${color};color:${color}">${JlstModule.signalName(s.type)} ${dateStr} ${priceStr}</span>`;
+                }).join('') + `</div>`;
+        } else {
+            listEl.innerHTML = '<span class="text-xs text-gray-400">暂无信号</span>';
+        }
+    }
+
+    // 图表
+    ChartsModule.renderJlstChart(JlstModule._series);
+}
+
 // 主题切换：切 class、存 localStorage、更新按钮、重渲染所有交互图（离屏周报图不受影响）
 function toggleTheme() {
     const toDark = !document.documentElement.classList.contains('dark');
@@ -268,6 +326,7 @@ function toggleTheme() {
     if (btn) btn.textContent = toDark ? '☀️' : '🌙';
     if (appState.data) renderPriceCharts(appState.data);
     renderSmmSection(); // SMM 图需要重绘以适配主题色
+    renderJlstSection(); // JLST 图需要重绘以适配主题色
 }
 
 function setupEventListeners(data, priceInfo, cycleInfo) {

@@ -1790,7 +1790,7 @@ const ChartsModule = {
     },
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // JLST 动量择时信号 — 综合信号 + 买卖标注
+    // JLST 动量择时信号 — BTC 价格 + 买卖/平仓/反转标注
     // ═══════════════════════════════════════════════════════════════════════════
     renderJlstChart(series) {
         this.destroyChart('jlst');
@@ -1800,159 +1800,101 @@ const ChartsModule = {
         const valid = series.filter(d => d.composite != null);
         if (!valid.length) return;
 
+        // 默认显示最近 2 年
+        const twoYearsAgo = new Date();
+        twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
+        const display = valid.filter(d => d.date >= twoYearsAgo);
+        const chartData = display.length > 100 ? display : valid;
+
         const ctx = el.getContext('2d');
         const isDark = this.themeName === 'dark';
-        const P = JlstModule.PARAMS;
+        const signals = JlstModule.getAllSignals();
+        const trades = JlstModule._trades || [];
 
-        // 买卖信号标注（annotation arrows）
-        const signalAnnotations = {};
-        valid.forEach((d, i) => {
-            if (!d.signal) return;
-            const type = d.signal.type;
-            let color, label;
-            if (type === 'long') { color = '#00E676'; label = '▲ 多'; }
-            else if (type === 'short') { color = '#FF1744'; label = '▼ 空'; }
-            else if (type === 'rev_long') { color = '#FFD600'; label = '◆ 反弹'; }
-            else if (type === 'rev_short') { color = '#FFD600'; label = '◆ 回落'; }
+        // 信号标注 — 在价格位置标注买卖点
+        const annotations = {};
+        signals.forEach((s, i) => {
+            // 只标注图表范围内的信号
+            if (s.date < chartData[0].date) return;
+
+            let color, radius, label;
+            if (s.type === 'open_long') { color = '#00E676'; radius = 7; label = '多'; }
+            else if (s.type === 'open_short') { color = '#FF1744'; radius = 7; label = '空'; }
+            else if (s.type === 'close_long' || s.type === 'close_short') {
+                color = isDark ? '#94a3b8' : '#6b7280'; radius = 5;
+                const pnlStr = s.pnl >= 0 ? '+' + s.pnl.toFixed(1) + '%' : s.pnl.toFixed(1) + '%';
+                label = pnlStr;
+            }
+            else if (s.type === 'reversal_long') { color = '#FFD600'; radius = 6; label = '反多'; }
+            else if (s.type === 'reversal_short') { color = '#FFD600'; radius = 6; label = '反空'; }
             else return;
 
-            signalAnnotations['sig' + i] = {
-                type: 'point',
-                xValue: d.date,
-                yValue: d.composite,
+            annotations['sig' + i] = {
+                type: 'label',
+                xValue: s.date,
+                yValue: s.price,
                 xScaleID: 'x',
                 yScaleID: 'y',
-                backgroundColor: color,
+                backgroundColor: color + '22',
                 borderColor: color,
-                radius: type.includes('rev') ? 4 : 6,
                 borderWidth: 1,
+                borderRadius: 4,
+                content: label,
+                color: color,
+                font: { size: 9, weight: 'bold' },
+                padding: { x: 3, y: 2 },
+                position: s.type.includes('short') || s.type === 'close_long' ? 'start' : 'end',
             };
         });
 
-        // 入场阈值线
-        const thresholdAnnotations = {
-            entryHi: {
-                type: 'line', yMin: P.entryTh, yMax: P.entryTh, yScaleID: 'y',
-                borderColor: isDark ? 'rgba(0,230,118,0.4)' : 'rgba(0,200,100,0.5)',
-                borderWidth: 1, borderDash: [4, 4],
-                label: { display: true, content: '+' + P.entryTh, position: 'start',
-                    backgroundColor: 'transparent', color: isDark ? '#00E676' : '#059669', font: { size: 9 } }
-            },
-            entryLo: {
-                type: 'line', yMin: -P.entryTh, yMax: -P.entryTh, yScaleID: 'y',
-                borderColor: isDark ? 'rgba(255,23,68,0.4)' : 'rgba(220,20,60,0.5)',
-                borderWidth: 1, borderDash: [4, 4],
-                label: { display: true, content: '-' + P.entryTh, position: 'start',
-                    backgroundColor: 'transparent', color: isDark ? '#FF1744' : '#dc2626', font: { size: 9 } }
-            },
-            zeroLine: {
-                type: 'line', yMin: 0, yMax: 0, yScaleID: 'y',
-                borderColor: isDark ? 'rgba(148,163,184,0.3)' : 'rgba(107,114,128,0.3)',
-                borderWidth: 1,
-            }
-        };
-
-        // 综合信号颜色 (per-segment)
-        const compColor = isDark
-            ? (val) => {
-                if (val >= P.entryTh) return '#00E676';
-                if (val <= -P.entryTh) return '#FF1744';
-                if (val > P.entryTh * 0.5) return 'rgba(0,230,118,0.5)';
-                if (val < -P.entryTh * 0.5) return 'rgba(255,23,68,0.5)';
-                return 'rgba(148,163,184,0.5)';
-            }
-            : (val) => {
-                if (val >= P.entryTh) return '#059669';
-                if (val <= -P.entryTh) return '#dc2626';
-                if (val > P.entryTh * 0.5) return 'rgba(5,150,105,0.5)';
-                if (val < -P.entryTh * 0.5) return 'rgba(220,38,38,0.5)';
-                return 'rgba(107,114,128,0.5)';
+        // 持仓区间色带 — 开仓到平仓之间的半透明背景
+        trades.forEach((t, i) => {
+            if (t.entry.date < chartData[0].date) return;
+            const bgColor = t.direction === 'long'
+                ? (isDark ? 'rgba(0,230,118,0.06)' : 'rgba(0,200,100,0.08)')
+                : (isDark ? 'rgba(255,23,68,0.06)' : 'rgba(220,38,38,0.08)');
+            annotations['trade' + i] = {
+                type: 'box',
+                xMin: t.entry.date, xMax: t.exit.date,
+                xScaleID: 'x', yScaleID: 'y',
+                backgroundColor: bgColor,
+                borderWidth: 0,
             };
-
-        // 动量线颜色
-        const momColor = isDark
-            ? (val) => val > 0.5 ? '#60a5fa' : val < -0.5 ? '#fb923c' : 'rgba(148,163,184,0.4)'
-            : (val) => val > 0.5 ? '#2563eb' : val < -0.5 ? '#ea580c' : 'rgba(107,114,128,0.4)';
+        });
 
         this.charts['jlst'] = new Chart(ctx, {
+            type: 'line',
             data: {
-                labels: valid.map(d => d.date),
-                datasets: [
-                    {
-                        type: 'line',
-                        label: 'BTC 价格',
-                        data: valid.map(d => d.price),
-                        borderColor: 'rgba(247,147,26,0.4)',
-                        borderWidth: 1,
-                        pointRadius: 0,
-                        yAxisID: 'yPrice',
-                        order: 3,
-                    },
-                    {
-                        type: 'line',
-                        label: '综合信号',
-                        data: valid.map(d => d.composite),
-                        segment: { borderColor: ctx => compColor(ctx.p1.parsed.y) },
-                        borderColor: isDark ? '#94a3b8' : '#6b7280',
-                        borderWidth: 2.5,
-                        pointRadius: 0,
-                        yAxisID: 'y',
-                        order: 1,
-                    },
-                    {
-                        type: 'line',
-                        label: '动量',
-                        data: valid.map(d => d.momentum),
-                        segment: { borderColor: ctx => momColor(ctx.p1.parsed.y) },
-                        borderColor: isDark ? '#60a5fa' : '#2563eb',
-                        borderWidth: 1.5,
-                        pointRadius: 0,
-                        yAxisID: 'y',
-                        order: 2,
-                        hidden: false,
-                    },
-                    {
-                        type: 'line',
-                        label: '噪声',
-                        data: valid.map(d => (d.noise - 50) / 25), // 归一化到 ~±2
-                        backgroundColor: isDark ? 'rgba(251,191,36,0.12)' : 'rgba(245,158,11,0.1)',
-                        borderColor: 'transparent',
-                        fill: true,
-                        pointRadius: 0,
-                        yAxisID: 'y',
-                        order: 4,
-                    },
-                ]
+                labels: chartData.map(d => d.date),
+                datasets: [{
+                    label: 'BTC',
+                    data: chartData.map(d => d.price),
+                    borderColor: isDark ? '#f7931a' : '#d97706',
+                    borderWidth: 1.8,
+                    pointRadius: 0,
+                    fill: false,
+                }]
             },
             options: {
                 ...this.defaults(),
                 plugins: {
                     ...this.defaults().plugins,
-                    annotation: { annotations: { ...thresholdAnnotations, ...signalAnnotations } },
+                    legend: { display: false },
+                    annotation: { annotations },
                     zoom: makeZoomConfig(),
-                    crosshair: { enabled: true, color: this.t().crosshair },
-                    legend: { labels: { color: this.t().tick, font: { size: 11 } } }
                 },
                 scales: {
                     x: { type: 'time', time: { unit: 'month', displayFormats: { month: 'yyyy-MM' } },
                         ticks: { color: this.t().tick, maxTicksLimit: 12 }, grid: { color: this.t().grid } },
                     y: {
-                        position: 'left',
-                        title: { display: true, text: '信号强度', color: this.t().tick },
-                        ticks: { color: this.t().tick },
-                        grid: { color: this.t().grid },
-                    },
-                    yPrice: {
-                        position: 'right',
                         type: 'logarithmic',
-                        title: { display: true, text: 'BTC (log)', color: '#f7931a' },
-                        ticks: { color: '#f7931a', callback: v => this._fmtPrice(v) },
-                        grid: { drawOnChartArea: false }
+                        ticks: { color: this.t().tick, callback: v => this._fmtPrice(v) },
+                        grid: { color: this.t().grid },
                     }
                 }
             }
         });
-        attachModifierZoom(this.charts['jlst'], { yAxes: ['y', 'yPrice'] });
+        attachModifierZoom(this.charts['jlst']);
     },
 
     // 返回各指标 dataURL 映射。crops: { key: {xMin,xMax,yMin,yMax} } 可选，用于「划选区域入周报」。

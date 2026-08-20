@@ -11,10 +11,14 @@ function applyInitialTheme() {
     if (btn) btn.textContent = theme === 'dark' ? '☀️' : '🌙';
 }
 
-// 私人周报入口：仅当 URL 含 #report 或 ?report 时显示导出按钮
+// 私人周报入口：仅当 URL 含 #report 或 ?report 时显示导出按钮 + JLST 指标
 function maybeShowReportEntry() {
     const has = location.hash === '#report' || new URLSearchParams(location.search).has('report');
-    if (has) document.getElementById('btn-export-report').classList.remove('hidden');
+    if (has) {
+        document.getElementById('btn-export-report').classList.remove('hidden');
+        const jlst = document.getElementById('card-jlst');
+        if (jlst) jlst.classList.remove('hidden');
+    }
 }
 
 async function init() {
@@ -267,48 +271,44 @@ function renderSmmSection() {
 
 // ===== JLST 动量择时信号 Section =====
 function renderJlstSection() {
+    // 仅在 ?report 模式下渲染（section 默认 hidden，由 maybeShowReportEntry 控制）
+    const card = document.getElementById('card-jlst');
+    if (!card || card.classList.contains('hidden')) return;
+
     const cur = JlstModule.getCurrent();
-    if (!cur || cur.composite == null) return;
+    if (!cur) return;
 
-    // 当前信号状态
+    // 当前持仓状态
     const signalEl = document.getElementById('jlst-signal');
-    const regimeEl = document.getElementById('jlst-regime');
-    const compEl = document.getElementById('jlst-composite');
-
     if (signalEl) {
-        if (cur.composite >= JlstModule.PARAMS.entryTh) {
-            signalEl.textContent = '● 做多';
+        if (cur.posState === 'long') {
+            signalEl.textContent = '▲ 持多';
             signalEl.style.color = '#00E676';
-        } else if (cur.composite <= -JlstModule.PARAMS.entryTh) {
-            signalEl.textContent = '● 做空';
+        } else if (cur.posState === 'short') {
+            signalEl.textContent = '▼ 持空';
             signalEl.style.color = '#FF1744';
         } else {
-            signalEl.textContent = '— 观望';
+            signalEl.textContent = '— 空仓';
             signalEl.style.color = '';
         }
     }
-    if (regimeEl) {
-        regimeEl.textContent = JlstModule.regimeName(cur.regime);
-        regimeEl.style.color = JlstModule.regimeColor(cur.regime);
-    }
-    if (compEl) {
-        compEl.textContent = '综合 ' + cur.composite.toFixed(2) + ' · 动量 ' + (cur.momentum != null ? cur.momentum.toFixed(2) : '--');
-    }
 
-    // 最近信号列表
+    // 最近交易配对（开仓→平仓，含盈亏）
     const listEl = document.getElementById('jlst-recent-signals');
     if (listEl) {
-        const recent = JlstModule.getRecentSignals(8);
-        if (recent.length) {
+        const trades = JlstModule.getRecentTrades(8);
+        if (trades.length) {
             listEl.innerHTML = `<div class="flex flex-wrap gap-2 text-xs">` +
-                recent.slice().reverse().map(s => {
-                    const color = s.type === 'long' ? '#00E676' : s.type === 'short' ? '#FF1744' : '#FFD600';
-                    const dateStr = s.date.toISOString().slice(0, 10);
-                    const priceStr = '$' + Math.round(s.price).toLocaleString();
-                    return `<span class="px-2 py-1 rounded border" style="border-color:${color};color:${color}">${JlstModule.signalName(s.type)} ${dateStr} ${priceStr}</span>`;
+                trades.slice().reverse().map(t => {
+                    const dirColor = t.direction === 'long' ? '#00E676' : '#FF1744';
+                    const pnlColor = t.pnl >= 0 ? '#00E676' : '#FF1744';
+                    const dirLabel = t.direction === 'long' ? '多' : '空';
+                    const dateStr = t.entry.date.toISOString().slice(5, 10);
+                    const pnlStr = (t.pnl >= 0 ? '+' : '') + t.pnl.toFixed(1) + '%';
+                    return `<span class="px-2 py-1 rounded border" style="border-color:${dirColor}40;color:${pnlColor}">${dirLabel} ${dateStr} <b>${pnlStr}</b> (${t.days}d)</span>`;
                 }).join('') + `</div>`;
         } else {
-            listEl.innerHTML = '<span class="text-xs text-gray-400">暂无信号</span>';
+            listEl.innerHTML = '<span class="text-xs text-gray-400">暂无交易记录</span>';
         }
     }
 

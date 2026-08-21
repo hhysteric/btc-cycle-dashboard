@@ -146,6 +146,7 @@ const ChartsModule = {
         { date: '2015-01-14', label: '周期1底' },
         { date: '2018-12-15', label: '周期2底' },
         { date: '2022-11-21', label: '周期3底' },
+        { date: '2026-07-01', label: '周期4底(暂)' },
     ],
 
     // 生成时间轴图的周期底部竖线注解（annotation 插件）。
@@ -723,17 +724,47 @@ const ChartsModule = {
         chart.update('none');
     },
 
-    // zZ 交叉点竖线：价格上穿 MA110（上涨信号）、MA6 上穿 MA103（买入信号）
+    // zZ 交叉点竖线 + 信号区域着色：
+    // - 已触发信号：整图浅绿背景（两个都触发=深绿）
+    // - 未触发信号：画预测竖线 + 从预测日到右边缘画浅绿/浅橙背景
     _zzCrossAnnotations(zz) {
         const ann = {};
         if (!zz) return ann;
-        if (zz.crossPriceMA110 != null && zz.crossPriceMA110Date) {
+        const upActive = zz.aboveMA110;
+        const buyActive = zz.ma6AboveMA103;
+        const bothActive = upActive && buyActive;
+
+        // 信号已触发 → 整个图表区域用绿色背景
+        if (upActive || buyActive) {
+            ann.signalBg = {
+                type: 'box', drawTime: 'beforeDatasetsDraw',
+                backgroundColor: bothActive ? 'rgba(0,211,149,0.08)' : 'rgba(0,211,149,0.04)',
+                borderWidth: 0,
+            };
+        }
+
+        // 上涨信号
+        if (upActive) {
+            ann.up = { type: 'line', scaleID: 'x', value: zz.lastDate.getTime(),
+                borderColor: 'rgba(0,211,149,0.5)', borderWidth: 1, borderDash: [3, 3],
+                label: { display: true, content: '✓ 上涨信号已触发', position: 'start', color: '#00d395', backgroundColor: 'rgba(0,211,149,0.15)', font: { size: 9 } } };
+        } else if (zz.crossPriceMA110 != null && zz.crossPriceMA110Date) {
             ann.up = { type: 'line', scaleID: 'x', value: zz.crossPriceMA110Date.getTime(), borderColor: 'rgba(0,211,149,0.7)', borderWidth: 1.5, borderDash: [5, 4],
                 label: { display: true, content: '上涨信号(上穿MA110)', position: 'start', color: '#00d395', backgroundColor: 'rgba(0,0,0,0)', font: { size: 9 } } };
+            ann.upZone = { type: 'box', drawTime: 'beforeDatasetsDraw', xMin: zz.crossPriceMA110Date.getTime(),
+                backgroundColor: 'rgba(0,211,149,0.04)', borderWidth: 0 };
         }
-        if (zz.crossMA6MA103 != null && zz.crossMA6MA103Date) {
+
+        // 买入信号
+        if (buyActive) {
+            ann.buy = { type: 'line', scaleID: 'x', value: zz.lastDate.getTime(),
+                borderColor: 'rgba(247,147,26,0.5)', borderWidth: 1, borderDash: [3, 3],
+                label: { display: true, content: '✓ 买入信号已触发', position: 'end', color: '#f7931a', backgroundColor: 'rgba(247,147,26,0.15)', font: { size: 9 } } };
+        } else if (zz.crossMA6MA103 != null && zz.crossMA6MA103Date) {
             ann.buy = { type: 'line', scaleID: 'x', value: zz.crossMA6MA103Date.getTime(), borderColor: 'rgba(247,147,26,0.8)', borderWidth: 1.5, borderDash: [5, 4],
                 label: { display: true, content: '买入信号(MA6×MA103)', position: 'end', color: '#f7931a', backgroundColor: 'rgba(0,0,0,0)', font: { size: 9 } } };
+            ann.buyZone = { type: 'box', drawTime: 'beforeDatasetsDraw', xMin: zz.crossMA6MA103Date.getTime(),
+                backgroundColor: 'rgba(247,147,26,0.03)', borderWidth: 0 };
         }
         return ann;
     },
@@ -1223,9 +1254,28 @@ const ChartsModule = {
             ds.push({ type: 'line', label: 'MA110 延长', data: projLine(zz.proj[110], u110), borderColor: COL.ma110, borderWidth: 1, borderDash: [4, 3], pointRadius: 0 });
             ds.push({ type: 'line', label: 'MA6 延长', data: projLine(zz.proj[6], uX), borderColor: COL.ma6, borderWidth: 1, borderDash: [4, 3], pointRadius: 0 });
             ds.push({ type: 'line', label: 'MA103 延长', data: projLine(zz.proj[103], uX), borderColor: COL.ma103, borderWidth: 1, borderDash: [4, 3], pointRadius: 0 });
-            if (zz.crossPriceMA110Date) ann.up = { type: 'line', scaleID: 'x', value: zz.crossPriceMA110Date.getTime(), borderColor: 'rgba(0,211,149,0.7)', borderWidth: 1.5, borderDash: [5, 4], label: { display: true, content: '上涨信号', position: 'start', color: '#00d395', backgroundColor: 'rgba(0,0,0,0)', font: { size: 10 } } };
-            if (zz.crossMA6MA103Date) ann.buy = { type: 'line', scaleID: 'x', value: zz.crossMA6MA103Date.getTime(), borderColor: 'rgba(247,147,26,0.8)', borderWidth: 1.5, borderDash: [5, 4], label: { display: true, content: '买入信号', position: 'end', color: '#f7931a', backgroundColor: 'rgba(0,0,0,0)', font: { size: 10 } } };
+            // 信号已触发 → 全图绿色背景
+            if (zz.aboveMA110 || zz.ma6AboveMA103) {
+                const both = zz.aboveMA110 && zz.ma6AboveMA103;
+                ann.signalBg = { type: 'box', drawTime: 'beforeDatasetsDraw', backgroundColor: both ? 'rgba(0,211,149,0.10)' : 'rgba(0,211,149,0.05)', borderWidth: 0 };
+            }
+            // 信号未触发 → 画预测线 + 从预测日起浅绿区域
+            if (zz.aboveMA110) {
+                ann.upActive = { type: 'line', scaleID: 'x', value: t0, borderColor: 'rgba(0,211,149,0.5)', borderWidth: 0,
+                    label: { display: true, content: '✓ 上涨信号', position: 'start', color: '#00d395', backgroundColor: 'rgba(0,211,149,0.1)', font: { size: 10 } } };
+            } else if (zz.crossPriceMA110Date) {
+                ann.up = { type: 'line', scaleID: 'x', value: zz.crossPriceMA110Date.getTime(), borderColor: 'rgba(0,211,149,0.7)', borderWidth: 1.5, borderDash: [5, 4], label: { display: true, content: '上涨信号', position: 'start', color: '#00d395', backgroundColor: 'rgba(0,0,0,0)', font: { size: 10 } } };
+                ann.upZone = { type: 'box', drawTime: 'beforeDatasetsDraw', xMin: zz.crossPriceMA110Date.getTime(), backgroundColor: 'rgba(0,211,149,0.05)', borderWidth: 0 };
+            }
+            if (zz.ma6AboveMA103) {
+                ann.buyActive = { type: 'line', scaleID: 'x', value: t0, borderColor: 'rgba(247,147,26,0.5)', borderWidth: 0,
+                    label: { display: true, content: '✓ 买入信号', position: 'end', color: '#f7931a', backgroundColor: 'rgba(247,147,26,0.1)', font: { size: 10 } } };
+            } else if (zz.crossMA6MA103Date) {
+                ann.buy = { type: 'line', scaleID: 'x', value: zz.crossMA6MA103Date.getTime(), borderColor: 'rgba(247,147,26,0.8)', borderWidth: 1.5, borderDash: [5, 4], label: { display: true, content: '买入信号', position: 'end', color: '#f7931a', backgroundColor: 'rgba(0,0,0,0)', font: { size: 10 } } };
+                ann.buyZone = { type: 'box', drawTime: 'beforeDatasetsDraw', xMin: zz.crossMA6MA103Date.getTime(), backgroundColor: 'rgba(247,147,26,0.04)', borderWidth: 0 };
+            }
         }
+        Object.assign(ann, this.cycleBottomAnnotations('start'));
         return this._offscreenChart({
             data: { datasets: ds },
             options: {
@@ -1257,12 +1307,13 @@ const ChartsModule = {
                     legend: { labels: { color: '#cbd5e1', font: { size: 11 } } },
                     annotation: { annotations: {
                         hi: { type: 'line', yMin: 2.4, yMax: 2.4, yScaleID: 'y', borderColor: 'rgba(255,71,87,0.5)', borderDash: [3, 3], borderWidth: 1 },
-                        lo: { type: 'line', yMin: 1, yMax: 1, yScaleID: 'y', borderColor: 'rgba(0,211,149,0.5)', borderDash: [3, 3], borderWidth: 1 }
+                        lo: { type: 'line', yMin: 1, yMax: 1, yScaleID: 'y', borderColor: 'rgba(0,211,149,0.5)', borderDash: [3, 3], borderWidth: 1 },
+                        ...this.cycleBottomAnnotations('start')
                     } }
                 },
                 scales: {
                     x: this._cropScale({ type: 'time', time: { unit: 'year' }, ticks: { color: '#94a3b8' }, grid: { color: '#1f2937' } }, crop, 'x'),
-                    y: { position: 'left', title: { display: true, text: 'Mayer', color: '#6366f1' }, ticks: { color: '#94a3b8', callback: v => v.toFixed(1) + 'x' }, grid: { color: '#1f2937' } },
+                    y: { position: 'left', type: 'logarithmic', title: { display: true, text: 'Mayer', color: '#6366f1' }, ticks: { color: '#94a3b8', callback: v => v.toFixed(1) + 'x' }, grid: { color: '#1f2937' } },
                     yP: { position: 'right', type: 'logarithmic', ticks: { color: '#f7931a', callback: v => this._fmtPrice(v) }, grid: { drawOnChartArea: false } }
                 }
             }
@@ -1286,7 +1337,8 @@ const ChartsModule = {
                     legend: { labels: { color: '#cbd5e1', font: { size: 11 } } },
                     annotation: { annotations: {
                         ob: { type: 'line', yMin: 70, yMax: 70, yScaleID: 'y', borderColor: 'rgba(255,71,87,0.5)', borderDash: [3, 3], borderWidth: 1 },
-                        os: { type: 'line', yMin: 30, yMax: 30, yScaleID: 'y', borderColor: 'rgba(0,211,149,0.5)', borderDash: [3, 3], borderWidth: 1 }
+                        os: { type: 'line', yMin: 30, yMax: 30, yScaleID: 'y', borderColor: 'rgba(0,211,149,0.5)', borderDash: [3, 3], borderWidth: 1 },
+                        ...this.cycleBottomAnnotations('start')
                     } }
                 },
                 scales: {
@@ -1514,7 +1566,7 @@ const ChartsModule = {
                 ]
             },
             options: {
-                plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 11 } } } },
+                plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 11 } } }, annotation: { annotations: this.cycleBottomAnnotations('start') } },
                 scales: {
                     x: this._cropScale({ type: 'time', time: { unit: 'year' }, ticks: { color: '#94a3b8' }, grid: { color: '#1f2937' } }, crop, 'x'),
                     y: this._cropScale({ type: 'logarithmic', title: { display: true, text: 'MVRV', color: '#a855f7' }, ticks: { color: '#94a3b8', callback: v => v.toFixed(1) }, grid: { color: '#1f2937' } }, crop, 'y'),
@@ -1543,7 +1595,7 @@ const ChartsModule = {
                 ]
             },
             options: {
-                plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 11 } } } },
+                plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 11 } } }, annotation: { annotations: this.cycleBottomAnnotations('start') } },
                 scales: {
                     x: this._cropScale({ type: 'time', time: { unit: 'year' }, ticks: { color: '#94a3b8' }, grid: { color: '#1f2937' } }, crop, 'x'),
                     y: this._cropScale({ type: 'logarithmic', title: { display: true, text: '价格', color: '#94a3b8' }, ticks: { color: '#94a3b8', callback: v => this._fmtPrice(v) }, grid: { color: '#1f2937' } }, crop, 'y'),
@@ -1581,7 +1633,7 @@ const ChartsModule = {
                 ]
             },
             options: {
-                plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 11 } } }, annotation: { annotations: this._nuplAnnotations() } },
+                plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 11 } } }, annotation: { annotations: { ...this._nuplAnnotations(), ...this.cycleBottomAnnotations('start') } } },
                 scales: {
                     x: this._cropScale({ type: 'time', time: { unit: 'year' }, ticks: { color: '#94a3b8' }, grid: { color: '#1f2937' } }, crop, 'x'),
                     y: { position: 'left', title: { display: true, text: 'NUPL', color: '#a855f7' }, ticks: { color: '#94a3b8' }, grid: { color: '#1f2937' } },
@@ -1609,6 +1661,7 @@ const ChartsModule = {
                 plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 11 } } }, annotation: { annotations: {
                     one: { type: 'line', yMin: 1, yMax: 1, yScaleID: 'y', borderColor: 'rgba(148,163,184,0.6)', borderDash: [4, 4], borderWidth: 1 },
                     three: { type: 'line', yMin: 3, yMax: 3, yScaleID: 'y', borderColor: 'rgba(0,211,149,0.4)', borderDash: [3, 3], borderWidth: 1 },
+                    ...this.cycleBottomAnnotations('start')
                 } } },
                 scales: {
                     x: this._cropScale({ type: 'time', time: { unit: 'year' }, ticks: { color: '#94a3b8' }, grid: { color: '#1f2937' } }, crop, 'x'),
@@ -1637,7 +1690,7 @@ const ChartsModule = {
                 ]
             },
             options: {
-                plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 11 } } } },
+                plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 11 } } }, annotation: { annotations: this.cycleBottomAnnotations('start') } },
                 scales: {
                     x: this._cropScale({ type: 'time', time: { unit: 'quarter' }, ticks: { color: '#94a3b8' }, grid: { color: '#1f2937' } }, crop, 'x'),
                     yP: { position: 'left', type: 'logarithmic', title: { display: true, text: '价格', color: '#94a3b8' }, ticks: { color: '#94a3b8', callback: v => this._fmtPrice(v) }, grid: { color: '#1f2937' } },
@@ -1663,7 +1716,7 @@ const ChartsModule = {
             options: {
                 plugins: {
                     legend: { labels: { color: '#cbd5e1', font: { size: 11 } } },
-                    annotation: { annotations: { zero: { type: 'line', yMin: 0, yMax: 0, yScaleID: 'y', borderColor: 'rgba(148,163,184,0.7)', borderDash: [4, 4], borderWidth: 1 } } }
+                    annotation: { annotations: { zero: { type: 'line', yMin: 0, yMax: 0, yScaleID: 'y', borderColor: 'rgba(148,163,184,0.7)', borderDash: [4, 4], borderWidth: 1 }, ...this.cycleBottomAnnotations('start') } }
                 },
                 scales: {
                     x: this._cropScale({ type: 'time', time: { unit: 'quarter' }, ticks: { color: '#94a3b8' }, grid: { color: '#1f2937' } }, crop, 'x'),
@@ -1740,7 +1793,7 @@ const ChartsModule = {
             halvingAnnotations['halving' + i] = {
                 type: 'line', xMin: h, xMax: h, xScaleID: 'x',
                 borderColor: 'rgba(199,169,97,0.5)', borderWidth: 1, borderDash: [3, 3],
-                label: { display: true, content: 'H' + (i + 1), position: 'start', backgroundColor: 'transparent', color: 'rgba(199,169,97,0.7)', font: { size: 10 } }
+                label: { display: true, content: '减半' + (i + 1), position: 'start', backgroundColor: 'transparent', color: 'rgba(199,169,97,0.7)', font: { size: 10 } }
             };
         });
 
@@ -1794,7 +1847,7 @@ const ChartsModule = {
                 ...this.defaults(),
                 plugins: {
                     ...this.defaults().plugins,
-                    annotation: { annotations: { ...bandAnnotations, ...halvingAnnotations } },
+                    annotation: { annotations: { ...bandAnnotations, ...halvingAnnotations, ...this.cycleBottomAnnotations('start') } },
                     zoom: makeZoomConfig(),
                     crosshair: { enabled: true, color: this.t().crosshair }
                 },
@@ -1882,7 +1935,7 @@ const ChartsModule = {
             options: {
                 plugins: {
                     legend: { labels: { color: '#cbd5e1', font: { size: 11 } } },
-                    annotation: { annotations: bandAnnotations }
+                    annotation: { annotations: { ...bandAnnotations, ...this.cycleBottomAnnotations('start') } }
                 },
                 scales: {
                     x: this._cropScale({ type: 'time', time: { unit: 'year' }, ticks: { color: '#94a3b8' }, grid: { color: '#1f2937' } }, crop, 'x'),

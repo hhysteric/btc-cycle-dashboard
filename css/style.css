@@ -153,3 +153,50 @@ canvas {
     border-radius: 3px;
     padding: 0 4px;
 }
+
+/* ===== TV Chart toggle buttons ===== */
+.tv-toggle-btn {
+    background: transparent;
+    color: #6b7280;
+    cursor: pointer;
+    user-select: none;
+}
+.tv-toggle-btn:hover {
+    color: #f7931a;
+    border-color: #f7931a;
+}
+.tv-toggle-btn.active {
+    background: rgba(247,147,26,0.15);
+    color: #f7931a;
+    border-color: #f7931a;
+    font-weight: 600;
+}
+html.dark .tv-toggle-btn {
+    color: #9ca3af;
+}
+html.dark .tv-toggle-btn:hover {
+    color: #f7931a;
+    border-color: #f7931a;
+}
+html.dark .tv-toggle-btn.active {
+    background: rgba(247,147,26,0.2);
+    color: #f7931a;
+    border-color: #f7931a;
+}
+
+/* TV pane label */
+.tv-pane-label {
+    position: absolute;
+    top: 6px;
+    left: 10px;
+    z-index: 10;
+    font-size: 11px;
+    font-weight: 600;
+    color: #9ca3af;
+    pointer-events: none;
+}
+
+/* 全屏时 TV chart 扩展 */
+.chart-card:fullscreen #tv-main {
+    height: calc(100vh - 200px) !important;
+}

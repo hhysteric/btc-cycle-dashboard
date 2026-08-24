@@ -150,6 +150,7 @@ function renderPriceCharts(data) {
     ChartsModule.renderEtfChart();
     ChartsModule.renderEtfSlopeChart();
     ChartsModule.renderBtcAaplChart();
+    if (typeof TvChartModule !== 'undefined') TvChartModule.init();
     if (typeof repositionAllSplitHandles === 'function') setTimeout(repositionAllSplitHandles, 150);
 
     const etf = DataModule.etfData;

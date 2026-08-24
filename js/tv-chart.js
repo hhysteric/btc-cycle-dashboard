@@ -193,8 +193,49 @@ const TvChartModule = {
         }));
     },
 
+    /**
+     * 将日粒度 {time, value}[] 聚合为周粒度（取每周最后一个值，时间对齐到周一）
+     * 当 _timeframe === 'weekly' 且指标使用独立日期源时调用
+     */
+    _toWeekly(dailyData) {
+        if (!dailyData || !dailyData.length) return dailyData;
+        const weeks = new Map();
+        for (const d of dailyData) {
+            const dt = new Date(d.time);
+            const day = dt.getUTCDay(); // 0=Sun, 1=Mon, ...
+            const diff = (day === 0 ? 6 : day - 1); // 周一为一周起点
+            const ms = dt.getTime() - diff * 86400000;
+            const weekKey = new Date(ms).toISOString().slice(0, 10);
+            // 取每周最后一条数据（覆盖即可，因为输入是时间升序）
+            weeks.set(weekKey, { time: weekKey, value: d.value });
+        }
+        return Array.from(weeks.values());
+    },
+
+    /**
+     * 将日粒度 ETF 流入聚合为周粒度（每周求和）
+     */
+    _toWeeklySum(dailyData) {
+        if (!dailyData || !dailyData.length) return dailyData;
+        const weeks = new Map();
+        for (const d of dailyData) {
+            const dt = new Date(d.time);
+            const day = dt.getUTCDay();
+            const diff = (day === 0 ? 6 : day - 1);
+            const ms = dt.getTime() - diff * 86400000;
+            const weekKey = new Date(ms).toISOString().slice(0, 10);
+            if (!weeks.has(weekKey)) {
+                weeks.set(weekKey, { time: weekKey, value: d.value });
+            } else {
+                weeks.get(weekKey).value += d.value;
+            }
+        }
+        return Array.from(weeks.values());
+    },
+
     _getData(key) {
         const data = this._getSourceData();
+        const weekly = this._timeframe === 'weekly';
         switch (key) {
             case 'ma6': case 'ma103': case 'ma110': case 'ma200': {
                 const period = { ma6: 6, ma103: 103, ma110: 110, ma200: 200 }[key];
@@ -202,9 +243,10 @@ const TvChartModule = {
                 return data.map((d, i) => ma[i] != null ? { time: this._toDay(d.date), value: ma[i] } : null).filter(Boolean);
             }
             case 'realized': {
-                return DataModule.onchainData
+                const raw = DataModule.onchainData
                     .filter(d => d.realizedPrice != null)
                     .map(d => ({ time: this._toDay(d.date), value: d.realizedPrice }));
+                return weekly ? this._toWeekly(raw) : raw;
             }
             case 'volume': {
                 return data.map(d => ({ time: this._toDay(d.date), value: d.volume }));
@@ -218,32 +260,38 @@ const TvChartModule = {
                 return data.map((d, i) => ma200[i] ? { time: this._toDay(d.date), value: d.close / ma200[i] } : null).filter(Boolean);
             }
             case 'mvrv': {
-                return DataModule.onchainData
+                const raw = DataModule.onchainData
                     .filter(d => d.mvrv != null)
                     .map(d => ({ time: this._toDay(d.date), value: d.mvrv }));
+                return weekly ? this._toWeekly(raw) : raw;
             }
             case 'nupl': {
-                return DataModule.onchainData
+                const raw = DataModule.onchainData
                     .filter(d => d.nupl != null)
                     .map(d => ({ time: this._toDay(d.date), value: d.nupl }));
+                return weekly ? this._toWeekly(raw) : raw;
             }
             case 'smm': {
                 const series = SmmModule._series || SmmModule.compute();
                 if (!series) return [];
-                return series.map(d => ({ time: this._toDay(d.date), value: d.smm }));
+                const raw = series.map(d => ({ time: this._toDay(d.date), value: d.smm }));
+                return weekly ? this._toWeekly(raw) : raw;
             }
             case 'sec': {
                 const se = DataModule.getSellerExhaustion();
                 if (!se) return [];
-                return se.map(d => ({ time: this._toDay(d.date), value: d.sec }));
+                const raw = se.map(d => ({ time: this._toDay(d.date), value: d.sec }));
+                return weekly ? this._toWeekly(raw) : raw;
             }
             case 'rr': {
                 const rr = DataModule.getRiskReward();
                 if (!rr) return [];
-                return rr.filter(d => d && d.rr != null).map(d => ({ time: this._toDay(d.date), value: d.rr }));
+                const raw = rr.filter(d => d && d.rr != null).map(d => ({ time: this._toDay(d.date), value: d.rr }));
+                return weekly ? this._toWeekly(raw) : raw;
             }
             case 'etf': {
-                return DataModule.etfData.map(d => ({ time: this._toDay(d.date), value: d.flow }));
+                const raw = DataModule.etfData.map(d => ({ time: this._toDay(d.date), value: d.flow }));
+                return weekly ? this._toWeeklySum(raw) : raw;
             }
             default: return [];
         }

@@ -425,6 +425,14 @@ function setupEventListeners(data, priceInfo, cycleInfo) {
         });
         setTimeout(() => {
             Object.values(ChartsModule.charts).forEach(c => c && c.resize());
+            // Lightweight Charts 使用 autoSize，但全屏时容器高度变化需手动触发
+            if (typeof TvChartModule !== 'undefined' && TvChartModule.chart) {
+                const el = document.getElementById('tv-main');
+                if (el) {
+                    const h = document.fullscreenElement ? el.clientHeight : 560;
+                    TvChartModule.chart.applyOptions({ height: h });
+                }
+            }
         }, 120);
     });
 

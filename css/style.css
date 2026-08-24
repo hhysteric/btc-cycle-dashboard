@@ -186,5 +186,8 @@ html.dark .tv-toggle-btn.active {
 
 /* 全屏时 TV chart 扩展 */
 .chart-card:fullscreen #tv-main {
-    height: calc(100vh - 120px) !important;
+    height: calc(100vh - 140px) !important;
+}
+.chart-card:-webkit-full-screen #tv-main {
+    height: calc(100vh - 140px) !important;
 }

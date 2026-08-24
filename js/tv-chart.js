@@ -115,14 +115,16 @@ const TvChartModule = {
 
         // 配置独立 priceScale（非主轴的指标）
         if (cfg.scaleId !== 'right') {
-            const scaleOpts = { visible: false };
-            if (cfg.scaleId === 'vol') {
-                scaleOpts.scaleMargins = { top: 0.82, bottom: 0 };
-            } else if (cfg.scaleId === 'etf') {
-                scaleOpts.scaleMargins = { top: 0.82, bottom: 0 };
+            const scaleOpts = {};
+            if (cfg.scaleId === 'vol' || cfg.scaleId === 'etf') {
+                // 成交量/ETF：压缩到底部 20%
+                scaleOpts.scaleMargins = { top: 0.8, bottom: 0 };
+                scaleOpts.visible = false;
             } else {
-                // 其他独立指标显示在价格区域中间，不覆盖 K 线太多
-                scaleOpts.scaleMargins = { top: 0.1, bottom: 0.1 };
+                // 其他指标（RSI/Mayer/MVRV等）：使用全区域，显示左侧刻度
+                scaleOpts.scaleMargins = { top: 0.05, bottom: 0.05 };
+                scaleOpts.visible = true;
+                scaleOpts.alignLabels = true;
             }
             this.chart.priceScale(cfg.scaleId).applyOptions(scaleOpts);
         }

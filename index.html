@@ -123,27 +123,24 @@
             </div>
             <!-- Indicator toggle buttons -->
             <div class="flex flex-wrap gap-1.5 mb-3">
-                <span class="text-xs text-gray-500 dark:text-gray-400 self-center mr-1">主图:</span>
-                <button data-tv-indicator="ma6" class="tv-toggle-btn px-2.5 py-1 rounded text-xs font-medium border border-gray-300 dark:border-gray-600 hover:border-blue-400 transition">MA6</button>
-                <button data-tv-indicator="ma103" class="tv-toggle-btn px-2.5 py-1 rounded text-xs font-medium border border-gray-300 dark:border-gray-600 hover:border-red-400 transition">MA103</button>
-                <button data-tv-indicator="ma110" class="tv-toggle-btn px-2.5 py-1 rounded text-xs font-medium border border-gray-300 dark:border-gray-600 hover:border-purple-400 transition">MA110</button>
-                <button data-tv-indicator="ma200" class="tv-toggle-btn px-2.5 py-1 rounded text-xs font-medium border border-gray-300 dark:border-gray-600 hover:border-yellow-400 transition">MA200</button>
-                <button data-tv-indicator="realized" class="tv-toggle-btn px-2.5 py-1 rounded text-xs font-medium border border-gray-300 dark:border-gray-600 hover:border-green-400 transition">已实现价格</button>
+                <button data-tv-indicator="ma6" class="tv-toggle-btn px-2.5 py-1 rounded text-xs font-medium border border-gray-300 dark:border-gray-600 transition">MA6</button>
+                <button data-tv-indicator="ma103" class="tv-toggle-btn px-2.5 py-1 rounded text-xs font-medium border border-gray-300 dark:border-gray-600 transition">MA103</button>
+                <button data-tv-indicator="ma110" class="tv-toggle-btn px-2.5 py-1 rounded text-xs font-medium border border-gray-300 dark:border-gray-600 transition">MA110</button>
+                <button data-tv-indicator="ma200" class="tv-toggle-btn px-2.5 py-1 rounded text-xs font-medium border border-gray-300 dark:border-gray-600 transition">MA200</button>
+                <button data-tv-indicator="realized" class="tv-toggle-btn px-2.5 py-1 rounded text-xs font-medium border border-gray-300 dark:border-gray-600 transition">已实现价格</button>
                 <span class="w-px h-5 bg-gray-300 dark:bg-gray-600 mx-1 self-center"></span>
-                <span class="text-xs text-gray-500 dark:text-gray-400 self-center mr-1">副图:</span>
-                <button data-tv-indicator="volume" class="tv-toggle-btn px-2.5 py-1 rounded text-xs font-medium border border-gray-300 dark:border-gray-600 hover:border-indigo-400 transition">成交量</button>
-                <button data-tv-indicator="rsi" class="tv-toggle-btn px-2.5 py-1 rounded text-xs font-medium border border-gray-300 dark:border-gray-600 hover:border-yellow-400 transition">RSI</button>
-                <button data-tv-indicator="mayer" class="tv-toggle-btn px-2.5 py-1 rounded text-xs font-medium border border-gray-300 dark:border-gray-600 hover:border-blue-400 transition">Mayer</button>
-                <button data-tv-indicator="mvrv" class="tv-toggle-btn px-2.5 py-1 rounded text-xs font-medium border border-gray-300 dark:border-gray-600 hover:border-purple-400 transition">MVRV</button>
-                <button data-tv-indicator="nupl" class="tv-toggle-btn px-2.5 py-1 rounded text-xs font-medium border border-gray-300 dark:border-gray-600 hover:border-teal-400 transition">NUPL</button>
-                <button data-tv-indicator="smm" class="tv-toggle-btn px-2.5 py-1 rounded text-xs font-medium border border-gray-300 dark:border-gray-600 hover:border-orange-400 transition">SMM</button>
-                <button data-tv-indicator="sec" class="tv-toggle-btn px-2.5 py-1 rounded text-xs font-medium border border-gray-300 dark:border-gray-600 hover:border-pink-400 transition">卖方衰竭</button>
-                <button data-tv-indicator="rr" class="tv-toggle-btn px-2.5 py-1 rounded text-xs font-medium border border-gray-300 dark:border-gray-600 hover:border-green-400 transition">风险回报</button>
-                <button data-tv-indicator="etf" class="tv-toggle-btn px-2.5 py-1 rounded text-xs font-medium border border-gray-300 dark:border-gray-600 hover:border-cyan-400 transition">ETF</button>
+                <button data-tv-indicator="volume" class="tv-toggle-btn px-2.5 py-1 rounded text-xs font-medium border border-gray-300 dark:border-gray-600 transition">成交量</button>
+                <button data-tv-indicator="rsi" class="tv-toggle-btn px-2.5 py-1 rounded text-xs font-medium border border-gray-300 dark:border-gray-600 transition">RSI</button>
+                <button data-tv-indicator="mayer" class="tv-toggle-btn px-2.5 py-1 rounded text-xs font-medium border border-gray-300 dark:border-gray-600 transition">Mayer</button>
+                <button data-tv-indicator="mvrv" class="tv-toggle-btn px-2.5 py-1 rounded text-xs font-medium border border-gray-300 dark:border-gray-600 transition">MVRV</button>
+                <button data-tv-indicator="nupl" class="tv-toggle-btn px-2.5 py-1 rounded text-xs font-medium border border-gray-300 dark:border-gray-600 transition">NUPL</button>
+                <button data-tv-indicator="smm" class="tv-toggle-btn px-2.5 py-1 rounded text-xs font-medium border border-gray-300 dark:border-gray-600 transition">SMM</button>
+                <button data-tv-indicator="sec" class="tv-toggle-btn px-2.5 py-1 rounded text-xs font-medium border border-gray-300 dark:border-gray-600 transition">卖方衰竭</button>
+                <button data-tv-indicator="rr" class="tv-toggle-btn px-2.5 py-1 rounded text-xs font-medium border border-gray-300 dark:border-gray-600 transition">风险回报</button>
+                <button data-tv-indicator="etf" class="tv-toggle-btn px-2.5 py-1 rounded text-xs font-medium border border-gray-300 dark:border-gray-600 transition">ETF</button>
             </div>
-            <!-- Chart containers -->
-            <div id="tv-main" style="width:100%;height:480px;"></div>
-            <div id="tv-panes"></div>
+            <!-- Chart container -->
+            <div id="tv-main" style="width:100%;height:560px;"></div>
         </section>
 
         <!-- Price Chart with MA -->

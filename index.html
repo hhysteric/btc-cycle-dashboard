@@ -118,6 +118,10 @@
             <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
                 <h2 class="text-lg font-semibold">交互式 K 线图</h2>
                 <div class="flex gap-2 items-center">
+                    <button data-tv-timeframe="daily" class="tv-toggle-btn active px-2.5 py-1 rounded text-xs font-medium border border-gray-300 dark:border-gray-600 transition">日线</button>
+                    <button data-tv-timeframe="weekly" class="tv-toggle-btn px-2.5 py-1 rounded text-xs font-medium border border-gray-300 dark:border-gray-600 transition">周线</button>
+                    <span class="w-px h-5 bg-gray-300 dark:bg-gray-600 mx-1 self-center"></span>
+                    <button id="tv-log-btn" class="tv-toggle-btn px-2.5 py-1 rounded text-xs font-medium border border-gray-300 dark:border-gray-600 transition">Log</button>
                     <button class="chart-tool-btn fullscreen-btn px-3 py-1 rounded text-sm" data-target="card-tv">全屏</button>
                 </div>
             </div>
@@ -139,8 +143,18 @@
                 <button data-tv-indicator="rr" class="tv-toggle-btn px-2.5 py-1 rounded text-xs font-medium border border-gray-300 dark:border-gray-600 transition">风险回报</button>
                 <button data-tv-indicator="etf" class="tv-toggle-btn px-2.5 py-1 rounded text-xs font-medium border border-gray-300 dark:border-gray-600 transition">ETF</button>
             </div>
-            <!-- Chart container -->
-            <div id="tv-main" style="width:100%;height:560px;"></div>
+            <!-- Chart container (relative for legend positioning) -->
+            <div style="position:relative;">
+                <div id="tv-legend" class="tv-legend">
+                    <span class="tv-legend-symbol">BTC/USD</span>
+                    <span class="tv-legend-o">O: --</span>
+                    <span class="tv-legend-h">H: --</span>
+                    <span class="tv-legend-l">L: --</span>
+                    <span class="tv-legend-c">C: --</span>
+                    <span class="tv-legend-chg">--</span>
+                </div>
+                <div id="tv-main" style="width:100%;height:560px;"></div>
+            </div>
         </section>
 
         <!-- Price Chart with MA -->

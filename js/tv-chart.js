@@ -2,6 +2,7 @@
  * TvChartModule — TradingView Lightweight Charts 交互式 K 线面板
  *
  * 所有指标均叠加在主图上（无副图），不同量纲的指标用独立 priceScale 显示
+ * 支持日线/周线切换、对数/线性坐标、鼠标悬浮 OHLC + 涨幅 Legend
  *
  * 依赖：LightweightCharts (全局), DataModule, SmmModule
  */
@@ -11,10 +12,10 @@ const TvChartModule = {
     indicators: {},         // { key: { series, scaleId } }
     activeIndicators: new Set(),
     _container: null,
+    _timeframe: 'daily',   // 'daily' | 'weekly'
+    _logScale: false,
 
     // ─── 指标定义 ───────────────────────────────────────────────
-    // scaleId: 'right' = 与 BTC 价格共用右轴（同量纲的线）
-    //          其他字符串 = 独立 priceScale（不同量纲，显示在左侧或隐藏）
     INDICATORS: {
         // 主图同轴（价格量纲）
         ma6:       { label: 'MA6',       color: '#3b82f6', type: 'line', scaleId: 'right' },
@@ -61,6 +62,39 @@ const TvChartModule = {
         this.chart.timeScale().fitContent();
         this._bindButtons();
         this._bindThemeObserver();
+        this._bindLegend();
+    },
+
+    // ─── 时间周期切换 ─────────────────────────────────────────────
+    setTimeframe(tf) {
+        if (tf === this._timeframe) return;
+        this._timeframe = tf;
+        // 重新加载 K 线数据
+        this.candleSeries.setData(this._getOHLC());
+        // 重新加载所有已激活指标的数据
+        for (const key of this.activeIndicators) {
+            const data = this._getData(key);
+            if (data && data.length) {
+                this.indicators[key].series.setData(
+                    this._colorizeIfNeeded(key, data)
+                );
+            }
+        }
+        this.chart.timeScale().fitContent();
+        this._updateTimeframeButtons();
+        // 刷新 legend 显示最新 bar
+        this._showLegendForBar(this._getLastBar());
+    },
+
+    // ─── 对数坐标切换 ─────────────────────────────────────────────
+    setLogScale(on) {
+        this._logScale = on;
+        this.chart.priceScale('right').applyOptions({
+            mode: on ? LightweightCharts.PriceScaleMode.Logarithmic
+                     : LightweightCharts.PriceScaleMode.Normal,
+        });
+        const btn = document.getElementById('tv-log-btn');
+        if (btn) btn.classList.toggle('active', on);
     },
 
     // ─── 指标开关 ──────────────────────────────────────────────────
@@ -87,21 +121,7 @@ const TvChartModule = {
                 priceScaleId: cfg.scaleId,
                 priceFormat: cfg.scaleId === 'vol' ? { type: 'volume' } : { type: 'price', precision: 0, minMove: 1 },
             });
-            // 成交量和 ETF 用颜色区分
-            if (key === 'volume') {
-                const ohlc = DataModule.processedData;
-                series.setData(data.map((d, i) => ({
-                    ...d,
-                    color: (ohlc[i] && ohlc[i].close >= ohlc[i].open) ? 'rgba(0,211,149,0.25)' : 'rgba(255,71,87,0.25)',
-                })));
-            } else if (key === 'etf') {
-                series.setData(data.map(d => ({
-                    ...d,
-                    color: d.value >= 0 ? 'rgba(0,211,149,0.6)' : 'rgba(255,71,87,0.6)',
-                })));
-            } else {
-                series.setData(data);
-            }
+            series.setData(this._colorizeIfNeeded(key, data));
         } else {
             series = this.chart.addLineSeries({
                 color: cfg.color,
@@ -140,16 +160,41 @@ const TvChartModule = {
         this.activeIndicators.delete(key);
     },
 
+    // ─── 直方图着色 ──────────────────────────────────────────────
+    _colorizeIfNeeded(key, data) {
+        if (key === 'volume') {
+            const src = this._getSourceData();
+            return data.map((d, i) => ({
+                ...d,
+                color: (src[i] && src[i].close >= src[i].open) ? 'rgba(0,211,149,0.25)' : 'rgba(255,71,87,0.25)',
+            }));
+        }
+        if (key === 'etf') {
+            return data.map(d => ({
+                ...d,
+                color: d.value >= 0 ? 'rgba(0,211,149,0.6)' : 'rgba(255,71,87,0.6)',
+            }));
+        }
+        return data;
+    },
+
     // ─── 数据准备 ─────────────────────────────────────────────────
+    _getSourceData() {
+        return this._timeframe === 'weekly'
+            ? DataModule.aggregateWeekly(DataModule.processedData)
+            : DataModule.processedData;
+    },
+
     _getOHLC() {
-        return DataModule.processedData.map(d => ({
+        const data = this._getSourceData();
+        return data.map(d => ({
             time: this._toDay(d.date),
             open: d.open, high: d.high, low: d.low, close: d.close,
         }));
     },
 
     _getData(key) {
-        const data = DataModule.processedData;
+        const data = this._getSourceData();
         switch (key) {
             case 'ma6': case 'ma103': case 'ma110': case 'ma200': {
                 const period = { ma6: 6, ma103: 103, ma110: 110, ma200: 200 }[key];
@@ -204,6 +249,50 @@ const TvChartModule = {
         }
     },
 
+    // ─── Legend（鼠标悬浮显示 OHLC + 涨幅）────────────────────────
+    _bindLegend() {
+        this.chart.subscribeCrosshairMove(param => {
+            if (!param.time || !param.seriesData || !param.seriesData.has(this.candleSeries)) {
+                this._showLegendForBar(this._getLastBar());
+                return;
+            }
+            const bar = param.seriesData.get(this.candleSeries);
+            this._showLegendForBar(bar);
+        });
+        // 初始显示最新 bar
+        this._showLegendForBar(this._getLastBar());
+    },
+
+    _getLastBar() {
+        const ohlc = this._getOHLC();
+        if (!ohlc.length) return null;
+        const last = ohlc[ohlc.length - 1];
+        return { open: last.open, high: last.high, low: last.low, close: last.close };
+    },
+
+    _showLegendForBar(bar) {
+        const legend = document.getElementById('tv-legend');
+        if (!legend || !bar) return;
+        const chg = ((bar.close - bar.open) / bar.open * 100);
+        const sign = chg >= 0 ? '+' : '';
+        const color = chg >= 0 ? '#00d395' : '#ff4757';
+
+        legend.querySelector('.tv-legend-o').textContent = `O: ${this._fmtPrice(bar.open)}`;
+        legend.querySelector('.tv-legend-h').textContent = `H: ${this._fmtPrice(bar.high)}`;
+        legend.querySelector('.tv-legend-l').textContent = `L: ${this._fmtPrice(bar.low)}`;
+        legend.querySelector('.tv-legend-c').textContent = `C: ${this._fmtPrice(bar.close)}`;
+        const chgEl = legend.querySelector('.tv-legend-chg');
+        chgEl.textContent = `${sign}${chg.toFixed(2)}%`;
+        chgEl.style.color = color;
+    },
+
+    _fmtPrice(v) {
+        if (v == null) return '--';
+        if (v >= 1000) return '$' + Math.round(v).toLocaleString();
+        if (v >= 1) return '$' + v.toFixed(2);
+        return '$' + v.toFixed(4);
+    },
+
     // ─── 工具 ─────────────────────────────────────────────────────
     _toDay(date) {
         return date.toISOString().slice(0, 10);
@@ -239,17 +328,35 @@ const TvChartModule = {
 
     // ─── 按钮绑定 ─────────────────────────────────────────────────
     _bindButtons() {
+        // 指标 toggle 按钮
         document.querySelectorAll('[data-tv-indicator]').forEach(btn => {
             btn.addEventListener('click', () => this.toggle(btn.dataset.tvIndicator));
         });
         // 初始状态：成交量按钮高亮
         this._updateButton('volume');
+
+        // 时间周期按钮
+        document.querySelectorAll('[data-tv-timeframe]').forEach(btn => {
+            btn.addEventListener('click', () => this.setTimeframe(btn.dataset.tvTimeframe));
+        });
+
+        // 对数坐标按钮
+        const logBtn = document.getElementById('tv-log-btn');
+        if (logBtn) {
+            logBtn.addEventListener('click', () => this.setLogScale(!this._logScale));
+        }
     },
 
     _updateButton(key) {
         const btn = document.querySelector(`[data-tv-indicator="${key}"]`);
         if (!btn) return;
         btn.classList.toggle('active', this.activeIndicators.has(key));
+    },
+
+    _updateTimeframeButtons() {
+        document.querySelectorAll('[data-tv-timeframe]').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.tvTimeframe === this._timeframe);
+        });
     },
 
     // ─── 主题跟随 ─────────────────────────────────────────────────

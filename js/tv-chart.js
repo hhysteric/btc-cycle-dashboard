@@ -20,6 +20,7 @@ const TvChartModule = {
         // 主图同轴（价格量纲）
         ma6:       { label: 'MA6',       color: '#3b82f6', type: 'line', scaleId: 'right' },
         ema50:     { label: 'EMA50',     color: '#10b981', type: 'line', scaleId: 'right' },
+        ema110:    { label: 'EMA110',    color: '#e879f9', type: 'line', scaleId: 'right' },
         ma103:     { label: 'MA103',     color: '#ef4444', type: 'line', scaleId: 'right' },
         ma110:     { label: 'MA110',     color: '#a855f7', type: 'line', scaleId: 'right' },
         ma200:     { label: 'MA200',     color: '#f59e0b', type: 'line', scaleId: 'right' },
@@ -243,8 +244,8 @@ const TvChartModule = {
                 const ma = DataModule.calculateMA(data, period);
                 return data.map((d, i) => ma[i] != null ? { time: this._toDay(d.date), value: ma[i] } : null).filter(Boolean);
             }
-            case 'ema50': {
-                const period = 50;
+            case 'ema50': case 'ema110': {
+                const period = key === 'ema50' ? 50 : 110;
                 const alpha = 2 / (period + 1);
                 const result = [];
                 let prev = null;

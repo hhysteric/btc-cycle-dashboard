@@ -266,10 +266,24 @@ const DataModule = {
             }
             return null;
         };
+        // findCrossDown: a 从上方跌破 b（prevDiff > EPS → diff <= EPS）
+        const findCrossDown = (aArr, bArr, aStart, bStart) => {
+            let prevDiff = aStart - bStart;
+            for (let t = 1; t < aArr.length; t++) {
+                const diff = aArr[t] - bArr[t];
+                if (prevDiff > EPS && diff <= EPS) return t; // 从上方触及/下穿
+                prevDiff = diff;
+            }
+            return null;
+        };
         // 价格恒定，价格数组就是常量 price
         const priceArr = new Array(proj[110].length).fill(price);
+        // 牛市方向信号：上穿
         const crossPriceMA110 = findCross(priceArr, proj[110], price, cur[110]);
         const crossMA6MA103 = findCross(proj[6], proj[103], cur[6], cur[103]);
+        // 熊市方向信号：下穿
+        const crossPriceBelowMA110 = findCrossDown(priceArr, proj[110], price, cur[110]);
+        const crossMA6BelowMA103 = findCrossDown(proj[6], proj[103], cur[6], cur[103]);
 
         return {
             price, lastDate,
@@ -277,10 +291,16 @@ const DataModule = {
             proj,                      // 未来外推序列（含今天为 index0）
             aboveMA110: price > cur[110],
             ma6AboveMA103: cur[6] > cur[103],
+            // 牛市信号（上穿）
             crossPriceMA110,           // 天数 or null
             crossMA6MA103,             // 天数 or null
             crossPriceMA110Date: crossPriceMA110 != null ? this.addDays(lastDate, crossPriceMA110) : null,
             crossMA6MA103Date: crossMA6MA103 != null ? this.addDays(lastDate, crossMA6MA103) : null,
+            // 熊市信号（下穿）
+            crossPriceBelowMA110,
+            crossMA6BelowMA103,
+            crossPriceBelowMA110Date: crossPriceBelowMA110 != null ? this.addDays(lastDate, crossPriceBelowMA110) : null,
+            crossMA6BelowMA103Date: crossMA6BelowMA103 != null ? this.addDays(lastDate, crossMA6BelowMA103) : null,
         };
     },
 
@@ -798,6 +818,7 @@ const DataModule = {
     },
 
     // zZ 指标分析：价格 vs MA110（上涨/牛市信号）、MA6 vs MA103 金叉（买入信号）。
+    // 增加反向信号：价格下穿 MA110（转熊）、MA6 下穿 MA103（卖出/死叉）。
     // 交叉天数为「假设价格维持当前不变」的外推推算，不是预测。
     analyzeMA() {
         const zz = this.getZzSignals();
@@ -805,18 +826,26 @@ const DataModule = {
         const price = zz.price;
         let text = `当前价 $${Math.round(price).toLocaleString()}，`;
 
-        // 组A：上涨/牛市信号（价格上穿 MA110）
+        // 组A：上涨/转牛信号（价格上穿 MA110）+ 转熊预警（价格下穿 MA110）
         if (zz.aboveMA110) {
             text += `已触发上涨信号（价格在 MA110 上方）。`;
+            // 预警：若维持当前价格，多少天后会跌破 MA110
+            if (zz.crossPriceBelowMA110 != null) {
+                text += `⚠ 若价格维持不变，约 ${zz.crossPriceBelowMA110} 天后 ${this.fmtDate(zz.crossPriceBelowMA110Date)} 将触发转熊信号（下穿 MA110）。`;
+            }
         } else if (zz.crossPriceMA110 != null) {
             text += `尚未触发上涨信号，若维持当前价格不变，约 ${zz.crossPriceMA110} 天后 ${this.fmtDate(zz.crossPriceMA110Date)}，触发上涨/牛市启动信号。`;
         } else {
             text += `尚未触发上涨信号，按当前价格外推 ${this.ZZ_MAX_PROJECT} 天内价格仍不会上穿 MA110。`;
         }
 
-        // 组B：买入信号（MA6 上穿 MA103 金叉）
+        // 组B：买入信号（MA6 上穿 MA103 金叉）+ 卖出预警（MA6 下穿 MA103 死叉）
         if (zz.ma6AboveMA103) {
             text += `已触发买入信号（MA6 在 MA103 上方）。`;
+            // 预警：若维持当前价格，多少天后 MA6 会死叉 MA103
+            if (zz.crossMA6BelowMA103 != null) {
+                text += `⚠ 若价格维持不变，约 ${zz.crossMA6BelowMA103} 天后 ${this.fmtDate(zz.crossMA6BelowMA103Date)} 将触发卖出信号（MA6 死叉 MA103）。`;
+            }
         } else if (zz.crossMA6MA103 != null) {
             text += `约 ${zz.crossMA6MA103} 天后 ${this.fmtDate(zz.crossMA6MA103Date)}，触发买入信号。`;
         } else {

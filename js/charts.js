@@ -724,10 +724,9 @@ const ChartsModule = {
         chart.update('none');
     },
 
-    // zZ 交叉点竖线 + 信号区域着色：
-    // - 已触发信号：整图浅绿背景（两个都触发=深绿）
-    // - 未触发信号：画预测竖线 + 从预测日到右边缘画浅绿/浅橙背景
-    // - 反向信号（转熊/卖出）：红色/紫红色预测线
+    // zZ 交叉点竖线 + 信号区域着色。
+    // 已触发信号：标注在历史实际触发日（而非今天）；
+    // 延长线交叉：明确标注"假设价格不变"，这些日期会随行情每天变化。
     _zzCrossAnnotations(zz) {
         const ann = {};
         if (!zz) return ann;
@@ -735,53 +734,83 @@ const ChartsModule = {
         const buyActive = zz.ma6AboveMA103;
         const bothActive = upActive && buyActive;
 
-        // 信号已触发 → 整个图表区域用绿色背景
-        if (upActive || buyActive) {
-            ann.signalBg = {
+        // 已触发信号 → 从触发日到今天画浅绿背景
+        if (upActive && zz.triggeredUpDate) {
+            ann.upBg = {
                 type: 'box', drawTime: 'beforeDatasetsDraw',
-                backgroundColor: bothActive ? 'rgba(0,211,149,0.08)' : 'rgba(0,211,149,0.04)',
-                borderWidth: 0,
+                xMin: zz.triggeredUpDate.getTime(), xMax: zz.lastDate.getTime(),
+                backgroundColor: 'rgba(0,211,149,0.05)', borderWidth: 0,
+            };
+            ann.upTrigger = {
+                type: 'line', scaleID: 'x', value: zz.triggeredUpDate.getTime(),
+                borderColor: 'rgba(0,211,149,0.7)', borderWidth: 1.5, borderDash: [5, 4],
+                label: { display: true, content: '✓ 上涨信号触发', position: 'start',
+                    color: '#00d395', backgroundColor: 'rgba(0,211,149,0.12)', font: { size: 9 } },
+            };
+        } else if (upActive) {
+            // 触发日追溯不到（数据不足），只标当前状态
+            ann.upBg = {
+                type: 'box', drawTime: 'beforeDatasetsDraw',
+                backgroundColor: 'rgba(0,211,149,0.04)', borderWidth: 0,
             };
         }
 
-        // 上涨信号
-        if (upActive) {
-            ann.up = { type: 'line', scaleID: 'x', value: zz.lastDate.getTime(),
-                borderColor: 'rgba(0,211,149,0.5)', borderWidth: 1, borderDash: [3, 3],
-                label: { display: true, content: '✓ 上涨信号已触发', position: 'start', color: '#00d395', backgroundColor: 'rgba(0,211,149,0.15)', font: { size: 9 } } };
-            // 转熊预警
-            if (zz.crossPriceBelowMA110Date) {
-                ann.bearWarn = { type: 'line', scaleID: 'x', value: zz.crossPriceBelowMA110Date.getTime(),
-                    borderColor: 'rgba(255,71,87,0.8)', borderWidth: 1.5, borderDash: [5, 4],
-                    label: { display: true, content: '⚠ 转熊(下穿MA110)', position: 'start', color: '#ff4757', backgroundColor: 'rgba(0,0,0,0)', font: { size: 9 } } };
-                ann.bearZone = { type: 'box', drawTime: 'beforeDatasetsDraw', xMin: zz.crossPriceBelowMA110Date.getTime(),
-                    backgroundColor: 'rgba(255,71,87,0.04)', borderWidth: 0 };
-            }
-        } else if (zz.crossPriceMA110 != null && zz.crossPriceMA110Date) {
-            ann.up = { type: 'line', scaleID: 'x', value: zz.crossPriceMA110Date.getTime(), borderColor: 'rgba(0,211,149,0.7)', borderWidth: 1.5, borderDash: [5, 4],
-                label: { display: true, content: '上涨信号(上穿MA110)', position: 'start', color: '#00d395', backgroundColor: 'rgba(0,0,0,0)', font: { size: 9 } } };
-            ann.upZone = { type: 'box', drawTime: 'beforeDatasetsDraw', xMin: zz.crossPriceMA110Date.getTime(),
-                backgroundColor: 'rgba(0,211,149,0.04)', borderWidth: 0 };
+        if (buyActive && zz.triggeredBuyDate) {
+            ann.buyBg = {
+                type: 'box', drawTime: 'beforeDatasetsDraw',
+                xMin: zz.triggeredBuyDate.getTime(), xMax: zz.lastDate.getTime(),
+                backgroundColor: bothActive ? 'rgba(247,147,26,0.05)' : 'rgba(247,147,26,0.03)', borderWidth: 0,
+            };
+            ann.buyTrigger = {
+                type: 'line', scaleID: 'x', value: zz.triggeredBuyDate.getTime(),
+                borderColor: 'rgba(247,147,26,0.7)', borderWidth: 1.5, borderDash: [5, 4],
+                label: { display: true, content: '✓ 买入信号触发', position: 'end',
+                    color: '#f7931a', backgroundColor: 'rgba(247,147,26,0.12)', font: { size: 9 } },
+            };
+        } else if (buyActive) {
+            ann.buyBg = {
+                type: 'box', drawTime: 'beforeDatasetsDraw',
+                backgroundColor: 'rgba(247,147,26,0.03)', borderWidth: 0,
+            };
         }
 
-        // 买入信号
-        if (buyActive) {
-            ann.buy = { type: 'line', scaleID: 'x', value: zz.lastDate.getTime(),
-                borderColor: 'rgba(247,147,26,0.5)', borderWidth: 1, borderDash: [3, 3],
-                label: { display: true, content: '✓ 买入信号已触发', position: 'end', color: '#f7931a', backgroundColor: 'rgba(247,147,26,0.15)', font: { size: 9 } } };
-            // 卖出预警
-            if (zz.crossMA6BelowMA103Date) {
-                ann.sellWarn = { type: 'line', scaleID: 'x', value: zz.crossMA6BelowMA103Date.getTime(),
-                    borderColor: 'rgba(236,72,153,0.8)', borderWidth: 1.5, borderDash: [5, 4],
-                    label: { display: true, content: '⚠ 卖出(MA6死叉MA103)', position: 'end', color: '#ec4899', backgroundColor: 'rgba(0,0,0,0)', font: { size: 9 } } };
-                ann.sellZone = { type: 'box', drawTime: 'beforeDatasetsDraw', xMin: zz.crossMA6BelowMA103Date.getTime(),
-                    backgroundColor: 'rgba(236,72,153,0.03)', borderWidth: 0 };
-            }
-        } else if (zz.crossMA6MA103 != null && zz.crossMA6MA103Date) {
-            ann.buy = { type: 'line', scaleID: 'x', value: zz.crossMA6MA103Date.getTime(), borderColor: 'rgba(247,147,26,0.8)', borderWidth: 1.5, borderDash: [5, 4],
-                label: { display: true, content: '买入信号(MA6×MA103)', position: 'end', color: '#f7931a', backgroundColor: 'rgba(0,0,0,0)', font: { size: 9 } } };
-            ann.buyZone = { type: 'box', drawTime: 'beforeDatasetsDraw', xMin: zz.crossMA6MA103Date.getTime(),
-                backgroundColor: 'rgba(247,147,26,0.03)', borderWidth: 0 };
+        // 延长线交叉点（假设价格不变）——标注为动态推算，非固定预测
+        // 上涨信号：未触发 → 延长线显示"若价格不变"何时上穿
+        if (!upActive && zz.crossPriceMA110 != null && zz.crossPriceMA110Date) {
+            ann.upCross = {
+                type: 'line', scaleID: 'x', value: zz.crossPriceMA110Date.getTime(),
+                borderColor: 'rgba(0,211,149,0.6)', borderWidth: 1.5, borderDash: [5, 4],
+                label: { display: true, content: '延长线交叉·上穿MA110（若价格不变）', position: 'start',
+                    color: '#00d395', backgroundColor: 'rgba(0,0,0,0)', font: { size: 9 } },
+            };
+        }
+        // 转熊：已触发 → 延长线显示"若价格不变"何时下穿
+        if (upActive && zz.crossPriceBelowMA110Date) {
+            ann.bearCross = {
+                type: 'line', scaleID: 'x', value: zz.crossPriceBelowMA110Date.getTime(),
+                borderColor: 'rgba(255,71,87,0.6)', borderWidth: 1.5, borderDash: [5, 4],
+                label: { display: true, content: '延长线交叉·下穿MA110（若价格不变）', position: 'start',
+                    color: '#ff4757', backgroundColor: 'rgba(0,0,0,0)', font: { size: 9 } },
+            };
+        }
+
+        // 买入信号：未触发 → 延长线显示"若价格不变"何时金叉
+        if (!buyActive && zz.crossMA6MA103 != null && zz.crossMA6MA103Date) {
+            ann.buyCross = {
+                type: 'line', scaleID: 'x', value: zz.crossMA6MA103Date.getTime(),
+                borderColor: 'rgba(247,147,26,0.6)', borderWidth: 1.5, borderDash: [5, 4],
+                label: { display: true, content: '延长线交叉·MA6金叉MA103（若价格不变）', position: 'end',
+                    color: '#f7931a', backgroundColor: 'rgba(0,0,0,0)', font: { size: 9 } },
+            };
+        }
+        // 卖出：已触发 → 延长线显示"若价格不变"何时死叉
+        if (buyActive && zz.crossMA6BelowMA103Date) {
+            ann.sellCross = {
+                type: 'line', scaleID: 'x', value: zz.crossMA6BelowMA103Date.getTime(),
+                borderColor: 'rgba(236,72,153,0.6)', borderWidth: 1.5, borderDash: [5, 4],
+                label: { display: true, content: '延长线交叉·MA6死叉MA103（若价格不变）', position: 'end',
+                    color: '#ec4899', backgroundColor: 'rgba(0,0,0,0)', font: { size: 9 } },
+            };
         }
         return ann;
     },
@@ -1383,37 +1412,38 @@ const ChartsModule = {
             ds.push({ type: 'line', label: 'MA110 延长', data: projLine(zz.proj[110], u110), borderColor: COL.ma110, borderWidth: 1, borderDash: [4, 3], pointRadius: 0 });
             ds.push({ type: 'line', label: 'MA6 延长', data: projLine(zz.proj[6], uX), borderColor: COL.ma6, borderWidth: 1, borderDash: [4, 3], pointRadius: 0 });
             ds.push({ type: 'line', label: 'MA103 延长', data: projLine(zz.proj[103], uX), borderColor: COL.ma103, borderWidth: 1, borderDash: [4, 3], pointRadius: 0 });
-            // 信号已触发 → 全图绿色背景
-            if (zz.aboveMA110 || zz.ma6AboveMA103) {
+            // 已触发信号 → 从触发日到今天画浅绿背景 + 触发日竖线
+            if (zz.aboveMA110 && zz.triggeredUpDate) {
+                ann.upBg = { type: 'box', drawTime: 'beforeDatasetsDraw', xMin: zz.triggeredUpDate.getTime(), xMax: t0, backgroundColor: 'rgba(0,211,149,0.06)', borderWidth: 0 };
+                ann.upTrigger = { type: 'line', scaleID: 'x', value: zz.triggeredUpDate.getTime(), borderColor: 'rgba(0,211,149,0.7)', borderWidth: 1.5, borderDash: [5, 4],
+                    label: { display: true, content: '✓ 上涨信号触发', position: 'start', color: '#00d395', backgroundColor: 'rgba(0,211,149,0.1)', font: { size: 10 } } };
+            } else if (zz.aboveMA110) {
+                ann.upBg = { type: 'box', drawTime: 'beforeDatasetsDraw', backgroundColor: 'rgba(0,211,149,0.04)', borderWidth: 0 };
+            }
+            if (zz.ma6AboveMA103 && zz.triggeredBuyDate) {
                 const both = zz.aboveMA110 && zz.ma6AboveMA103;
-                ann.signalBg = { type: 'box', drawTime: 'beforeDatasetsDraw', backgroundColor: both ? 'rgba(0,211,149,0.10)' : 'rgba(0,211,149,0.05)', borderWidth: 0 };
+                ann.buyBg = { type: 'box', drawTime: 'beforeDatasetsDraw', xMin: zz.triggeredBuyDate.getTime(), xMax: t0, backgroundColor: both ? 'rgba(247,147,26,0.06)' : 'rgba(247,147,26,0.03)', borderWidth: 0 };
+                ann.buyTrigger = { type: 'line', scaleID: 'x', value: zz.triggeredBuyDate.getTime(), borderColor: 'rgba(247,147,26,0.7)', borderWidth: 1.5, borderDash: [5, 4],
+                    label: { display: true, content: '✓ 买入信号触发', position: 'end', color: '#f7931a', backgroundColor: 'rgba(247,147,26,0.1)', font: { size: 10 } } };
+            } else if (zz.ma6AboveMA103) {
+                ann.buyBg = { type: 'box', drawTime: 'beforeDatasetsDraw', backgroundColor: 'rgba(247,147,26,0.03)', borderWidth: 0 };
             }
-            // 信号未触发 → 画预测线 + 从预测日起浅绿区域
-            if (zz.aboveMA110) {
-                ann.upActive = { type: 'line', scaleID: 'x', value: t0, borderColor: 'rgba(0,211,149,0.5)', borderWidth: 0,
-                    label: { display: true, content: '✓ 上涨信号', position: 'start', color: '#00d395', backgroundColor: 'rgba(0,211,149,0.1)', font: { size: 10 } } };
-                // 转熊预警
-                if (zz.crossPriceBelowMA110Date) {
-                    ann.bearWarn = { type: 'line', scaleID: 'x', value: zz.crossPriceBelowMA110Date.getTime(), borderColor: 'rgba(255,71,87,0.8)', borderWidth: 1.5, borderDash: [5, 4],
-                        label: { display: true, content: '⚠ 转熊', position: 'start', color: '#ff4757', backgroundColor: 'rgba(0,0,0,0)', font: { size: 10 } } };
-                    ann.bearZone = { type: 'box', drawTime: 'beforeDatasetsDraw', xMin: zz.crossPriceBelowMA110Date.getTime(), backgroundColor: 'rgba(255,71,87,0.04)', borderWidth: 0 };
-                }
-            } else if (zz.crossPriceMA110Date) {
-                ann.up = { type: 'line', scaleID: 'x', value: zz.crossPriceMA110Date.getTime(), borderColor: 'rgba(0,211,149,0.7)', borderWidth: 1.5, borderDash: [5, 4], label: { display: true, content: '上涨信号', position: 'start', color: '#00d395', backgroundColor: 'rgba(0,0,0,0)', font: { size: 10 } } };
-                ann.upZone = { type: 'box', drawTime: 'beforeDatasetsDraw', xMin: zz.crossPriceMA110Date.getTime(), backgroundColor: 'rgba(0,211,149,0.05)', borderWidth: 0 };
+            // 延长线交叉（假设价格不变）
+            if (!zz.aboveMA110 && zz.crossPriceMA110Date) {
+                ann.upCross = { type: 'line', scaleID: 'x', value: zz.crossPriceMA110Date.getTime(), borderColor: 'rgba(0,211,149,0.6)', borderWidth: 1.5, borderDash: [5, 4],
+                    label: { display: true, content: '延长线·上穿MA110', position: 'start', color: '#00d395', backgroundColor: 'rgba(0,0,0,0)', font: { size: 10 } } };
             }
-            if (zz.ma6AboveMA103) {
-                ann.buyActive = { type: 'line', scaleID: 'x', value: t0, borderColor: 'rgba(247,147,26,0.5)', borderWidth: 0,
-                    label: { display: true, content: '✓ 买入信号', position: 'end', color: '#f7931a', backgroundColor: 'rgba(247,147,26,0.1)', font: { size: 10 } } };
-                // 卖出预警
-                if (zz.crossMA6BelowMA103Date) {
-                    ann.sellWarn = { type: 'line', scaleID: 'x', value: zz.crossMA6BelowMA103Date.getTime(), borderColor: 'rgba(236,72,153,0.8)', borderWidth: 1.5, borderDash: [5, 4],
-                        label: { display: true, content: '⚠ 卖出', position: 'end', color: '#ec4899', backgroundColor: 'rgba(0,0,0,0)', font: { size: 10 } } };
-                    ann.sellZone = { type: 'box', drawTime: 'beforeDatasetsDraw', xMin: zz.crossMA6BelowMA103Date.getTime(), backgroundColor: 'rgba(236,72,153,0.03)', borderWidth: 0 };
-                }
-            } else if (zz.crossMA6MA103Date) {
-                ann.buy = { type: 'line', scaleID: 'x', value: zz.crossMA6MA103Date.getTime(), borderColor: 'rgba(247,147,26,0.8)', borderWidth: 1.5, borderDash: [5, 4], label: { display: true, content: '买入信号', position: 'end', color: '#f7931a', backgroundColor: 'rgba(0,0,0,0)', font: { size: 10 } } };
-                ann.buyZone = { type: 'box', drawTime: 'beforeDatasetsDraw', xMin: zz.crossMA6MA103Date.getTime(), backgroundColor: 'rgba(247,147,26,0.04)', borderWidth: 0 };
+            if (zz.aboveMA110 && zz.crossPriceBelowMA110Date) {
+                ann.bearCross = { type: 'line', scaleID: 'x', value: zz.crossPriceBelowMA110Date.getTime(), borderColor: 'rgba(255,71,87,0.6)', borderWidth: 1.5, borderDash: [5, 4],
+                    label: { display: true, content: '延长线·下穿MA110', position: 'start', color: '#ff4757', backgroundColor: 'rgba(0,0,0,0)', font: { size: 10 } } };
+            }
+            if (!zz.ma6AboveMA103 && zz.crossMA6MA103Date) {
+                ann.buyCross = { type: 'line', scaleID: 'x', value: zz.crossMA6MA103Date.getTime(), borderColor: 'rgba(247,147,26,0.6)', borderWidth: 1.5, borderDash: [5, 4],
+                    label: { display: true, content: '延长线·MA6金叉MA103', position: 'end', color: '#f7931a', backgroundColor: 'rgba(0,0,0,0)', font: { size: 10 } } };
+            }
+            if (zz.ma6AboveMA103 && zz.crossMA6BelowMA103Date) {
+                ann.sellCross = { type: 'line', scaleID: 'x', value: zz.crossMA6BelowMA103Date.getTime(), borderColor: 'rgba(236,72,153,0.6)', borderWidth: 1.5, borderDash: [5, 4],
+                    label: { display: true, content: '延长线·MA6死叉MA103', position: 'end', color: '#ec4899', backgroundColor: 'rgba(0,0,0,0)', font: { size: 10 } } };
             }
         }
         Object.assign(ann, this.cycleBottomAnnotations('start'));

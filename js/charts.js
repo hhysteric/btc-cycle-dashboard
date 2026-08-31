@@ -1000,6 +1000,115 @@ const ChartsModule = {
         attachModifierZoom(this.charts['sellerExhaustion'], { yAxes: ['y', 'yPrice'] });
     },
 
+    // ===== URPD (UTXO Realized Price Age Distribution) =====
+    // 水平柱状图：Y 轴=年龄段标签（按成本基础排序），X 轴=BTC 持有量，颜色=盈亏
+    renderUrpdChart(urpdData) {
+        this.destroyChart('urpd');
+        const el = document.getElementById('urpd-chart');
+        if (!el || !urpdData || !urpdData.bands?.length) return;
+
+        const bands = urpdData.bands;
+        const price = urpdData.currentPrice;
+
+        // 标签：年龄段 + 成本基础
+        const labels = bands.map(b => `${b.label} (${this._fmtPrice(b.costBasis)})`);
+        const data = bands.map(b => b.supply);
+        const colors = bands.map(b =>
+            price && b.costBasis <= price ? 'rgba(0,211,149,0.65)' : 'rgba(255,71,87,0.65)'
+        );
+        const borderColors = bands.map(b =>
+            price && b.costBasis <= price ? 'rgba(0,211,149,0.9)' : 'rgba(255,71,87,0.9)'
+        );
+
+        // 当前价格对应 Y 轴位置（用于标注线）
+        // 在 sorted bands 中找到价格插入点
+        const annotations = {};
+        if (price) {
+            // 找价格应该插入的 Y 索引（浮点数）
+            let priceIdx = bands.length - 0.5; // 默认在最上面
+            for (let i = 0; i < bands.length; i++) {
+                if (bands[i].costBasis > price) {
+                    if (i === 0) { priceIdx = -0.5; }
+                    else {
+                        const lo = bands[i - 1].costBasis, hi = bands[i].costBasis;
+                        priceIdx = (i - 1) + (price - lo) / (hi - lo);
+                    }
+                    break;
+                }
+            }
+            annotations.priceLine = {
+                type: 'line', scaleID: 'y', value: priceIdx,
+                borderColor: '#f7931a', borderWidth: 2, borderDash: [6, 3],
+                label: {
+                    display: true,
+                    content: `当前价格 $${price.toLocaleString()}`,
+                    position: 'end', color: '#f7931a',
+                    backgroundColor: 'rgba(247,147,26,0.12)',
+                    font: { size: 11, weight: 'bold' },
+                },
+            };
+        }
+
+        const t = this.t();
+        this.charts['urpd'] = new Chart(el.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [{
+                    label: 'BTC 持有量',
+                    data,
+                    backgroundColor: colors,
+                    borderColor: borderColors,
+                    borderWidth: 1,
+                    borderRadius: 3,
+                }],
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    annotation: { annotations },
+                    tooltip: {
+                        callbacks: {
+                            title: (items) => {
+                                const i = items[0].dataIndex;
+                                return bands[i].label;
+                            },
+                            label: (item) => {
+                                const b = bands[item.dataIndex];
+                                const lines = [
+                                    `持有量: ${b.supply.toLocaleString(undefined, { maximumFractionDigits: 0 })} BTC`,
+                                    `成本基础: $${b.costBasis.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+                                ];
+                                if (price) {
+                                    const pnl = ((price - b.costBasis) / b.costBasis * 100);
+                                    lines.push(`浮动盈亏: ${pnl >= 0 ? '+' : ''}${pnl.toFixed(1)}%`);
+                                }
+                                return lines;
+                            },
+                        },
+                    },
+                },
+                scales: {
+                    x: {
+                        title: { display: true, text: 'BTC 持有量', color: t.tick },
+                        ticks: {
+                            color: t.tick,
+                            callback: v => v >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : v >= 1e3 ? (v / 1e3).toFixed(0) + 'K' : v,
+                        },
+                        grid: { color: t.grid },
+                    },
+                    y: {
+                        ticks: { color: t.tick, font: { size: 11 } },
+                        grid: { color: t.grid },
+                    },
+                },
+            },
+        });
+    },
+
     // ETF 资金流（同卡三栏，Chart.js 轴 stack，共享横轴）：
     //   上栏 yPrice(对数)：BTC 价格，按「近20日滚动净流入」正/负分段着色（绿=流入主导、红=流出主导）
     //   中栏 yDaily：每日净流量柱（绿正红负）——每日细节

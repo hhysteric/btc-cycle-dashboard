@@ -63,6 +63,18 @@ async function init() {
                     console.log(`[SMM] CryptoQuant data loaded (${cqData.size} days), tiers updated`);
                 }
             }).catch(e => console.warn('[SMM] CryptoQuant fetch failed, using local data:', e));
+            // URPD（独立端点，不影响 fetchAll）
+            CryptoQuantModule.fetchUrpd().then(urpd => {
+                if (urpd && urpd.bands?.length) {
+                    ChartsModule.renderUrpdChart(urpd);
+                    const el = document.getElementById('urpd-current');
+                    if (el) {
+                        const parts = [`日期 ${urpd.date}`];
+                        if (urpd.profitPercent != null) parts.push(`盈利 UTXO ${urpd.profitPercent.toFixed(1)}%`);
+                        el.textContent = parts.join(' · ');
+                    }
+                }
+            }).catch(e => console.warn('[URPD] fetch failed:', e));
         }
     }
     // JLST 动量择时信号（仅依赖本地历史数据）

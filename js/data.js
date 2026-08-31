@@ -162,44 +162,69 @@ const DataModule = {
     },
 
     // 加载 URPD CSV（data/urpd.csv）。
-    // 格式：date,band,label,supply,cost_basis,profit_percent。降序，每天 ~13 行。
-    // 只取最新一天的数据，返回 { date, profitPercent, currentPrice, bands: [{band, label, supply, costBasis}] }。
+    // 格式：date,band,label,supply,cost_basis,profit_percent,supply_percent,supply_usd,
+    //        realized_cap_usd,realized_cap_percent,utxo_count。降序，每天 ~13 行，365 天历史。
+    // 返回 { dates, byDate, latest }，latest 是最新一天的快照。
     async loadUrpdCSV() {
         try {
             const text = await fetch('data/urpd.csv' + this._cacheBust()).then(r => r.text());
             const lines = text.trim().split('\n');
             if (lines.length < 2) { this.urpdData = null; return null; }
 
-            // 第一条数据行的日期即最新日期
-            const newestDate = lines[1].split(',')[0].trim().slice(0, 10);
-            let profitPercent = null;
-            const bands = [];
+            const byDate = {};  // { 'YYYY-MM-DD': { profitPercent, bands: [...] } }
+            const dateOrder = []; // 降序日期列表
 
             for (let i = 1; i < lines.length; i++) {
                 const cols = lines[i].split(',');
                 if (cols.length < 6) continue;
                 const day = cols[0].trim().slice(0, 10);
-                if (day !== newestDate) break; // 只取最新一天
-                const band = cols[1].trim();
-                const label = cols[2].trim();
+                if (!day) continue;
+
+                if (!byDate[day]) {
+                    byDate[day] = { profitPercent: null, bands: [] };
+                    dateOrder.push(day);
+                }
+
+                const entry = byDate[day];
                 const supply = parseFloat(cols[3]);
                 const costBasis = parseFloat(cols[4]);
-                const pp = parseFloat(cols[5]);
                 if (isNaN(supply) || isNaN(costBasis)) continue;
-                bands.push({ band, label, supply, costBasis });
-                if (profitPercent === null && !isNaN(pp)) profitPercent = pp;
+
+                const pp = parseFloat(cols[5]);
+                if (entry.profitPercent === null && !isNaN(pp)) entry.profitPercent = pp;
+
+                const band = {
+                    band: cols[1].trim(),
+                    label: cols[2].trim(),
+                    supply,
+                    costBasis,
+                    supplyPercent: parseFloat(cols[6]) || null,
+                    supplyUsd: parseFloat(cols[7]) || null,
+                    realizedCapUsd: parseFloat(cols[8]) || null,
+                    realizedCapPercent: parseFloat(cols[9]) || null,
+                    utxoCount: parseInt(cols[10]) || null,
+                };
+                entry.bands.push(band);
             }
 
-            // 按成本基础升序（CSV 已排序，但确保一致）
-            bands.sort((a, b) => a.costBasis - b.costBasis);
+            // 每天的 bands 按成本基础升序
+            for (const day of dateOrder) {
+                byDate[day].bands.sort((a, b) => a.costBasis - b.costBasis);
+            }
 
             const currentPrice = this.processedData.length
                 ? this.processedData[this.processedData.length - 1].close
                 : null;
 
-            this.urpdData = bands.length
-                ? { date: newestDate, profitPercent, currentPrice, bands }
-                : null;
+            const latestDate = dateOrder[0];
+            const latest = latestDate ? {
+                date: latestDate,
+                profitPercent: byDate[latestDate].profitPercent,
+                currentPrice,
+                bands: byDate[latestDate].bands,
+            } : null;
+
+            this.urpdData = dateOrder.length ? { dates: dateOrder, byDate, latest, currentPrice } : null;
             return this.urpdData;
         } catch (e) {
             console.warn('Failed to load URPD CSV:', e.message);

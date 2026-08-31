@@ -1018,20 +1018,27 @@ const ChartsModule = {
         ctx.fillText(text, el.clientWidth / 2, el.clientHeight / 2);
     },
 
-    renderUrpdChart(urpdData) {
+    /**
+     * 渲染 URPD 水平柱状图。
+     * @param {object} snapshot - { date, profitPercent, currentPrice, bands: [{band,label,supply,costBasis,supplyPercent,...}] }
+     */
+    renderUrpdChart(snapshot) {
         this.destroyChart('urpd');
         const el = document.getElementById('urpd-chart');
         if (!el) return;
-        if (!urpdData || !urpdData.bands?.length) {
-            this._urpdStatus('URPD 数据加载失败（CryptoQuant API 不可用）');
+        if (!snapshot || !snapshot.bands?.length) {
+            this._urpdStatus('URPD 数据加载失败');
             return;
         }
 
-        const bands = urpdData.bands;
-        const price = urpdData.currentPrice;
+        const bands = snapshot.bands;
+        const price = snapshot.currentPrice;
 
-        // 标签：年龄段 + 成本基础
-        const labels = bands.map(b => `${b.label} (${this._fmtPrice(b.costBasis)})`);
+        // 标签：年龄段 + 成本基础 + 供应占比
+        const labels = bands.map(b => {
+            const pct = b.supplyPercent != null ? ` ${b.supplyPercent.toFixed(1)}%` : '';
+            return `${b.label} (${this._fmtPrice(b.costBasis)})${pct}`;
+        });
         const data = bands.map(b => b.supply);
         const colors = bands.map(b =>
             price && b.costBasis <= price ? 'rgba(0,211,149,0.65)' : 'rgba(255,71,87,0.65)'
@@ -1040,12 +1047,10 @@ const ChartsModule = {
             price && b.costBasis <= price ? 'rgba(0,211,149,0.9)' : 'rgba(255,71,87,0.9)'
         );
 
-        // 当前价格对应 Y 轴位置（用于标注线）
-        // 在 sorted bands 中找到价格插入点
+        // 当前价格标注线
         const annotations = {};
         if (price) {
-            // 找价格应该插入的 Y 索引（浮点数）
-            let priceIdx = bands.length - 0.5; // 默认在最上面
+            let priceIdx = bands.length - 0.5;
             for (let i = 0; i < bands.length; i++) {
                 if (bands[i].costBasis > price) {
                     if (i === 0) { priceIdx = -0.5; }
@@ -1061,13 +1066,27 @@ const ChartsModule = {
                 borderColor: '#f7931a', borderWidth: 2, borderDash: [6, 3],
                 label: {
                     display: true,
-                    content: `当前价格 $${price.toLocaleString()}`,
+                    content: `当前价格 ${this._fmtPrice(price)}`,
                     position: 'end', color: '#f7931a',
                     backgroundColor: 'rgba(247,147,26,0.12)',
                     font: { size: 11, weight: 'bold' },
                 },
             };
         }
+
+        const fmtUsd = v => {
+            if (v == null) return '--';
+            if (v >= 1e12) return '$' + (v / 1e12).toFixed(1) + 'T';
+            if (v >= 1e9) return '$' + (v / 1e9).toFixed(1) + 'B';
+            if (v >= 1e6) return '$' + (v / 1e6).toFixed(1) + 'M';
+            return '$' + v.toLocaleString(undefined, { maximumFractionDigits: 0 });
+        };
+        const fmtCount = v => {
+            if (v == null) return '--';
+            if (v >= 1e6) return (v / 1e6).toFixed(2) + 'M';
+            if (v >= 1e3) return (v / 1e3).toFixed(0) + 'K';
+            return v.toLocaleString();
+        };
 
         const t = this.t();
         this.charts['urpd'] = new Chart(el.getContext('2d'), {
@@ -1093,8 +1112,8 @@ const ChartsModule = {
                     tooltip: {
                         callbacks: {
                             title: (items) => {
-                                const i = items[0].dataIndex;
-                                return bands[i].label;
+                                const b = bands[items[0].dataIndex];
+                                return `${b.label}（持有期）`;
                             },
                             label: (item) => {
                                 const b = bands[item.dataIndex];
@@ -1102,6 +1121,14 @@ const ChartsModule = {
                                     `持有量: ${b.supply.toLocaleString(undefined, { maximumFractionDigits: 0 })} BTC`,
                                     `成本基础: $${b.costBasis.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
                                 ];
+                                if (b.supplyPercent != null)
+                                    lines.push(`供应占比: ${b.supplyPercent.toFixed(2)}%`);
+                                if (b.supplyUsd != null)
+                                    lines.push(`市值 (USD): ${fmtUsd(b.supplyUsd)}`);
+                                if (b.realizedCapUsd != null)
+                                    lines.push(`已实现市值: ${fmtUsd(b.realizedCapUsd)} (${(b.realizedCapPercent || 0).toFixed(1)}%)`);
+                                if (b.utxoCount != null)
+                                    lines.push(`UTXO 数量: ${fmtCount(b.utxoCount)}`);
                                 if (price) {
                                     const pnl = ((price - b.costBasis) / b.costBasis * 100);
                                     lines.push(`浮动盈亏: ${pnl >= 0 ? '+' : ''}${pnl.toFixed(1)}%`);

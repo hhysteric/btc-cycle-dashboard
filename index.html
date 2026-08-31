@@ -505,12 +505,13 @@
                 <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
                     <h2 class="text-lg font-semibold">URPD 成本基础 × 年龄分布</h2>
                     <div class="flex gap-2 items-center">
+                        <select id="urpd-date-select" class="text-sm bg-gray-100 dark:bg-dark-700 border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-gray-700 dark:text-gray-300"></select>
                         <span id="urpd-current" class="text-sm text-accent-gold font-semibold">--</span>
                         <span class="w-px h-5 bg-gray-400 dark:bg-gray-600 mx-1"></span>
                         <button class="chart-tool-btn fullscreen-btn px-3 py-1 rounded text-sm" data-target="card-urpd-local">全屏</button>
                     </div>
                 </div>
-                <p class="text-gray-500 dark:text-gray-400 text-sm mb-3">每根柱代表一个持有年龄段的 BTC 总量，Y 轴按该群组的平均成本基础（已实现价格）排序。<span class="text-accent-green">绿色</span>=成本低于当前价（盈利），<span class="text-accent-red">红色</span>=成本高于当前价（亏损）。橙色虚线=当前价格。</p>
+                <p class="text-gray-500 dark:text-gray-400 text-sm mb-3">每根柱代表一个持有年龄段的 BTC 总量，Y 轴按该群组的平均成本基础（已实现价格）排序。标签含供应占比。悬浮查看已实现市值、UTXO 数量等详情。<span class="text-accent-green">绿色</span>=盈利，<span class="text-accent-red">红色</span>=亏损。可切换历史日期。</p>
                 <div class="chart-canvas-wrap" style="height:480px">
                     <canvas id="urpd-chart"></canvas>
                 </div>
@@ -687,8 +688,8 @@
     </footer>
 
     <!-- ?v 版本号：改代码时手动 +1，强制浏览器拉最新 JS，避免看到旧缓存版本 -->
-    <script src="js/data.js?v=20260831e"></script>
-    <script src="js/charts.js?v=20260831d"></script>
+    <script src="js/data.js?v=20260831f"></script>
+    <script src="js/charts.js?v=20260831f"></script>
     <script src="js/cryptoquant.js?v=20260831e"></script>
     <script src="js/smm.js?v=20260821"></script>
     <script src="js/jlst.js?v=20260821"></script>
@@ -698,6 +699,6 @@
     <script src="js/mvrv-cycle.js?v=20260814c"></script>
     <script src="js/tv-chart.js?v=20260831"></script>
     <script src="js/report.js?v=20260821"></script>
-    <script src="js/app.js?v=20260831e"></script>
+    <script src="js/app.js?v=20260831f"></script>
 </body>
 </html>

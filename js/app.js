@@ -1,6 +1,45 @@
 let currentReport = null;
 let appState = { data: null, priceInfo: null, cycleInfo: null };
 
+// ========== URPD 日期切换逻辑 ==========
+function _initUrpd(urpdAll) {
+    const sel = document.getElementById('urpd-date-select');
+    // 填充日期下拉框
+    if (sel) {
+        sel.innerHTML = '';
+        for (const d of urpdAll.dates) {
+            const opt = document.createElement('option');
+            opt.value = d;
+            opt.textContent = d;
+            sel.appendChild(opt);
+        }
+        sel.value = urpdAll.dates[0]; // 默认最新
+        sel.onchange = () => _renderUrpdDate(urpdAll, sel.value);
+    }
+    _renderUrpdDate(urpdAll, urpdAll.dates[0]);
+}
+
+function _renderUrpdDate(urpdAll, dateStr) {
+    const dayData = urpdAll.byDate[dateStr];
+    if (!dayData || !dayData.bands?.length) {
+        ChartsModule._urpdStatus(`${dateStr} 无数据`);
+        return;
+    }
+    const snapshot = {
+        date: dateStr,
+        profitPercent: dayData.profitPercent,
+        currentPrice: urpdAll.currentPrice,
+        bands: dayData.bands,
+    };
+    ChartsModule.renderUrpdChart(snapshot);
+    const el = document.getElementById('urpd-current');
+    if (el) {
+        const parts = [];
+        if (snapshot.profitPercent != null) parts.push(`盈利 UTXO ${snapshot.profitPercent.toFixed(1)}%`);
+        el.textContent = parts.join(' · ') || '--';
+    }
+}
+
 // 主题：默认亮色，读 localStorage。要在渲染任何图表前先确定，保证首屏配色正确。
 function applyInitialTheme() {
     const saved = localStorage.getItem('theme');
@@ -63,15 +102,9 @@ async function init() {
                     console.log(`[SMM] CryptoQuant data loaded (${cqData.size} days), tiers updated`);
                 }
             }).catch(e => console.warn('[SMM] CryptoQuant fetch failed, using local data:', e));
-            // URPD（数据已通过 CSV 加载到 DataModule.urpdData）
-            if (DataModule.urpdData && DataModule.urpdData.bands?.length) {
-                ChartsModule.renderUrpdChart(DataModule.urpdData);
-                const el = document.getElementById('urpd-current');
-                if (el) {
-                    const parts = [`日期 ${DataModule.urpdData.date}`];
-                    if (DataModule.urpdData.profitPercent != null) parts.push(`盈利 UTXO ${DataModule.urpdData.profitPercent.toFixed(1)}%`);
-                    el.textContent = parts.join(' · ');
-                }
+            // URPD（数据已通过 CSV 加载到 DataModule.urpdData，支持多日历史）
+            if (DataModule.urpdData && DataModule.urpdData.latest?.bands?.length) {
+                _initUrpd(DataModule.urpdData);
             } else {
                 ChartsModule._urpdStatus('URPD 数据暂无（等待 GitHub Actions 更新）');
             }

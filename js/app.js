@@ -30,8 +30,8 @@ async function init() {
         console.error('数据加载失败，请确保 data/btc_historical.csv 文件存在');
         return;
     }
-    // 链上 CSV + ETF 资金流 CSV + BTC/AAPL 与行情并行加载；失败不阻塞主看板
-    await Promise.all([DataModule.loadOnchainCSV(), DataModule.loadEtfCSV(), DataModule.loadBtcAaplCSV()]);
+    // 链上 CSV + ETF 资金流 CSV + BTC/AAPL + Dominance 与行情并行加载；失败不阻塞主看板
+    await Promise.all([DataModule.loadOnchainCSV(), DataModule.loadEtfCSV(), DataModule.loadBtcAaplCSV(), DataModule.loadDominanceCSV()]);
 
     // 先用 CSV 数据（本地即可得）立即渲染，不被外部 API 阻塞
     const latest = DataModule.getLatest();

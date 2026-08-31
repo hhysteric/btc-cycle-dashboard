@@ -11,6 +11,7 @@ const TvChartModule = {
     candleSeries: null,
     indicators: {},         // { key: { series, scaleId } }
     activeIndicators: new Set(),
+    _invertedScales: new Set(), // 已翻转的 scaleId
     _container: null,
     _timeframe: 'daily',   // 'daily' | 'weekly'
     _logScale: false,
@@ -35,6 +36,8 @@ const TvChartModule = {
         sec:       { label: '卖方衰竭',  color: '#ec4899', type: 'line', scaleId: 'sec' },
         rr:        { label: '风险回报',  color: '#22c55e', type: 'line', scaleId: 'rr' },
         etf:       { label: 'ETF净流入', color: '#06b6d4', type: 'histogram', scaleId: 'etf' },
+        usdtd:     { label: 'USDT.D',   color: '#26a69a', type: 'line', scaleId: 'usdtd' },
+        btcd:      { label: 'BTC.D',    color: '#42a5f5', type: 'line', scaleId: 'btcd' },
     },
 
     // ─── 初始化 ───────────────────────────────────────────────────
@@ -97,6 +100,21 @@ const TvChartModule = {
         });
         const btn = document.getElementById('tv-log-btn');
         if (btn) btn.classList.toggle('active', on);
+    },
+
+    // ─── 坐标翻转 ──────────────────────────────────────────────────
+    toggleInvert(scaleId) {
+        if (!this.chart) return;
+        const inverted = this._invertedScales.has(scaleId);
+        if (inverted) {
+            this._invertedScales.delete(scaleId);
+        } else {
+            this._invertedScales.add(scaleId);
+        }
+        this.chart.priceScale(scaleId).applyOptions({ invertScale: !inverted });
+        // 更新翻转按钮状态
+        const btn = document.querySelector(`[data-tv-invert="${scaleId}"]`);
+        if (btn) btn.classList.toggle('active', !inverted);
     },
 
     // ─── 指标开关 ──────────────────────────────────────────────────
@@ -309,6 +327,18 @@ const TvChartModule = {
                 const raw = DataModule.etfData.map(d => ({ time: this._toDay(d.date), value: d.flow }));
                 return weekly ? this._toWeeklySum(raw) : raw;
             }
+            case 'usdtd': {
+                const raw = DataModule.dominanceData
+                    .filter(d => d.usdtD != null)
+                    .map(d => ({ time: this._toDay(d.date), value: d.usdtD }));
+                return weekly ? this._toWeekly(raw) : raw;
+            }
+            case 'btcd': {
+                const raw = DataModule.dominanceData
+                    .filter(d => d.btcD != null)
+                    .map(d => ({ time: this._toDay(d.date), value: d.btcD }));
+                return weekly ? this._toWeekly(raw) : raw;
+            }
             default: return [];
         }
     },
@@ -409,6 +439,11 @@ const TvChartModule = {
         if (logBtn) {
             logBtn.addEventListener('click', () => this.setLogScale(!this._logScale));
         }
+
+        // 坐标翻转按钮
+        document.querySelectorAll('[data-tv-invert]').forEach(btn => {
+            btn.addEventListener('click', () => this.toggleInvert(btn.dataset.tvInvert));
+        });
     },
 
     _updateButton(key) {

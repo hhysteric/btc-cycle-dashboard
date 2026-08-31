@@ -22,6 +22,7 @@ const DataModule = {
     onchainData: [],   // [{date, mvrv, realizedPrice}] 升序
     etfData: [],       // [{date, flow, cumulative}] 升序，flow 单位百万美元
     btcAaplData: [],   // [{date, aapl, btc, ratio}] 升序
+    dominanceData: [], // [{date, btcD, usdtD}] 升序，百分比值
     _mvrvBands: null,
 
     // 每日缓存击穿参数：让浏览器每天重新拉一次 CSV，确保拿到当天 Actions 更新后的最新数据
@@ -131,6 +132,31 @@ const DataModule = {
         } catch (e) {
             console.warn('Failed to load BTC/AAPL CSV:', e.message);
             this.btcAaplData = [];
+            return [];
+        }
+    },
+
+    // 加载 BTC.D / USDT.D 市占率 CSV（data/dominance.csv）。
+    // 格式：Datetime,BTC.D,USDT.D。降序。百分比值（如 59.65, 7.02）。
+    async loadDominanceCSV() {
+        try {
+            const text = await fetch('data/dominance.csv' + this._cacheBust()).then(r => r.text());
+            const lines = text.trim().split('\n');
+            const rows = [];
+            for (let i = 1; i < lines.length; i++) {
+                const cols = lines[i].split(',');
+                if (cols.length < 3) continue;
+                const day = cols[0].trim().slice(0, 10);
+                const btcD = parseFloat(cols[1]);
+                const usdtD = parseFloat(cols[2]);
+                if (!day || isNaN(btcD)) continue;
+                rows.push({ date: new Date(day), btcD, usdtD: isNaN(usdtD) ? null : usdtD });
+            }
+            this.dominanceData = rows.sort((a, b) => a.date - b.date);
+            return this.dominanceData;
+        } catch (e) {
+            console.warn('Failed to load dominance CSV:', e.message);
+            this.dominanceData = [];
             return [];
         }
     },

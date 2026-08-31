@@ -40,12 +40,15 @@ jobs:
       - name: Run incremental update (BTC/AAPL 比率, Market Data)
         run: python scripts/update_btc_aapl.py
 
+      - name: Run incremental update (BTC.D / USDT.D Dominance, CoinGecko)
+        run: python scripts/update_dominance.py
+
       - name: Commit changes if any
         run: |
-          if [ -n "$(git status --porcelain data/btc_historical.csv data/mvrv.csv data/realized_price.csv data/nupl.csv data/etf_flow.csv data/btc_aapl.csv)" ]; then
+          if [ -n "$(git status --porcelain data/btc_historical.csv data/mvrv.csv data/realized_price.csv data/nupl.csv data/etf_flow.csv data/btc_aapl.csv data/dominance.csv)" ]; then
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add data/btc_historical.csv data/mvrv.csv data/realized_price.csv data/nupl.csv data/etf_flow.csv data/btc_aapl.csv
+            git add data/btc_historical.csv data/mvrv.csv data/realized_price.csv data/nupl.csv data/etf_flow.csv data/btc_aapl.csv data/dominance.csv
             git commit -m "data: auto-update BTC daily + on-chain + ETF + BTC/AAPL data [skip ci]"
             git push
           else

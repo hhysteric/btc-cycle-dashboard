@@ -1,22 +1,34 @@
 let currentReport = null;
 let appState = { data: null, priceInfo: null, cycleInfo: null };
 
-// ========== URPD 日期切换逻辑 ==========
+// ========== URPD 日期滑杆逻辑 ==========
 function _initUrpd(urpdAll) {
-    const sel = document.getElementById('urpd-date-select');
-    // 填充日期下拉框
-    if (sel) {
-        sel.innerHTML = '';
-        for (const d of urpdAll.dates) {
-            const opt = document.createElement('option');
-            opt.value = d;
-            opt.textContent = d;
-            sel.appendChild(opt);
-        }
-        sel.value = urpdAll.dates[0]; // 默认最新
-        sel.onchange = () => _renderUrpdDate(urpdAll, sel.value);
+    const slider = document.getElementById('urpd-date-slider');
+    const dateLabel = document.getElementById('urpd-date-label');
+    const minLabel = document.getElementById('urpd-slider-min');
+    const maxLabel = document.getElementById('urpd-slider-max');
+    // dates 是降序（最新在前），滑杆左=最旧、右=最新 → 反转索引
+    const dates = urpdAll.dates;  // ['2026-08-30', '2026-08-29', ..., '2025-09-01']
+    const maxIdx = dates.length - 1;
+
+    if (slider) {
+        slider.min = 0;
+        slider.max = maxIdx;
+        slider.value = maxIdx; // 默认最右=最新
+        if (minLabel) minLabel.textContent = dates[maxIdx]; // 最旧
+        if (maxLabel) maxLabel.textContent = dates[0];      // 最新
+
+        const onSlide = () => {
+            const idx = maxIdx - parseInt(slider.value); // 反转：slider.value 0=最旧 → dates[maxIdx]
+            const dateStr = dates[idx];
+            if (dateLabel) dateLabel.textContent = dateStr;
+            _renderUrpdDate(urpdAll, dateStr);
+        };
+        slider.oninput = onSlide;
     }
-    _renderUrpdDate(urpdAll, urpdAll.dates[0]);
+    // 初始渲染最新
+    if (dateLabel) dateLabel.textContent = dates[0];
+    _renderUrpdDate(urpdAll, dates[0]);
 }
 
 function _renderUrpdDate(urpdAll, dateStr) {

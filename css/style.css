@@ -207,3 +207,35 @@ html.dark .tv-legend { color: #9ca3af; }
 .chart-card:-webkit-full-screen #tv-main {
     height: calc(100vh - 140px) !important;
 }
+
+/* ===== URPD 日期滑杆 ===== */
+.urpd-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 6px;
+    border-radius: 3px;
+    background: #d1d5db;
+    outline: none;
+    cursor: pointer;
+}
+html.dark .urpd-slider { background: #374151; }
+
+.urpd-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: var(--gold);
+    border: 2px solid #fff;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+    cursor: grab;
+}
+.urpd-slider::-moz-range-thumb {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: var(--gold);
+    border: 2px solid #fff;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+    cursor: grab;
+}
+html.dark .urpd-slider::-webkit-slider-thumb { border-color: #1a1a2e; }
+html.dark .urpd-slider::-moz-range-thumb { border-color: #1a1a2e; }

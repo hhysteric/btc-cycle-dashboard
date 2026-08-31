@@ -13,7 +13,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.2/dist/lightweight-charts.standalone.production.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/style.css?v=20260831h">
     <script>
         tailwind.config = {
             darkMode: 'class',
@@ -511,14 +511,16 @@
                         <button class="chart-tool-btn fullscreen-btn px-3 py-1 rounded text-sm" data-target="card-urpd-local">全屏</button>
                     </div>
                 </div>
-                <div class="flex items-center gap-3 mb-3">
-                    <span class="text-xs text-gray-400 shrink-0" id="urpd-slider-min">--</span>
-                    <input type="range" id="urpd-date-slider" min="0" max="0" value="0" class="urpd-slider flex-1" />
-                    <span class="text-xs text-gray-400 shrink-0" id="urpd-slider-max">--</span>
-                </div>
-                <p class="text-gray-500 dark:text-gray-400 text-sm mb-3">拖动滑杆查看历史 URPD 快照。标签含供应占比，悬浮查看已实现市值、UTXO 数量等详情。<span class="text-accent-green">绿色</span>=盈利，<span class="text-accent-red">红色</span>=亏损。</p>
-                <div class="chart-canvas-wrap" style="height:480px">
-                    <canvas id="urpd-chart"></canvas>
+                <p class="text-gray-500 dark:text-gray-400 text-sm mb-3">拖动右侧滑杆穿越历史。标签含供应占比，悬浮查看已实现市值、UTXO 数量等详情。<span class="text-accent-green">绿色</span>=盈利，<span class="text-accent-red">红色</span>=亏损。</p>
+                <div class="flex gap-0" style="height:480px">
+                    <div class="chart-canvas-wrap flex-1" style="height:100%">
+                        <canvas id="urpd-chart"></canvas>
+                    </div>
+                    <div class="urpd-vslider-wrap shrink-0" style="width:40px; height:100%">
+                        <span class="text-xs text-gray-400 block text-center" id="urpd-slider-max">--</span>
+                        <input type="range" id="urpd-date-slider" min="0" max="0" value="0" class="urpd-slider-v" />
+                        <span class="text-xs text-gray-400 block text-center" id="urpd-slider-min">--</span>
+                    </div>
                 </div>
             </div>
 

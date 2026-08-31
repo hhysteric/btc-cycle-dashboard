@@ -494,6 +494,56 @@
                     <iframe src="https://charts.checkonchain.com/btconchain/pricing/pricing_costbasisoriginals/pricing_costbasisoriginals_light.html" style="width:100%;height:100%;border:0" loading="lazy" referrerpolicy="no-referrer"></iframe>
                 </div>
             </div>
+
+            <!-- URPD 已实现价格分布 -->
+            <div class="bg-white dark:bg-dark-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
+                <h2 class="text-lg font-semibold mb-1">URPD 已实现价格分布</h2>
+                <p class="text-gray-500 dark:text-gray-400 text-sm">UTXO Realized Price Distribution — 显示比特币供应量按最后一次链上移动时的价格分布。密集筹码区构成强支撑/阻力。数据源 <a href="https://charts.checkonchain.com" class="text-accent-gold hover:underline" target="_blank">CheckOnChain</a>。</p>
+            </div>
+
+            <div id="card-urpd" class="chart-card bg-white dark:bg-dark-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
+                <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                    <a href="https://charts.checkonchain.com/btconchain/urpd/urpd/urpd_light.html" target="_blank" class="font-semibold text-accent-gold hover:underline">URPD 供应分布（CheckOnChain）↗</a>
+                    <button class="chart-tool-btn fullscreen-btn px-3 py-1 rounded text-sm" data-target="card-urpd">全屏</button>
+                </div>
+                <p class="text-gray-500 dark:text-gray-400 text-sm mb-3">当前全部 UTXO 按已实现价格（最后一次移动时的价格）分布。柱越高说明该价位筹码越密集——构成支撑或阻力。当前价格附近的密集区越厚，价格越难突破。</p>
+                <div class="chart-canvas-wrap rounded-lg overflow-hidden bg-white" style="height:560px">
+                    <iframe src="https://charts.checkonchain.com/btconchain/urpd/urpd/urpd_light.html" style="width:100%;height:100%;border:0" loading="lazy" referrerpolicy="no-referrer"></iframe>
+                </div>
+            </div>
+
+            <div id="card-urpd-cohort" class="chart-card bg-white dark:bg-dark-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
+                <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                    <a href="https://charts.checkonchain.com/btconchain/urpd/urpd_cohort/urpd_cohort_light.html" target="_blank" class="font-semibold text-accent-gold hover:underline">URPD 持有者群组分布（CheckOnChain）↗</a>
+                    <button class="chart-tool-btn fullscreen-btn px-3 py-1 rounded text-sm" data-target="card-urpd-cohort">全屏</button>
+                </div>
+                <p class="text-gray-500 dark:text-gray-400 text-sm mb-3">按持有时长拆分的 URPD：短期持有者 (STH, &lt;155天) vs 长期持有者 (LTH, ≥155天)。牛市顶部 STH 筹码堆积在高位；熊市底部 LTH 筹码占主导。</p>
+                <div class="chart-canvas-wrap rounded-lg overflow-hidden bg-white" style="height:560px">
+                    <iframe src="https://charts.checkonchain.com/btconchain/urpd/urpd_cohort/urpd_cohort_light.html" style="width:100%;height:100%;border:0" loading="lazy" referrerpolicy="no-referrer"></iframe>
+                </div>
+            </div>
+
+            <div id="card-urpd-unrealised" class="chart-card bg-white dark:bg-dark-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
+                <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                    <a href="https://charts.checkonchain.com/btconchain/urpd/urpd_unrealised/urpd_unrealised_light.html" target="_blank" class="font-semibold text-accent-gold hover:underline">URPD 未实现盈亏分布（CheckOnChain）↗</a>
+                    <button class="chart-tool-btn fullscreen-btn px-3 py-1 rounded text-sm" data-target="card-urpd-unrealised">全屏</button>
+                </div>
+                <p class="text-gray-500 dark:text-gray-400 text-sm mb-3">每个价格区间的 UTXO 当前处于盈利（绿）还是亏损（红）状态。大量亏损筹码集中在某价位上方 → 该价位是强阻力；大量盈利筹码在下方 → 该价位是强支撑。</p>
+                <div class="chart-canvas-wrap rounded-lg overflow-hidden bg-white" style="height:560px">
+                    <iframe src="https://charts.checkonchain.com/btconchain/urpd/urpd_unrealised/urpd_unrealised_light.html" style="width:100%;height:100%;border:0" loading="lazy" referrerpolicy="no-referrer"></iframe>
+                </div>
+            </div>
+
+            <div id="card-urpd-diff" class="chart-card bg-white dark:bg-dark-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
+                <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                    <a href="https://charts.checkonchain.com/btconchain/urpd/urpd_diff_90/urpd_diff_90_light.html" target="_blank" class="font-semibold text-accent-gold hover:underline">URPD 90天变化（CheckOnChain）↗</a>
+                    <button class="chart-tool-btn fullscreen-btn px-3 py-1 rounded text-sm" data-target="card-urpd-diff">全屏</button>
+                </div>
+                <p class="text-gray-500 dark:text-gray-400 text-sm mb-3">过去 90 天内各价格区间筹码的净变化（增加/减少）。正柱=新增筹码积累、负柱=原有筹码被消耗。可观察近期资金在哪个价位"换手"最活跃。</p>
+                <div class="chart-canvas-wrap rounded-lg overflow-hidden bg-white" style="height:560px">
+                    <iframe src="https://charts.checkonchain.com/btconchain/urpd/urpd_diff_90/urpd_diff_90_light.html" style="width:100%;height:100%;border:0" loading="lazy" referrerpolicy="no-referrer"></iframe>
+                </div>
+            </div>
         </section>
 
         <!-- Volume Analysis -->

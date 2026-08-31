@@ -30,8 +30,8 @@ async function init() {
         console.error('数据加载失败，请确保 data/btc_historical.csv 文件存在');
         return;
     }
-    // 链上 CSV + ETF 资金流 CSV + BTC/AAPL + Dominance 与行情并行加载；失败不阻塞主看板
-    await Promise.all([DataModule.loadOnchainCSV(), DataModule.loadEtfCSV(), DataModule.loadBtcAaplCSV(), DataModule.loadDominanceCSV()]);
+    // 链上 CSV + ETF 资金流 CSV + BTC/AAPL + Dominance + URPD 与行情并行加载；失败不阻塞主看板
+    await Promise.all([DataModule.loadOnchainCSV(), DataModule.loadEtfCSV(), DataModule.loadBtcAaplCSV(), DataModule.loadDominanceCSV(), DataModule.loadUrpdCSV()]);
 
     // 先用 CSV 数据（本地即可得）立即渲染，不被外部 API 阻塞
     const latest = DataModule.getLatest();
@@ -63,24 +63,18 @@ async function init() {
                     console.log(`[SMM] CryptoQuant data loaded (${cqData.size} days), tiers updated`);
                 }
             }).catch(e => console.warn('[SMM] CryptoQuant fetch failed, using local data:', e));
-            // URPD（独立端点，不影响 fetchAll）
-            ChartsModule._urpdStatus('URPD 数据加载中…');
-            CryptoQuantModule.fetchUrpd().then(urpd => {
-                if (urpd && urpd.bands?.length) {
-                    ChartsModule.renderUrpdChart(urpd);
-                    const el = document.getElementById('urpd-current');
-                    if (el) {
-                        const parts = [`日期 ${urpd.date}`];
-                        if (urpd.profitPercent != null) parts.push(`盈利 UTXO ${urpd.profitPercent.toFixed(1)}%`);
-                        el.textContent = parts.join(' · ');
-                    }
-                } else {
-                    ChartsModule.renderUrpdChart(null); // show failure message
+            // URPD（数据已通过 CSV 加载到 DataModule.urpdData）
+            if (DataModule.urpdData && DataModule.urpdData.bands?.length) {
+                ChartsModule.renderUrpdChart(DataModule.urpdData);
+                const el = document.getElementById('urpd-current');
+                if (el) {
+                    const parts = [`日期 ${DataModule.urpdData.date}`];
+                    if (DataModule.urpdData.profitPercent != null) parts.push(`盈利 UTXO ${DataModule.urpdData.profitPercent.toFixed(1)}%`);
+                    el.textContent = parts.join(' · ');
                 }
-            }).catch(e => {
-                console.warn('[URPD] fetch failed:', e);
-                ChartsModule.renderUrpdChart(null);
-            });
+            } else {
+                ChartsModule._urpdStatus('URPD 数据暂无（等待 GitHub Actions 更新）');
+            }
         }
     }
     // JLST 动量择时信号（仅依赖本地历史数据）

@@ -161,6 +161,53 @@ const DataModule = {
         }
     },
 
+    // 加载 URPD CSV（data/urpd.csv）。
+    // 格式：date,band,label,supply,cost_basis,profit_percent。降序，每天 ~13 行。
+    // 只取最新一天的数据，返回 { date, profitPercent, currentPrice, bands: [{band, label, supply, costBasis}] }。
+    async loadUrpdCSV() {
+        try {
+            const text = await fetch('data/urpd.csv' + this._cacheBust()).then(r => r.text());
+            const lines = text.trim().split('\n');
+            if (lines.length < 2) { this.urpdData = null; return null; }
+
+            // 第一条数据行的日期即最新日期
+            const newestDate = lines[1].split(',')[0].trim().slice(0, 10);
+            let profitPercent = null;
+            const bands = [];
+
+            for (let i = 1; i < lines.length; i++) {
+                const cols = lines[i].split(',');
+                if (cols.length < 6) continue;
+                const day = cols[0].trim().slice(0, 10);
+                if (day !== newestDate) break; // 只取最新一天
+                const band = cols[1].trim();
+                const label = cols[2].trim();
+                const supply = parseFloat(cols[3]);
+                const costBasis = parseFloat(cols[4]);
+                const pp = parseFloat(cols[5]);
+                if (isNaN(supply) || isNaN(costBasis)) continue;
+                bands.push({ band, label, supply, costBasis });
+                if (profitPercent === null && !isNaN(pp)) profitPercent = pp;
+            }
+
+            // 按成本基础升序（CSV 已排序，但确保一致）
+            bands.sort((a, b) => a.costBasis - b.costBasis);
+
+            const currentPrice = this.processedData.length
+                ? this.processedData[this.processedData.length - 1].close
+                : null;
+
+            this.urpdData = bands.length
+                ? { date: newestDate, profitPercent, currentPrice, bands }
+                : null;
+            return this.urpdData;
+        } catch (e) {
+            console.warn('Failed to load URPD CSV:', e.message);
+            this.urpdData = null;
+            return null;
+        }
+    },
+
     // 解析「Datetime,Value」两列 CSV，返回 Map<YYYY-MM-DD, number>（跳过空值）
     _parseOnchainCol(text) {
         const map = new Map();

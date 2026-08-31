@@ -43,12 +43,17 @@ jobs:
       - name: Run incremental update (BTC.D / USDT.D Dominance, CoinGecko)
         run: python scripts/update_dominance.py
 
+      - name: Run incremental update (URPD, CryptoQuant)
+        env:
+          CRYPTOQUANT_KEY: ${{ secrets.CRYPTOQUANT_KEY }}
+        run: python scripts/update_urpd.py
+
       - name: Commit changes if any
         run: |
-          if [ -n "$(git status --porcelain data/btc_historical.csv data/mvrv.csv data/realized_price.csv data/nupl.csv data/etf_flow.csv data/btc_aapl.csv data/dominance.csv)" ]; then
+          if [ -n "$(git status --porcelain data/btc_historical.csv data/mvrv.csv data/realized_price.csv data/nupl.csv data/etf_flow.csv data/btc_aapl.csv data/dominance.csv data/urpd.csv)" ]; then
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add data/btc_historical.csv data/mvrv.csv data/realized_price.csv data/nupl.csv data/etf_flow.csv data/btc_aapl.csv data/dominance.csv
+            git add data/btc_historical.csv data/mvrv.csv data/realized_price.csv data/nupl.csv data/etf_flow.csv data/btc_aapl.csv data/dominance.csv data/urpd.csv
             git commit -m "data: auto-update BTC daily + on-chain + ETF + BTC/AAPL data [skip ci]"
             git push
           else

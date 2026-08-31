@@ -208,31 +208,19 @@ html.dark .tv-legend { color: #9ca3af; }
     height: calc(100vh - 140px) !important;
 }
 
-/* ===== URPD 竖向日期滑杆 ===== */
-.urpd-vslider-wrap {
-    position: relative;
-    padding: 18px 0;    /* 给顶部/底部标签留空 */
-}
-
-/* 水平 range 旋转 -90deg 变竖向。布局盒仍是水平的，用绝对定位居中。 */
-.urpd-slider-v {
+/* ===== URPD 日期滑杆（水平） ===== */
+.urpd-slider {
     -webkit-appearance: none;
     appearance: none;
-    position: absolute;
-    width: 400px;              /* 旋转后=视觉高度 */
     height: 6px;
     border-radius: 3px;
     background: #d1d5db;
     outline: none;
     cursor: pointer;
-    /* 居中：先移到容器正中，再旋转 */
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%) rotate(-90deg);
 }
-html.dark .urpd-slider-v { background: #374151; }
+html.dark .urpd-slider { background: #374151; }
 
-.urpd-slider-v::-webkit-slider-thumb {
+.urpd-slider::-webkit-slider-thumb {
     -webkit-appearance: none;
     width: 18px; height: 18px;
     border-radius: 50%;
@@ -241,7 +229,7 @@ html.dark .urpd-slider-v { background: #374151; }
     box-shadow: 0 1px 4px rgba(0,0,0,0.3);
     cursor: grab;
 }
-.urpd-slider-v::-moz-range-thumb {
+.urpd-slider::-moz-range-thumb {
     width: 18px; height: 18px;
     border-radius: 50%;
     background: var(--gold);
@@ -249,5 +237,5 @@ html.dark .urpd-slider-v { background: #374151; }
     box-shadow: 0 1px 4px rgba(0,0,0,0.3);
     cursor: grab;
 }
-html.dark .urpd-slider-v::-webkit-slider-thumb { border-color: #1a1a2e; }
-html.dark .urpd-slider-v::-moz-range-thumb { border-color: #1a1a2e; }
+html.dark .urpd-slider::-webkit-slider-thumb { border-color: #1a1a2e; }
+html.dark .urpd-slider::-moz-range-thumb { border-color: #1a1a2e; }

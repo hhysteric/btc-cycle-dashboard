@@ -1019,7 +1019,7 @@ const ChartsModule = {
     },
 
     /**
-     * 渲染 URPD 水平柱状图。
+     * 渲染 URPD 纵向柱状图（X=年龄段，Y=BTC 持有量）。
      * @param {object} snapshot - { date, profitPercent, currentPrice, bands: [{band,label,supply,costBasis,supplyPercent,...}] }
      */
     renderUrpdChart(snapshot) {
@@ -1034,10 +1034,10 @@ const ChartsModule = {
         const bands = snapshot.bands;
         const price = snapshot.currentPrice;
 
-        // 标签：年龄段 + 成本基础 + 供应占比
+        // X 轴标签：年龄段 + 成本基础 + 供应占比
         const labels = bands.map(b => {
             const pct = b.supplyPercent != null ? ` ${b.supplyPercent.toFixed(1)}%` : '';
-            return `${b.label} (${this._fmtPrice(b.costBasis)})${pct}`;
+            return `${b.label}\n${this._fmtPrice(b.costBasis)}${pct}`;
         });
         const data = bands.map(b => b.supply);
         const colors = bands.map(b =>
@@ -1047,7 +1047,7 @@ const ChartsModule = {
             price && b.costBasis <= price ? 'rgba(0,211,149,0.9)' : 'rgba(255,71,87,0.9)'
         );
 
-        // 当前价格标注线
+        // 当前价格标注线（在 X 轴上标注，因为 X=category 按 costBasis 排序）
         const annotations = {};
         if (price) {
             let priceIdx = bands.length - 0.5;
@@ -1062,12 +1062,12 @@ const ChartsModule = {
                 }
             }
             annotations.priceLine = {
-                type: 'line', scaleID: 'y', value: priceIdx,
+                type: 'line', scaleID: 'x', value: priceIdx,
                 borderColor: '#f7931a', borderWidth: 2, borderDash: [6, 3],
                 label: {
                     display: true,
-                    content: `当前价格 ${this._fmtPrice(price)}`,
-                    position: 'end', color: '#f7931a',
+                    content: `当前 ${this._fmtPrice(price)}`,
+                    position: 'start', color: '#f7931a',
                     backgroundColor: 'rgba(247,147,26,0.12)',
                     font: { size: 11, weight: 'bold' },
                 },
@@ -1103,7 +1103,6 @@ const ChartsModule = {
                 }],
             },
             options: {
-                indexAxis: 'y',
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
@@ -1140,15 +1139,20 @@ const ChartsModule = {
                 },
                 scales: {
                     x: {
+                        ticks: {
+                            color: t.tick,
+                            font: { size: 10 },
+                            maxRotation: 45,
+                            minRotation: 30,
+                        },
+                        grid: { color: t.grid },
+                    },
+                    y: {
                         title: { display: true, text: 'BTC 持有量', color: t.tick },
                         ticks: {
                             color: t.tick,
                             callback: v => v >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : v >= 1e3 ? (v / 1e3).toFixed(0) + 'K' : v,
                         },
-                        grid: { color: t.grid },
-                    },
-                    y: {
-                        ticks: { color: t.tick, font: { size: 11 } },
                         grid: { color: t.grid },
                     },
                 },

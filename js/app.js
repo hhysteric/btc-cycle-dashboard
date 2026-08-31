@@ -1,26 +1,26 @@
 let currentReport = null;
 let appState = { data: null, priceInfo: null, cycleInfo: null };
 
-// ========== URPD 竖向日期滑杆逻辑 ==========
-// rotate(-90deg) 使 slider 左端=顶部。value 0=顶部=最新，maxIdx=底部=最旧。
-// dates 数组降序（dates[0]=最新），所以 idx = slider.value 直接对应。
+// ========== URPD 水平日期滑杆逻辑 ==========
+// 水平滑杆：左端=最旧，右端=最新。dates 数组降序（dates[0]=最新）。
+// slider.value 0=左=最旧(dates[maxIdx])，maxIdx=右=最新(dates[0])。
 function _initUrpd(urpdAll) {
     const slider = document.getElementById('urpd-date-slider');
     const dateLabel = document.getElementById('urpd-date-label');
-    const topLabel = document.getElementById('urpd-slider-max');   // DOM 顶部=最新
-    const bottomLabel = document.getElementById('urpd-slider-min'); // DOM 底部=最旧
+    const leftLabel = document.getElementById('urpd-slider-min');   // 左端=最旧
+    const rightLabel = document.getElementById('urpd-slider-max');  // 右端=最新
     const dates = urpdAll.dates;  // ['2026-08-30', '2026-08-29', ..., '2025-09-01']
     const maxIdx = dates.length - 1;
 
     if (slider) {
         slider.min = 0;
         slider.max = maxIdx;
-        slider.value = 0; // 顶部=最新
-        if (topLabel) topLabel.textContent = dates[0];          // 最新
-        if (bottomLabel) bottomLabel.textContent = dates[maxIdx]; // 最旧
+        slider.value = maxIdx; // 右端=最新
+        if (leftLabel) leftLabel.textContent = dates[maxIdx];  // 最旧
+        if (rightLabel) rightLabel.textContent = dates[0];     // 最新
 
         slider.oninput = () => {
-            const idx = parseInt(slider.value);
+            const idx = maxIdx - parseInt(slider.value);
             const dateStr = dates[idx];
             if (dateLabel) dateLabel.textContent = dateStr;
             _renderUrpdDate(urpdAll, dateStr);

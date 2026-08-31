@@ -1002,10 +1002,30 @@ const ChartsModule = {
 
     // ===== URPD (UTXO Realized Price Age Distribution) =====
     // 水平柱状图：Y 轴=年龄段标签（按成本基础排序），X 轴=BTC 持有量，颜色=盈亏
+
+    // 在 URPD canvas 上画一行状态文字（加载中 / 失败）
+    _urpdStatus(text) {
+        const el = document.getElementById('urpd-chart');
+        if (!el) return;
+        const ctx = el.getContext('2d');
+        const dpr = window.devicePixelRatio || 1;
+        el.width = el.clientWidth * dpr;
+        el.height = el.clientHeight * dpr;
+        ctx.scale(dpr, dpr);
+        ctx.fillStyle = this.t().tick;
+        ctx.font = '14px system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(text, el.clientWidth / 2, el.clientHeight / 2);
+    },
+
     renderUrpdChart(urpdData) {
         this.destroyChart('urpd');
         const el = document.getElementById('urpd-chart');
-        if (!el || !urpdData || !urpdData.bands?.length) return;
+        if (!el) return;
+        if (!urpdData || !urpdData.bands?.length) {
+            this._urpdStatus('URPD 数据加载失败（CryptoQuant API 不可用）');
+            return;
+        }
 
         const bands = urpdData.bands;
         const price = urpdData.currentPrice;

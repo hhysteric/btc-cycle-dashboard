@@ -64,6 +64,7 @@ async function init() {
                 }
             }).catch(e => console.warn('[SMM] CryptoQuant fetch failed, using local data:', e));
             // URPD（独立端点，不影响 fetchAll）
+            ChartsModule._urpdStatus('URPD 数据加载中…');
             CryptoQuantModule.fetchUrpd().then(urpd => {
                 if (urpd && urpd.bands?.length) {
                     ChartsModule.renderUrpdChart(urpd);
@@ -73,8 +74,13 @@ async function init() {
                         if (urpd.profitPercent != null) parts.push(`盈利 UTXO ${urpd.profitPercent.toFixed(1)}%`);
                         el.textContent = parts.join(' · ');
                     }
+                } else {
+                    ChartsModule.renderUrpdChart(null); // show failure message
                 }
-            }).catch(e => console.warn('[URPD] fetch failed:', e));
+            }).catch(e => {
+                console.warn('[URPD] fetch failed:', e);
+                ChartsModule.renderUrpdChart(null);
+            });
         }
     }
     // JLST 动量择时信号（仅依赖本地历史数据）

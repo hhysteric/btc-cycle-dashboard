@@ -533,6 +533,25 @@
             </div>
         </section>
 
+        <!-- BTC.D / USDT.D Dominance -->
+        <section id="card-dominance" class="chart-card bg-white dark:bg-dark-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
+            <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                <h2 class="text-lg font-semibold">BTC.D / USDT.D Dominance</h2>
+                <div class="flex gap-2 items-center">
+                    <span id="dominance-current" class="text-sm text-accent-gold font-semibold">--</span>
+                    <span class="w-px h-5 bg-gray-400 dark:bg-gray-600 mx-1"></span>
+                    <button class="chart-tool-btn px-3 py-1 rounded text-sm" id="dom-invert-btcd" title="翻转 BTC.D 坐标">⇅ BTC.D</button>
+                    <button class="chart-tool-btn px-3 py-1 rounded text-sm" id="dom-invert-usdtd" title="翻转 USDT.D 坐标">⇅ USDT.D</button>
+                    <button class="zoom-reset-btn px-3 py-1 rounded text-sm" data-chart="dominance">重置</button>
+                    <button class="chart-tool-btn fullscreen-btn px-3 py-1 rounded text-sm" data-target="card-dominance">全屏</button>
+                </div>
+            </div>
+            <p class="text-gray-500 dark:text-gray-400 text-sm mb-3"><span style="color:#42a5f5">BTC.D</span>（左轴）= BTC 市值占加密总市值百分比，上升表示资金向 BTC 集中、下降表示资金流向山寨币。<span style="color:#26a69a">USDT.D</span>（右轴）= USDT 市值占总市值百分比，上升通常对应避险/观望（场内资金转稳定币）、下降对应入场。两指标走势往往在牛/熊转换期出现交叉信号。叠加 BTC 价格（金，右轴对数参考）。数据源 CoinMarketCap。<br>点击 <code>⇅</code> 按钮可翻转对应坐标轴。</p>
+            <div class="chart-canvas-wrap" style="height:420px;position:relative;">
+                <canvas id="dominance-chart"></canvas>
+            </div>
+        </section>
+
         <!-- BTC/AAPL 比率（相对强弱） -->
         <section id="card-btcaapl" class="chart-card bg-white dark:bg-dark-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
             <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
@@ -597,7 +616,7 @@
 
     <!-- ?v 版本号：改代码时手动 +1，强制浏览器拉最新 JS，避免看到旧缓存版本 -->
     <script src="js/data.js?v=20260831"></script>
-    <script src="js/charts.js?v=20260821"></script>
+    <script src="js/charts.js?v=20260831b"></script>
     <script src="js/cryptoquant.js?v=20260821"></script>
     <script src="js/smm.js?v=20260821"></script>
     <script src="js/jlst.js?v=20260821"></script>
@@ -607,6 +626,6 @@
     <script src="js/mvrv-cycle.js?v=20260814c"></script>
     <script src="js/tv-chart.js?v=20260831"></script>
     <script src="js/report.js?v=20260821"></script>
-    <script src="js/app.js?v=20260831"></script>
+    <script src="js/app.js?v=20260831b"></script>
 </body>
 </html>

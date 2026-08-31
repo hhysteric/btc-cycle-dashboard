@@ -1149,6 +1149,118 @@ const ChartsModule = {
         attachModifierZoom(this.charts['btcaapl'], { yAxes: ['y', 'yPrice'] });
     },
 
+    // BTC.D / USDT.D Dominance 独立面板：
+    //   左轴 y: BTC.D（蓝线）
+    //   右轴 yUsdtD: USDT.D（绿线）
+    //   第三轴 yPrice: BTC 价格（金色半透明参考线，对数）
+    // 支持分别翻转 BTC.D / USDT.D 坐标轴
+    _dominanceInverted: { btcd: false, usdtd: false },
+
+    renderDominanceChart() {
+        this.destroyChart('dominance');
+        const el = document.getElementById('dominance-chart');
+        if (!el) return;
+        const dom = DataModule.dominanceData;
+        if (!dom || !dom.length) return;
+
+        // BTC price lookup
+        const priceByDay = new Map();
+        for (const d of DataModule.processedData) priceByDay.set(d.date.toISOString().slice(0, 10), d.close);
+
+        const labels = dom.map(d => d.date);
+        const btcDData = dom.map(d => d.btcD);
+        const usdtDData = dom.map(d => d.usdtD);
+        const priceData = dom.map(d => priceByDay.get(d.date.toISOString().slice(0, 10)) ?? null);
+
+        // Cycle bottom annotations
+        const ann = {};
+        this.CYCLE_BOTTOM_DATES.forEach((b, i) => {
+            if (new Date(b.date) < dom[0].date) return;
+            ann['cb' + i] = {
+                type: 'line', scaleID: 'x', value: b.date,
+                borderColor: 'rgba(0,211,149,0.55)', borderWidth: 1.5, borderDash: [5, 4],
+                label: { display: true, content: b.label, position: 'start', color: '#00d395', backgroundColor: 'rgba(0,0,0,0)', font: { size: 9 } },
+            };
+        });
+
+        this.charts['dominance'] = new Chart(el.getContext('2d'), {
+            data: {
+                labels,
+                datasets: [
+                    { type: 'line', label: 'BTC.D (%)', yAxisID: 'y', data: btcDData,
+                      borderColor: '#42a5f5', borderWidth: 1.8, pointRadius: 0, order: 1 },
+                    { type: 'line', label: 'USDT.D (%)', yAxisID: 'yUsdtD', data: usdtDData,
+                      borderColor: '#26a69a', borderWidth: 1.8, pointRadius: 0, order: 2, spanGaps: true },
+                    { type: 'line', label: 'BTC 价格', yAxisID: 'yPrice', data: priceData,
+                      borderColor: 'rgba(247,147,26,0.35)', borderWidth: 1, pointRadius: 0, order: 3, spanGaps: true },
+                ]
+            },
+            options: {
+                ...this.defaults(),
+                plugins: {
+                    ...this.defaults().plugins,
+                    annotation: { annotations: ann },
+                    zoom: makeZoomConfig()
+                },
+                scales: {
+                    x: { type: 'time', time: { unit: 'year' }, ticks: { color: this.t().tick }, grid: { color: this.t().grid } },
+                    y: {
+                        position: 'left', type: 'linear',
+                        title: { display: true, text: 'BTC.D (%)', color: '#42a5f5' },
+                        ticks: { color: '#42a5f5', callback: v => v.toFixed(0) + '%' },
+                        grid: { color: this.t().grid },
+                        reverse: this._dominanceInverted.btcd,
+                    },
+                    yUsdtD: {
+                        position: 'right', type: 'linear',
+                        title: { display: true, text: 'USDT.D (%)', color: '#26a69a' },
+                        ticks: { color: '#26a69a', callback: v => v.toFixed(1) + '%' },
+                        grid: { drawOnChartArea: false },
+                        reverse: this._dominanceInverted.usdtd,
+                    },
+                    yPrice: {
+                        position: 'right', type: 'logarithmic',
+                        title: { display: true, text: 'BTC', color: '#f7931a' },
+                        ticks: { color: '#f7931a', callback: v => this._fmtPrice(v) },
+                        grid: { drawOnChartArea: false },
+                        display: true,
+                    }
+                }
+            }
+        });
+        attachModifierZoom(this.charts['dominance'], { yAxes: ['y', 'yUsdtD', 'yPrice'] });
+
+        // Bind invert buttons
+        this._bindDominanceInvertButtons();
+    },
+
+    toggleDominanceInvert(which) {
+        const chart = this.charts['dominance'];
+        if (!chart) return;
+        const key = which === 'btcd' ? 'btcd' : 'usdtd';
+        const axisId = key === 'btcd' ? 'y' : 'yUsdtD';
+        this._dominanceInverted[key] = !this._dominanceInverted[key];
+        chart.options.scales[axisId].reverse = this._dominanceInverted[key];
+        chart.update();
+        // Update button state
+        const btnId = key === 'btcd' ? 'dom-invert-btcd' : 'dom-invert-usdtd';
+        const btn = document.getElementById(btnId);
+        if (btn) btn.classList.toggle('active', this._dominanceInverted[key]);
+    },
+
+    _bindDominanceInvertButtons() {
+        const btcdBtn = document.getElementById('dom-invert-btcd');
+        const usdtdBtn = document.getElementById('dom-invert-usdtd');
+        if (btcdBtn && !btcdBtn._domBound) {
+            btcdBtn.addEventListener('click', () => this.toggleDominanceInvert('btcd'));
+            btcdBtn._domBound = true;
+        }
+        if (usdtdBtn && !usdtdBtn._domBound) {
+            usdtdBtn.addEventListener('click', () => this.toggleDominanceInvert('usdtd'));
+            usdtdBtn._domBound = true;
+        }
+    },
+
     renderVolumeChart(data) {
         this.destroyChart('volume');
         const recent = data.slice(-90);

@@ -149,6 +149,7 @@ function renderPriceCharts(data) {
     ChartsModule.renderSellerExhaustionChart();
     ChartsModule.renderEtfChart();
     ChartsModule.renderEtfSlopeChart();
+    ChartsModule.renderDominanceChart();
     ChartsModule.renderBtcAaplChart();
     if (typeof TvChartModule !== 'undefined') TvChartModule.init();
     if (typeof repositionAllSplitHandles === 'function') setTimeout(repositionAllSplitHandles, 150);
@@ -219,6 +220,16 @@ function renderPriceCharts(data) {
         secEl.style.color = secCur.sec < 0.20 ? '#ff6b81' : secCur.sec < 0.40 ? '#f7931a' : '#3b82f6';
     } else if (secEl) {
         secEl.textContent = '计算中...';
+    }
+
+    // Dominance current values
+    const domData = DataModule.dominanceData;
+    const domEl = document.getElementById('dominance-current');
+    if (domData && domData.length && domEl) {
+        const last = domData[domData.length - 1];
+        const parts = [`BTC.D ${last.btcD.toFixed(1)}%`];
+        if (last.usdtD != null) parts.push(`USDT.D ${last.usdtD.toFixed(1)}%`);
+        domEl.textContent = parts.join(' · ');
     }
 
     const btcAaplCur = DataModule.getBtcAaplCurrent();

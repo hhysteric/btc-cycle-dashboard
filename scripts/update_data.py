@@ -37,8 +37,21 @@ BINANCE_START = datetime.date(2017, 8, 17)
 
 
 def http_get(url, timeout=30):
-    # 支持代理：优先读取 HTTPS_PROXY / HTTP_PROXY 环境变量
-    proxy = os.environ.get("HTTPS_PROXY") or os.environ.get("HTTP_PROXY") or os.environ.get("https_proxy") or os.environ.get("http_proxy")
+    # 优先用 requests（代理兼容性好），回退 urllib
+    try:
+        import requests as _req
+        proxy = (os.environ.get("HTTPS_PROXY") or os.environ.get("HTTP_PROXY")
+                 or os.environ.get("https_proxy") or os.environ.get("http_proxy"))
+        proxies = {"https": proxy, "http": proxy} if proxy else None
+        r = _req.get(url, timeout=timeout, proxies=proxies, verify=False,
+                     headers={"User-Agent": "btc-cycle-dashboard/1.0"})
+        r.raise_for_status()
+        return r.content
+    except ImportError:
+        pass
+    # fallback: urllib
+    proxy = (os.environ.get("HTTPS_PROXY") or os.environ.get("HTTP_PROXY")
+             or os.environ.get("https_proxy") or os.environ.get("http_proxy"))
     if proxy:
         handler = urllib.request.ProxyHandler({"https": proxy, "http": proxy})
         opener = urllib.request.build_opener(handler)
@@ -60,19 +73,46 @@ def date_of(row):
 
 
 # ─── Binance ─────────────────────────────────────────────────────────
+# api.binance.com 的 SNI 在中国大陆被封锁，用备用域名自动回退
+BINANCE_HOSTS = [
+    "api1.binance.com",
+    "api2.binance.com",
+    "api3.binance.com",
+    "data-api.binance.vision",
+    "api.binance.com",        # 最后尝试主域名
+]
+
+def _pick_binance_host():
+    """找到第一个可用的 Binance API 域名。"""
+    for host in BINANCE_HOSTS:
+        try:
+            url = f"https://{host}/api/v3/ping"
+            http_get(url, timeout=8)
+            return host
+        except Exception:
+            continue
+    return BINANCE_HOSTS[0]  # fallback
+
+_binance_host = None
+
 def fetch_binance_klines(start_date, end_date):
     """从 Binance 拉取 BTCUSDT 日线 OHLCV。
 
     返回 {date_iso: {open, high, low, close, volume}}，volume 为 quoteAssetVolume（USD 计）。
     自动分页（每次最多 1000 条）。
     """
+    global _binance_host
+    if _binance_host is None:
+        _binance_host = _pick_binance_host()
+        print(f"[Binance] 使用域名: {_binance_host}")
+
     result = {}
     start_ms = int(datetime.datetime.combine(start_date, datetime.time(),
                                               tzinfo=datetime.timezone.utc).timestamp() * 1000)
     end_ms = int(datetime.datetime.combine(end_date, datetime.time(23, 59, 59),
                                             tzinfo=datetime.timezone.utc).timestamp() * 1000)
     while start_ms <= end_ms:
-        url = ("https://api.binance.com/api/v3/klines"
+        url = (f"https://{_binance_host}/api/v3/klines"
                f"?symbol=BTCUSDT&interval=1d&startTime={start_ms}&endTime={end_ms}&limit=1000")
         data = json.loads(http_get(url))
         if not data:

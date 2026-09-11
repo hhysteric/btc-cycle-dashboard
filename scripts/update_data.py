@@ -43,7 +43,13 @@ def http_get(url, timeout=30):
         proxy = (os.environ.get("HTTPS_PROXY") or os.environ.get("HTTP_PROXY")
                  or os.environ.get("https_proxy") or os.environ.get("http_proxy"))
         proxies = {"https": proxy, "http": proxy} if proxy else None
-        r = _req.get(url, timeout=timeout, proxies=proxies, verify=False,
+        # 仅在走本地代理时跳过 SSL 验证（某些代理做 MITM 导致证书链不通）；
+        # 直连（如 GitHub Actions）时保持验证，避免日志刷 InsecureRequestWarning。
+        verify = proxy is None
+        if not verify:
+            import urllib3
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        r = _req.get(url, timeout=timeout, proxies=proxies, verify=verify,
                      headers={"User-Agent": "btc-cycle-dashboard/1.0"})
         r.raise_for_status()
         return r.content
@@ -73,25 +79,36 @@ def date_of(row):
 
 
 # ─── Binance ─────────────────────────────────────────────────────────
-# api.binance.com 的 SNI 在中国大陆被封锁，用备用域名自动回退
+# 域名可用性因地区而异：
+#   - api.binance.com 的 SNI 在中国大陆被封锁
+#   - api1/api2/api3.binance.com 对美国 IP（如 GitHub Actions）会返回 HTTP 451
+#     （能 ping 但拉不到 klines 交易数据），会导致选错域名后 fallback 到估算源
+#   - data-api.binance.vision 是官方公开数据镜像，全球无地域限制，最可靠
+# 因此把 binance.vision 排第一，并用「真实 klines 请求」而非 ping 来探测。
 BINANCE_HOSTS = [
+    "data-api.binance.vision",  # 官方公开镜像，全球可用（含美国），首选
     "api1.binance.com",
     "api2.binance.com",
     "api3.binance.com",
-    "data-api.binance.vision",
-    "api.binance.com",        # 最后尝试主域名
+    "api.binance.com",          # 最后尝试主域名
 ]
 
 def _pick_binance_host():
-    """找到第一个可用的 Binance API 域名。"""
+    """找到第一个能真正拉到 klines 数据的 Binance 域名。
+
+    用真实 klines 请求探测（而非 ping）——因为某些域名对特定 IP
+    ping 成功但 klines 返回 451，只有拉到有效数据才算可用。
+    """
     for host in BINANCE_HOSTS:
         try:
-            url = f"https://{host}/api/v3/ping"
-            http_get(url, timeout=8)
-            return host
+            url = (f"https://{host}/api/v3/klines"
+                   f"?symbol=BTCUSDT&interval=1d&limit=1")
+            data = json.loads(http_get(url, timeout=10))
+            if isinstance(data, list) and data and len(data[0]) >= 8:
+                return host
         except Exception:
             continue
-    return BINANCE_HOSTS[0]  # fallback
+    return None  # 全部不可用
 
 _binance_host = None
 
@@ -104,6 +121,8 @@ def fetch_binance_klines(start_date, end_date):
     global _binance_host
     if _binance_host is None:
         _binance_host = _pick_binance_host()
+        if _binance_host is None:
+            raise RuntimeError("所有 Binance 域名均不可用（含 data-api.binance.vision）")
         print(f"[Binance] 使用域名: {_binance_host}")
 
     result = {}
@@ -144,17 +163,35 @@ def fetch_binance_new(start_date, end_date):
 
 
 # ─── CoinGecko (fallback) ────────────────────────────────────────────
-def fetch_closes_coingecko(start_date, end_date):
-    """返回 {date_iso: close}。CoinGecko range API。"""
+def fetch_ohlcv_coingecko(start_date, end_date):
+    """返回 {date_iso: {open,high,low,close,volume}}。
+
+    CoinGecko range API 提供 prices 和 total_volumes（真实成交量，USD），
+    比旧版仅收盘价 + 估算成交量准确得多。开高低由当日多点近似。
+    """
     frm = int(datetime.datetime.combine(start_date, datetime.time()).timestamp())
     to = int(datetime.datetime.combine(end_date, datetime.time(23, 59)).timestamp())
     url = ("https://api.coingecko.com/api/v3/coins/bitcoin/market_chart/range"
            f"?vs_currency=usd&from={frm}&to={to}")
     data = json.loads(http_get(url))
-    out = {}
+    # 按天聚合所有价格点，得到 open/high/low/close
+    by_day = {}
     for ts_ms, price in data.get("prices", []):
-        d = datetime.datetime.fromtimestamp(ts_ms / 1000, datetime.timezone.utc).date()
-        out[d.isoformat()] = price  # 同日多点时保留最后一个（收盘近似）
+        d = datetime.datetime.fromtimestamp(ts_ms / 1000, datetime.timezone.utc).date().isoformat()
+        by_day.setdefault(d, []).append(price)
+    vol_by_day = {}
+    for ts_ms, vol in data.get("total_volumes", []):
+        d = datetime.datetime.fromtimestamp(ts_ms / 1000, datetime.timezone.utc).date().isoformat()
+        vol_by_day[d] = vol  # 保留当日最后一个（近似日成交量）
+    out = {}
+    for d, prices in by_day.items():
+        out[d] = {
+            "open": prices[0],
+            "high": max(prices),
+            "low": min(prices),
+            "close": prices[-1],
+            "volume": vol_by_day.get(d, 0.0),
+        }
     return out
 
 
@@ -192,14 +229,14 @@ def fetch_new_data(newest_date, today):
     except Exception as e:
         print(f"[数据源] Binance 不可用: {e}")
 
-    # 2) CoinGecko — 仅 close
+    # 2) CoinGecko — 完整 OHLCV（含真实成交量）
     try:
-        closes = fetch_closes_coingecko(newest_date, today)
-        fresh = {d: c for d, c in closes.items()
+        ohlcv = fetch_ohlcv_coingecko(newest_date, today)
+        fresh = {d: v for d, v in ohlcv.items()
                  if datetime.date.fromisoformat(d) > newest_date}
         if fresh:
-            print(f"[数据源] CoinGecko 可用，获取 {len(fresh)} 天新数据")
-            return "CoinGecko", fresh, False
+            print(f"[数据源] CoinGecko 可用，获取 {len(fresh)} 天新数据（完整 OHLCV）")
+            return "CoinGecko", fresh, True
         print("[数据源] CoinGecko 可达但无新数据")
     except Exception as e:
         print(f"[数据源] CoinGecko 不可用: {e}")

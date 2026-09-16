@@ -341,8 +341,52 @@ def backfill():
     return 0
 
 
+# ─── 诊断模式 ─────────────────────────────────────────────────────────
+def diag():
+    """实测各 Binance 域名及 fallback 源在当前网络（如 GitHub Actions 美国 IP）
+    的可达性与返回样本，用数据判断哪个源真正可用。"""
+    import requests as _req
+    proxy = (os.environ.get("HTTPS_PROXY") or os.environ.get("HTTP_PROXY")
+             or os.environ.get("https_proxy") or os.environ.get("http_proxy"))
+    proxies = {"https": proxy, "http": proxy} if proxy else None
+    verify = proxy is None
+    if not verify:
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+    print("=== 出站 IP ===")
+    try:
+        ip = _req.get("https://api.ipify.org?format=json", proxies=proxies,
+                      verify=verify, timeout=15).json()
+        print("  ", ip)
+    except Exception as e:
+        print("   获取 IP 失败:", e)
+
+    print("=== Binance 各域名 klines 探测 ===")
+    for host in BINANCE_HOSTS:
+        url = f"https://{host}/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=1"
+        try:
+            r = _req.get(url, proxies=proxies, verify=verify, timeout=12,
+                         headers={"User-Agent": "btc-cycle-dashboard/1.0"})
+            body = r.text[:120].replace("\n", " ")
+            print(f"  {host:32s} HTTP {r.status_code}  {body}")
+        except Exception as e:
+            print(f"  {host:32s} ERROR {type(e).__name__}: {str(e)[:80]}")
+
+    print("=== CoinGecko 探测 ===")
+    try:
+        r = _req.get("https://api.coingecko.com/api/v3/ping", proxies=proxies,
+                     verify=verify, timeout=12)
+        print(f"   HTTP {r.status_code}  {r.text[:80]}")
+    except Exception as e:
+        print(f"   ERROR {type(e).__name__}: {str(e)[:80]}")
+    return 0
+
+
 # ─── 增量更新（默认模式）─────────────────────────────────────────────
 def main():
+    if "--diag" in sys.argv:
+        return diag()
     if "--backfill" in sys.argv:
         return backfill()
 

@@ -162,62 +162,15 @@ def fetch_binance_new(start_date, end_date):
     return fetch_binance_klines(start_date, end_date)
 
 
-# ─── CoinGecko (fallback) ────────────────────────────────────────────
-def fetch_ohlcv_coingecko(start_date, end_date):
-    """返回 {date_iso: {open,high,low,close,volume}}。
-
-    CoinGecko range API 提供 prices 和 total_volumes（真实成交量，USD），
-    比旧版仅收盘价 + 估算成交量准确得多。开高低由当日多点近似。
-    """
-    frm = int(datetime.datetime.combine(start_date, datetime.time()).timestamp())
-    to = int(datetime.datetime.combine(end_date, datetime.time(23, 59)).timestamp())
-    url = ("https://api.coingecko.com/api/v3/coins/bitcoin/market_chart/range"
-           f"?vs_currency=usd&from={frm}&to={to}")
-    data = json.loads(http_get(url))
-    # 按天聚合所有价格点，得到 open/high/low/close
-    by_day = {}
-    for ts_ms, price in data.get("prices", []):
-        d = datetime.datetime.fromtimestamp(ts_ms / 1000, datetime.timezone.utc).date().isoformat()
-        by_day.setdefault(d, []).append(price)
-    vol_by_day = {}
-    for ts_ms, vol in data.get("total_volumes", []):
-        d = datetime.datetime.fromtimestamp(ts_ms / 1000, datetime.timezone.utc).date().isoformat()
-        vol_by_day[d] = vol  # 保留当日最后一个（近似日成交量）
-    out = {}
-    for d, prices in by_day.items():
-        out[d] = {
-            "open": prices[0],
-            "high": max(prices),
-            "low": min(prices),
-            "close": prices[-1],
-            "volume": vol_by_day.get(d, 0.0),
-        }
-    return out
-
-
-# ─── Blockchain.info (fallback) ──────────────────────────────────────
-def fetch_closes_blockchain(days=180):
-    """返回 {date_iso: close}。Blockchain.info 仅收盘价。"""
-    url = ("https://api.blockchain.info/charts/market-price"
-           f"?timespan={days}days&format=json&sampled=false")
-    data = json.loads(http_get(url))
-    out = {}
-    for v in data.get("values", []):
-        d = datetime.datetime.fromtimestamp(v["x"], datetime.timezone.utc).date()
-        out[d.isoformat()] = v["y"]
-    return out
-
-
 def fetch_new_data(newest_date, today):
-    """依次尝试各数据源，返回 (source_name, data_dict, is_full_ohlcv)。
+    """拉取 Binance 新数据，返回 (source_name, data_dict, is_full_ohlcv)。
 
-    Binance 返回完整 OHLCV dict: {date: {open,high,low,close,volume}}
-    其他源仅返回 {date: close}，is_full_ohlcv=False。
+    仅用 Binance（完整 OHLCV dict: {date: {open,high,low,close,volume}}）。
+    Binance 不可用时返回空，调用方跳过更新——不 fallback 到异口径源。
     """
-    span_days = (today - newest_date).days + 5
     start = newest_date + datetime.timedelta(days=1)
 
-    # 1) Binance — 完整 OHLCV
+    # Binance — 完整 OHLCV
     try:
         klines = fetch_binance_new(start, today)
         fresh = {d: v for d, v in klines.items()
@@ -229,56 +182,27 @@ def fetch_new_data(newest_date, today):
     except Exception as e:
         print(f"[数据源] Binance 不可用: {e}")
 
-    # 2) CoinGecko — 完整 OHLCV（含真实成交量）
-    try:
-        ohlcv = fetch_ohlcv_coingecko(newest_date, today)
-        fresh = {d: v for d, v in ohlcv.items()
-                 if datetime.date.fromisoformat(d) > newest_date}
-        if fresh:
-            print(f"[数据源] CoinGecko 可用，获取 {len(fresh)} 天新数据（完整 OHLCV）")
-            return "CoinGecko", fresh, True
-        print("[数据源] CoinGecko 可达但无新数据")
-    except Exception as e:
-        print(f"[数据源] CoinGecko 不可用: {e}")
-
-    # 3) Blockchain.info — 仅 close
-    try:
-        closes = fetch_closes_blockchain(days=max(span_days, 30))
-        fresh = {d: c for d, c in closes.items()
-                 if datetime.date.fromisoformat(d) > newest_date}
-        if fresh:
-            print(f"[数据源] Blockchain.info 可用，获取 {len(fresh)} 天新数据")
-            return "Blockchain.info", fresh, False
-        print("[数据源] Blockchain.info 可达但无新数据")
-    except Exception as e:
-        print(f"[数据源] Blockchain.info 不可用: {e}")
-
+    # 用户要求：坚持 Binance 数据源，保持成交量口径一致。
+    # 若 Binance 全部不可用，宁可跳过更新（保留上一份正确数据），
+    # 也绝不 fallback 到 CoinGecko/Blockchain.info——它们的成交量口径
+    # （全市场 vs Binance 单所）差 10 倍以上，会导致 K 线/成交量跳变污染。
+    print("[数据源] ⚠️ Binance 全部不可用；按策略不 fallback 到异口径源，本次跳过更新。")
+    print("[数据源] ⚠️ 如在 GitHub Actions 频繁出现此警告，运行 diag-binance workflow 排查美国 IP 封锁。")
     return None, {}, False
 
 
-def build_rows(fresh, prev_close, supply, is_full_ohlcv=False):
-    """把新数据构造成 CSV 行（升序）。
-
-    is_full_ohlcv=True 时 fresh[date] = {open,high,low,close,volume}
-    is_full_ohlcv=False 时 fresh[date] = close (number)
-    """
+def build_rows(fresh, supply):
+    """把 Binance 新数据构造成 CSV 行（升序）。fresh[date] = {open,high,low,close,volume}。"""
     built = []
     for d in sorted(fresh):
         supply += DAILY_ISSUANCE
 
-        if is_full_ohlcv:
-            bar = fresh[d]
-            o = round(bar["open"], 6)
-            hi = round(bar["high"], 6)
-            lo = round(bar["low"], 6)
-            c = round(bar["close"], 6)
-            vol = round(bar["volume"], 2)
-        else:
-            c = round(fresh[d], 6)
-            o = round(prev_close, 6)
-            hi = round(max(o, c) * 1.012, 6)
-            lo = round(min(o, c) * 0.988, 6)
-            vol = round(c * supply * 0.02, 2)
+        bar = fresh[d]
+        o = round(bar["open"], 6)
+        hi = round(bar["high"], 6)
+        lo = round(bar["low"], 6)
+        c = round(bar["close"], 6)
+        vol = round(bar["volume"], 2)
 
         mcap = round(c * supply, 2)
         iso = d + "T00:00:00.000Z"
@@ -289,7 +213,6 @@ def build_rows(fresh, prev_close, supply, is_full_ohlcv=False):
             f"{int(supply)}", f'"{iso_c}"',
         ])
         built.append(row)
-        prev_close = c
     return built
 
 
@@ -404,15 +327,14 @@ def main():
         return 0
 
     newest_cols = rows[0].split(";")
-    prev_close = float(newest_cols[8])
     supply = float(newest_cols[11])
 
-    source, fresh, is_full = fetch_new_data(newest_date, today)
+    source, fresh, _ = fetch_new_data(newest_date, today)
     if not fresh:
         print("没有可用的新数据，未修改 CSV。")
         return 0
 
-    built = build_rows(fresh, prev_close, supply, is_full_ohlcv=is_full)
+    built = build_rows(fresh, supply)
     built_desc = list(reversed(built))  # 降序插入到顶部
     out = [header] + built_desc + rows
     with open(CSV_PATH, "w", encoding="utf-8", newline="\n") as f:

@@ -162,23 +162,24 @@ def fetch_binance_new(start_date, end_date):
     return fetch_binance_klines(start_date, end_date)
 
 
-def fetch_new_data(newest_date, today):
-    """拉取 Binance 新数据，返回 (source_name, data_dict, is_full_ohlcv)。
+def fetch_new_data(refresh_from, today):
+    """拉取 Binance 数据，返回 (source_name, data_dict)。
 
-    仅用 Binance（完整 OHLCV dict: {date: {open,high,low,close,volume}}）。
-    Binance 不可用时返回空，调用方跳过更新——不 fallback 到异口径源。
+    refresh_from 起（含）到 today 的完整 OHLCV dict:
+      {date: {open,high,low,close,volume}}。调用方负责覆盖/追加。
+    仅用 Binance；不可用时返回空，调用方跳过更新——不 fallback 到异口径源。
     """
-    start = newest_date + datetime.timedelta(days=1)
+    start = refresh_from
 
     # Binance — 完整 OHLCV
     try:
         klines = fetch_binance_new(start, today)
         fresh = {d: v for d, v in klines.items()
-                 if datetime.date.fromisoformat(d) > newest_date}
+                 if datetime.date.fromisoformat(d) >= refresh_from}
         if fresh:
-            print(f"[数据源] Binance 可用，获取 {len(fresh)} 天新数据（完整 OHLCV）")
-            return "Binance", fresh, True
-        print("[数据源] Binance 可达但无新数据")
+            print(f"[数据源] Binance 可用，获取 {len(fresh)} 天数据（完整 OHLCV）")
+            return "Binance", fresh
+        print("[数据源] Binance 可达但无数据")
     except Exception as e:
         print(f"[数据源] Binance 不可用: {e}")
 
@@ -186,9 +187,9 @@ def fetch_new_data(newest_date, today):
     # 若 Binance 全部不可用，宁可跳过更新（保留上一份正确数据），
     # 也绝不 fallback 到 CoinGecko/Blockchain.info——它们的成交量口径
     # （全市场 vs Binance 单所）差 10 倍以上，会导致 K 线/成交量跳变污染。
-    print("[数据源] ⚠️ Binance 全部不可用；按策略不 fallback 到异口径源，本次跳过更新。")
-    print("[数据源] ⚠️ 如在 GitHub Actions 频繁出现此警告，运行 diag-binance workflow 排查美国 IP 封锁。")
-    return None, {}, False
+    print("[数据源] WARNING: Binance 全部不可用；按策略不 fallback 到异口径源，本次跳过更新。")
+    print("[数据源] WARNING: 如在 GitHub Actions 频繁出现此警告，运行 diag-binance workflow 排查美国 IP 封锁。")
+    return None, {}
 
 
 def build_rows(fresh, supply):
@@ -306,7 +307,13 @@ def diag():
     return 0
 
 
-# ─── 增量更新（默认模式）─────────────────────────────────────────────
+# 增量更新时始终重取的「回溯天数」。
+# 关键：Binance 当日 K 线在 UTC 日内是未收盘的（脚本约 06:00 UTC 跑），
+# 若只追加不覆盖，会把一根「06:00 就截断」的半截 K 线永久写死。
+# 每次重取最近这几天并整行覆盖，可自动修正被截断的未收盘 K 线。
+REFRESH_DAYS = 3
+
+
 def main():
     if "--diag" in sys.argv:
         return diag()
@@ -322,27 +329,58 @@ def main():
     today = datetime.datetime.now(datetime.timezone.utc).date()
     print(f"CSV 最新日期: {newest_date} | 今日(UTC): {today}")
 
-    if newest_date >= today:
-        print("已是最新，无需更新。")
-        return 0
+    # 从 (最新日期 - REFRESH_DAYS) 起重取，覆盖这段窗口内的所有行，
+    # 以修正此前写入的未收盘（截断）K 线；窗口外的历史行原样保留。
+    refresh_from = max(newest_date - datetime.timedelta(days=REFRESH_DAYS),
+                       BINANCE_START)
 
-    newest_cols = rows[0].split(";")
-    supply = float(newest_cols[11])
-
-    source, fresh, _ = fetch_new_data(newest_date, today)
+    source, fresh = fetch_new_data(refresh_from, today)
     if not fresh:
         print("没有可用的新数据，未修改 CSV。")
         return 0
 
-    built = build_rows(fresh, supply)
-    built_desc = list(reversed(built))  # 降序插入到顶部
-    out = [header] + built_desc + rows
+    # 用 Binance 真值替换窗口内已有行的 OHLCV（保留 supply 与 marketCap 重算），
+    # 只对不能解析或缺失的行追加新行。
+    supply_latest = float(rows[0].split(";")[11])
+    replaced, appended = 0, 0
+    new_rows = []
+    for row in rows:                       # rows 降序（最新在最上）
+        day = date_of(row)                 # 'YYYY-MM-DD'，与 fresh 的键同格式
+        cols = row.split(";")
+        if day in fresh:
+            bar = fresh[day]
+            cols[5] = str(round(bar["open"], 6))
+            cols[6] = str(round(bar["high"], 6))
+            cols[7] = str(round(bar["low"], 6))
+            cols[8] = str(round(bar["close"], 6))
+            cols[9] = str(round(bar["volume"], 2))
+            supply = float(cols[11])
+            cols[10] = str(round(bar["close"] * supply, 2))
+            new_rows.append(";".join(cols))
+            replaced += 1
+        else:
+            new_rows.append(row)
+
+    # 追加窗口内、CSV 里还完全没有的新日期（升序构造，降序插入顶部）
+    existing_days = {date_of(r) for r in rows}
+    missing = {d: v for d, v in fresh.items() if d not in existing_days}
+    if missing:
+        # 以 CSV 最新 supply 为基准顺延日增发量
+        built = build_rows(missing, supply_latest)
+        appended = len(built)
+        new_rows = list(reversed(built)) + new_rows
+
+    if replaced == 0 and appended == 0:
+        print("没有可用的新数据，未修改 CSV。")
+        return 0
+
+    out = [header] + new_rows
     with open(CSV_PATH, "w", encoding="utf-8", newline="\n") as f:
         f.write("﻿")  # 保留 BOM
         f.write("\n".join(out) + "\n")
 
-    print(f"已追加 {len(built)} 天（来源 {source}），"
-          f"最新日期更新为 {date_of(built_desc[0])}")
+    print(f"更新完成（来源 {source}）：覆盖 {replaced} 行，新增 {appended} 行；"
+          f"最新日期 {date_of(new_rows[0])}")
     return 0
 
 

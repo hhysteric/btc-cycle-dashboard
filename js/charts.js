@@ -149,11 +149,23 @@ const ChartsModule = {
         { date: '2026-07-01', label: '周期4底(暂)' },
     ],
 
+    // 历史各轮周期顶部日期（该轮区间内最高价所在日，与底部取「日内极值日」同口径）。
+    // 周期4顶已随 2026 熊年确立，不加「暂」。与 CYCLE_BOTTOM_DATES 配对：
+    // 有「周期x底」竖线的图同时标「周期x顶」，绿线标底、红线标顶。
+    CYCLE_TOP_DATES: [
+        { date: '2013-11-30', label: '周期1顶' },
+        { date: '2017-12-17', label: '周期2顶' },
+        { date: '2021-11-10', label: '周期3顶' },
+        { date: '2025-10-06', label: '周期4顶' },
+    ],
+
     // 生成时间轴图的周期底部竖线注解（annotation 插件）。
     // 用 scaleID:'x' + value 画贯穿整个绘图区的竖线——即便双轴 stack（如 MVRV 上下栏）也能跨两栏。
-    cycleBottomAnnotations(labelPos = 'start') {
+    // minDate（Date）：可选，数据起点晚于周期日期的图（如 BTC/AAPL 始于 2015 年）跳过更早的周期线。
+    cycleBottomAnnotations(labelPos = 'start', minDate = null) {
         const ann = {};
         this.CYCLE_BOTTOM_DATES.forEach((b, i) => {
+            if (minDate && new Date(b.date) < minDate) return;
             ann['cb' + i] = {
                 type: 'line',
                 scaleID: 'x', value: b.date,
@@ -161,6 +173,25 @@ const ChartsModule = {
                 borderWidth: 1.5,
                 borderDash: [5, 4],
                 label: { display: true, content: b.label, position: labelPos, color: '#00d395', backgroundColor: 'rgba(0,0,0,0)', font: { size: 9 } },
+            };
+        });
+        return ann;
+    },
+
+    // 生成时间轴图的周期顶部竖线注解（与 cycleBottomAnnotations 配对，红色系）。
+    // 标签纵向错开底部标签一行（yAdjust 11px），避免近距离顶/底（如 周期4顶↔周期4底）
+    // 在窄时间窗里横向重叠。minDate 语义同 cycleBottomAnnotations。
+    cycleTopAnnotations(labelPos = 'start', minDate = null) {
+        const ann = {};
+        this.CYCLE_TOP_DATES.forEach((t, i) => {
+            if (minDate && new Date(t.date) < minDate) return;
+            ann['ct' + i] = {
+                type: 'line',
+                scaleID: 'x', value: t.date,
+                borderColor: 'rgba(255,71,87,0.55)',
+                borderWidth: 1.5,
+                borderDash: [5, 4],
+                label: { display: true, content: t.label, position: labelPos, yAdjust: labelPos === 'start' ? 11 : -11, color: '#ff4757', backgroundColor: 'rgba(0,0,0,0)', font: { size: 9 } },
             };
         });
         return ann;
@@ -512,7 +543,7 @@ const ChartsModule = {
                         annotations: {
                             ob: { type: 'line', yMin: 70, yMax: 70, yScaleID: 'y', borderColor: 'rgba(255,71,87,0.5)', borderDash: [3, 3], borderWidth: 1 },
                             os: { type: 'line', yMin: 30, yMax: 30, yScaleID: 'y', borderColor: 'rgba(0,211,149,0.5)', borderDash: [3, 3], borderWidth: 1 },
-                            ...this.cycleBottomAnnotations('start')
+                            ...this.cycleBottomAnnotations('start'), ...this.cycleTopAnnotations('start')
                         }
                     },
                     zoom: makeZoomConfig()
@@ -590,7 +621,7 @@ const ChartsModule = {
                         annotations: {
                             hi: { type: 'line', yMin: 2.4, yMax: 2.4, yScaleID: 'y', borderColor: 'rgba(255,71,87,0.5)', borderDash: [3, 3], borderWidth: 1 },
                             lo: { type: 'line', yMin: 1, yMax: 1, yScaleID: 'y', borderColor: 'rgba(0,211,149,0.5)', borderDash: [3, 3], borderWidth: 1 },
-                            ...this.cycleBottomAnnotations('start')
+                            ...this.cycleBottomAnnotations('start'), ...this.cycleTopAnnotations('start')
                         }
                     },
                     zoom: makeZoomConfig()
@@ -685,7 +716,7 @@ const ChartsModule = {
             },
             options: {
                 ...this.defaults(),
-                plugins: { ...this.defaults().plugins, annotation: { annotations: this.cycleBottomAnnotations('start') }, zoom: makeZoomConfig() },
+                plugins: { ...this.defaults().plugins, annotation: { annotations: { ...this.cycleBottomAnnotations('start'), ...this.cycleTopAnnotations('start') } }, zoom: makeZoomConfig() },
                 scales: {
                     x: { type: 'time', time: { unit: 'year' }, ticks: { color: this.t().tick }, grid: { color: this.t().grid } },
                     // 轴 stack：Chart.js 把「后声明」的轴叠在上方，故先声明 yMvrv(下栏) 再声明 y(上栏价格)。
@@ -847,7 +878,7 @@ const ChartsModule = {
             },
             options: {
                 ...this.defaults(),
-                plugins: { ...this.defaults().plugins, annotation: { annotations: { ...this._nuplAnnotations(), ...this.cycleBottomAnnotations('start') } }, zoom: makeZoomConfig() },
+                plugins: { ...this.defaults().plugins, annotation: { annotations: { ...this._nuplAnnotations(), ...this.cycleBottomAnnotations('start'), ...this.cycleTopAnnotations('start') } }, zoom: makeZoomConfig() },
                 scales: {
                     x: { type: 'time', time: { unit: 'year' }, ticks: { color: this.t().tick }, grid: { color: this.t().grid } },
                     y: { position: 'left', title: { display: true, text: 'NUPL', color: '#7c5cff' }, ticks: { color: '#7c5cff' }, grid: { color: this.t().grid } },
@@ -882,7 +913,7 @@ const ChartsModule = {
                     annotation: { annotations: {
                         one: { type: 'line', yMin: 1, yMax: 1, yScaleID: 'y', borderColor: 'rgba(107,114,128,0.7)', borderDash: [4, 4], borderWidth: 1, label: { display: true, content: '1.0', position: 'start', color: '#9ca3af', backgroundColor: 'rgba(0,0,0,0)', font: { size: 9 } } },
                         three: { type: 'line', yMin: 3, yMax: 3, yScaleID: 'y', borderColor: 'rgba(0,211,149,0.4)', borderDash: [3, 3], borderWidth: 1, label: { display: true, content: '3（价值区）', position: 'end', color: '#00d395', backgroundColor: 'rgba(0,0,0,0)', font: { size: 9 } } },
-                        ...this.cycleBottomAnnotations('start')
+                        ...this.cycleBottomAnnotations('start'), ...this.cycleTopAnnotations('start')
                     } },
                     zoom: makeZoomConfig()
                 },
@@ -952,8 +983,8 @@ const ChartsModule = {
             label: { display: true, content: '0.20 极端衰竭', position: 'start', color: '#ff6b81', backgroundColor: 'rgba(0,0,0,0)', font: { size: 9 } }
         };
 
-        // 减半标注
-        Object.assign(annotations, this.cycleBottomAnnotations('start'));
+        // 周期顶/底标注
+        Object.assign(annotations, this.cycleBottomAnnotations('start'), this.cycleTopAnnotations('start'));
 
         this.charts['sellerExhaustion'] = new Chart(el.getContext('2d'), {
             data: {
@@ -1278,7 +1309,7 @@ const ChartsModule = {
         attachModifierZoom(this.charts['etfslope'], { yAxes: ['y', 'yPrice'] });
     },
 
-    // BTC/AAPL 比率图：比率（默认线性）+ BTC 价格叠加（右轴默认对数），标注周期底部
+    // BTC/AAPL 比率图：比率（默认线性）+ BTC 价格叠加（右轴默认对数），标注周期顶/底
     renderBtcAaplChart(logScale = false) {
         this.destroyChart('btcaapl');
         const el = document.getElementById('btcaapl-chart');
@@ -1291,16 +1322,11 @@ const ChartsModule = {
         const ma50 = ratios.map((_, i) => i < 49 ? null : ratios.slice(i - 49, i + 1).reduce((a, b) => a + b, 0) / 50);
         const ma200 = ratios.map((_, i) => i < 199 ? null : ratios.slice(i - 199, i + 1).reduce((a, b) => a + b, 0) / 200);
 
-        // 周期底部竖线注解
-        const ann = {};
-        this.CYCLE_BOTTOM_DATES.forEach((b, i) => {
-            if (new Date(b.date) < d[0].date) return;
-            ann['cb' + i] = {
-                type: 'line', scaleID: 'x', value: b.date,
-                borderColor: 'rgba(0,211,149,0.55)', borderWidth: 1.5, borderDash: [5, 4],
-                label: { display: true, content: b.label, position: 'start', color: '#00d395', backgroundColor: 'rgba(0,0,0,0)', font: { size: 9 } },
-            };
-        });
+        // 周期顶/底竖线注解（数据始于 2015 年，早于起点的周期线由 minDate 守卫跳过）
+        const ann = {
+            ...this.cycleBottomAnnotations('start', d[0].date),
+            ...this.cycleTopAnnotations('start', d[0].date),
+        };
 
         this.charts['btcaapl'] = new Chart(el.getContext('2d'), {
             data: {
@@ -1361,16 +1387,11 @@ const ChartsModule = {
         const usdtDData = dom.map(d => d.usdtD);
         const priceData = dom.map(d => priceByDay.get(d.date.toISOString().slice(0, 10)) ?? null);
 
-        // Cycle bottom annotations
-        const ann = {};
-        this.CYCLE_BOTTOM_DATES.forEach((b, i) => {
-            if (new Date(b.date) < dom[0].date) return;
-            ann['cb' + i] = {
-                type: 'line', scaleID: 'x', value: b.date,
-                borderColor: 'rgba(0,211,149,0.55)', borderWidth: 1.5, borderDash: [5, 4],
-                label: { display: true, content: b.label, position: 'start', color: '#00d395', backgroundColor: 'rgba(0,0,0,0)', font: { size: 9 } },
-            };
-        });
+        // Cycle top/bottom annotations (skip lines before data start)
+        const ann = {
+            ...this.cycleBottomAnnotations('start', dom[0].date),
+            ...this.cycleTopAnnotations('start', dom[0].date),
+        };
 
         this.charts['dominance'] = new Chart(el.getContext('2d'), {
             data: {
@@ -1606,7 +1627,7 @@ const ChartsModule = {
                     label: { display: true, content: '延长线·MA6死叉MA103', position: 'end', color: '#ec4899', backgroundColor: 'rgba(0,0,0,0)', font: { size: 10 } } };
             }
         }
-        Object.assign(ann, this.cycleBottomAnnotations('start'));
+        Object.assign(ann, this.cycleBottomAnnotations('start'), this.cycleTopAnnotations('start'));
         return this._offscreenChart({
             data: { datasets: ds },
             options: {
@@ -1639,7 +1660,7 @@ const ChartsModule = {
                     annotation: { annotations: {
                         hi: { type: 'line', yMin: 2.4, yMax: 2.4, yScaleID: 'y', borderColor: 'rgba(255,71,87,0.5)', borderDash: [3, 3], borderWidth: 1 },
                         lo: { type: 'line', yMin: 1, yMax: 1, yScaleID: 'y', borderColor: 'rgba(0,211,149,0.5)', borderDash: [3, 3], borderWidth: 1 },
-                        ...this.cycleBottomAnnotations('start')
+                        ...this.cycleBottomAnnotations('start'), ...this.cycleTopAnnotations('start')
                     } }
                 },
                 scales: {
@@ -1669,7 +1690,7 @@ const ChartsModule = {
                     annotation: { annotations: {
                         ob: { type: 'line', yMin: 70, yMax: 70, yScaleID: 'y', borderColor: 'rgba(255,71,87,0.5)', borderDash: [3, 3], borderWidth: 1 },
                         os: { type: 'line', yMin: 30, yMax: 30, yScaleID: 'y', borderColor: 'rgba(0,211,149,0.5)', borderDash: [3, 3], borderWidth: 1 },
-                        ...this.cycleBottomAnnotations('start')
+                        ...this.cycleBottomAnnotations('start'), ...this.cycleTopAnnotations('start')
                     } }
                 },
                 scales: {
@@ -1897,7 +1918,7 @@ const ChartsModule = {
                 ]
             },
             options: {
-                plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 11 } } }, annotation: { annotations: this.cycleBottomAnnotations('start') } },
+                plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 11 } } }, annotation: { annotations: { ...this.cycleBottomAnnotations('start'), ...this.cycleTopAnnotations('start') } } },
                 scales: {
                     x: this._cropScale({ type: 'time', time: { unit: 'year' }, ticks: { color: '#94a3b8' }, grid: { color: '#1f2937' } }, crop, 'x'),
                     y: this._cropScale({ type: 'logarithmic', title: { display: true, text: 'MVRV', color: '#a855f7' }, ticks: { color: '#94a3b8', callback: v => v.toFixed(1) }, grid: { color: '#1f2937' } }, crop, 'y'),
@@ -1926,7 +1947,7 @@ const ChartsModule = {
                 ]
             },
             options: {
-                plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 11 } } }, annotation: { annotations: this.cycleBottomAnnotations('start') } },
+                plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 11 } } }, annotation: { annotations: { ...this.cycleBottomAnnotations('start'), ...this.cycleTopAnnotations('start') } } },
                 scales: {
                     x: this._cropScale({ type: 'time', time: { unit: 'year' }, ticks: { color: '#94a3b8' }, grid: { color: '#1f2937' } }, crop, 'x'),
                     y: this._cropScale({ type: 'logarithmic', title: { display: true, text: '价格', color: '#94a3b8' }, ticks: { color: '#94a3b8', callback: v => this._fmtPrice(v) }, grid: { color: '#1f2937' } }, crop, 'y'),
@@ -1964,7 +1985,7 @@ const ChartsModule = {
                 ]
             },
             options: {
-                plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 11 } } }, annotation: { annotations: { ...this._nuplAnnotations(), ...this.cycleBottomAnnotations('start') } } },
+                plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 11 } } }, annotation: { annotations: { ...this._nuplAnnotations(), ...this.cycleBottomAnnotations('start'), ...this.cycleTopAnnotations('start') } } },
                 scales: {
                     x: this._cropScale({ type: 'time', time: { unit: 'year' }, ticks: { color: '#94a3b8' }, grid: { color: '#1f2937' } }, crop, 'x'),
                     y: { position: 'left', title: { display: true, text: 'NUPL', color: '#a855f7' }, ticks: { color: '#94a3b8' }, grid: { color: '#1f2937' } },
@@ -1992,7 +2013,7 @@ const ChartsModule = {
                 plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 11 } } }, annotation: { annotations: {
                     one: { type: 'line', yMin: 1, yMax: 1, yScaleID: 'y', borderColor: 'rgba(148,163,184,0.6)', borderDash: [4, 4], borderWidth: 1 },
                     three: { type: 'line', yMin: 3, yMax: 3, yScaleID: 'y', borderColor: 'rgba(0,211,149,0.4)', borderDash: [3, 3], borderWidth: 1 },
-                    ...this.cycleBottomAnnotations('start')
+                    ...this.cycleBottomAnnotations('start'), ...this.cycleTopAnnotations('start')
                 } } },
                 scales: {
                     x: this._cropScale({ type: 'time', time: { unit: 'year' }, ticks: { color: '#94a3b8' }, grid: { color: '#1f2937' } }, crop, 'x'),
@@ -2021,7 +2042,7 @@ const ChartsModule = {
                 ]
             },
             options: {
-                plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 11 } } }, annotation: { annotations: this.cycleBottomAnnotations('start') } },
+                plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 11 } } }, annotation: { annotations: { ...this.cycleBottomAnnotations('start'), ...this.cycleTopAnnotations('start') } } },
                 scales: {
                     x: this._cropScale({ type: 'time', time: { unit: 'quarter' }, ticks: { color: '#94a3b8' }, grid: { color: '#1f2937' } }, crop, 'x'),
                     yP: { position: 'left', type: 'logarithmic', title: { display: true, text: '价格', color: '#94a3b8' }, ticks: { color: '#94a3b8', callback: v => this._fmtPrice(v) }, grid: { color: '#1f2937' } },
@@ -2047,7 +2068,7 @@ const ChartsModule = {
             options: {
                 plugins: {
                     legend: { labels: { color: '#cbd5e1', font: { size: 11 } } },
-                    annotation: { annotations: { zero: { type: 'line', yMin: 0, yMax: 0, yScaleID: 'y', borderColor: 'rgba(148,163,184,0.7)', borderDash: [4, 4], borderWidth: 1 }, ...this.cycleBottomAnnotations('start') } }
+                    annotation: { annotations: { zero: { type: 'line', yMin: 0, yMax: 0, yScaleID: 'y', borderColor: 'rgba(148,163,184,0.7)', borderDash: [4, 4], borderWidth: 1 }, ...this.cycleBottomAnnotations('start'), ...this.cycleTopAnnotations('start') } }
                 },
                 scales: {
                     x: this._cropScale({ type: 'time', time: { unit: 'quarter' }, ticks: { color: '#94a3b8' }, grid: { color: '#1f2937' } }, crop, 'x'),
@@ -2058,19 +2079,18 @@ const ChartsModule = {
         });
     },
 
-    // BTC/AAPL 比率离屏图（周报用）：比率线 + MA50/MA200 + BTC 价格（右轴对数）+ 周期底部竖线
+    // BTC/AAPL 比率离屏图（周报用）：比率线 + MA50/MA200 + BTC 价格（右轴对数）+ 周期顶/底竖线
     reportBtcAaplImage(crop) {
         const d = DataModule.btcAaplData;
         if (!d || !d.length) return null;
         const ratios = d.map(r => r.ratio);
         const ma50 = ratios.map((_, i) => i < 49 ? null : ratios.slice(i - 49, i + 1).reduce((a, b) => a + b, 0) / 50);
         const ma200 = ratios.map((_, i) => i < 199 ? null : ratios.slice(i - 199, i + 1).reduce((a, b) => a + b, 0) / 200);
-        const ann = {};
-        this.CYCLE_BOTTOM_DATES.forEach((b, i) => {
-            if (new Date(b.date) < d[0].date) return;
-            ann['cb' + i] = { type: 'line', scaleID: 'x', value: b.date, borderColor: 'rgba(0,211,149,0.55)', borderWidth: 1.5, borderDash: [5, 4],
-                label: { display: true, content: b.label, position: 'start', color: '#00d395', backgroundColor: 'rgba(0,0,0,0)', font: { size: 9 } } };
-        });
+        // 数据始于 2015 年，早于起点的周期线由 minDate 守卫跳过
+        const ann = {
+            ...this.cycleBottomAnnotations('start', d[0].date),
+            ...this.cycleTopAnnotations('start', d[0].date),
+        };
         return this._offscreenChart({
             data: {
                 labels: d.map(r => r.date),
@@ -2178,7 +2198,7 @@ const ChartsModule = {
                 ...this.defaults(),
                 plugins: {
                     ...this.defaults().plugins,
-                    annotation: { annotations: { ...bandAnnotations, ...halvingAnnotations, ...this.cycleBottomAnnotations('start') } },
+                    annotation: { annotations: { ...bandAnnotations, ...halvingAnnotations, ...this.cycleBottomAnnotations('start'), ...this.cycleTopAnnotations('start') } },
                     zoom: makeZoomConfig(),
                     crosshair: { enabled: true, color: this.t().crosshair }
                 },
@@ -2266,7 +2286,7 @@ const ChartsModule = {
             options: {
                 plugins: {
                     legend: { labels: { color: '#cbd5e1', font: { size: 11 } } },
-                    annotation: { annotations: { ...bandAnnotations, ...this.cycleBottomAnnotations('start') } }
+                    annotation: { annotations: { ...bandAnnotations, ...this.cycleBottomAnnotations('start'), ...this.cycleTopAnnotations('start') } }
                 },
                 scales: {
                     x: this._cropScale({ type: 'time', time: { unit: 'year' }, ticks: { color: '#94a3b8' }, grid: { color: '#1f2937' } }, crop, 'x'),

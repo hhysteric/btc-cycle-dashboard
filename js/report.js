@@ -159,17 +159,59 @@ const ReportModule = {
         el.style.top = '0';
         document.body.appendChild(el);
 
+        // 页面整体缩放（浏览器 zoom <100% 或 body 级 CSS zoom）时，1px 渐变分隔线
+        // 的实测高度会落在 (0,1) 区间；html2canvas 的渐变平铺画布按整数截断后
+        // 变成 0×N，createPattern 即抛 "canvas element with a width or height of 0"。
+        // 用探测元素量出有效缩放，对离屏元素做反向 zoom 补偿，把尺寸拉回 ≥1px。
+        const probe = document.createElement('div');
+        probe.style.cssText = 'position:fixed;left:-99999px;top:0;width:100px;height:100px;';
+        document.body.appendChild(probe);
+        const effScale = probe.getBoundingClientRect().height / 100;
+        probe.remove();
+        if (effScale > 0 && effScale < 1) {
+            // 过补偿 +2%：克隆 iframe 里 Chrome 的 LayoutUnit（1/64px）量化会把
+            // 恰好 1px 的线打薄到 0.99x，2% 余量保证量化后仍 ≥ 1px（线可见）；
+            // 输出宽度因此多 ~2%，视觉上不可感知
+            el.style.zoom = String(1 / effScale * 1.02);
+        }
+
         // 等待内嵌图片加载完成
         const imgs = Array.from(el.querySelectorAll('img'));
         await Promise.all(imgs.map(img => img.complete ? Promise.resolve()
             : new Promise(res => { img.onload = img.onerror = res; })));
 
-        const canvas = await html2canvas(el, { backgroundColor: '#0d0d1a', scale: 2, useCORS: true, logging: false });
-        document.body.removeChild(el);
+        let canvas;
+        try {
+            canvas = await this._safeHtml2canvas(el);
+        } finally {
+            document.body.removeChild(el);
+        }
 
         const link = document.createElement('a');
         link.download = `BTC_周报_${new Date().toISOString().slice(0, 10)}.png`;
         link.href = canvas.toDataURL('image/png');
         link.click();
+    },
+
+    // html2canvas 1.4.1 已知 bug 兜底：亚像素渐变背景会让 createPattern
+    // 收到 0 宽/高画布并直接抛错。渲染期间临时拦截该方法，把 0 尺寸画布
+    // 替换成 1×1 透明图案，保证导出流程不会因此中断。
+    async _safeHtml2canvas(el) {
+        const proto = CanvasRenderingContext2D.prototype;
+        const orig = proto.createPattern;
+        proto.createPattern = function (image, repetition) {
+            if (image instanceof HTMLCanvasElement && (image.width === 0 || image.height === 0)) {
+                const fallback = document.createElement('canvas');
+                fallback.width = 1;
+                fallback.height = 1;
+                return orig.call(this, fallback, repetition);
+            }
+            return orig.apply(this, arguments);
+        };
+        try {
+            return await html2canvas(el, { backgroundColor: '#0d0d1a', scale: 2, useCORS: true, logging: false });
+        } finally {
+            proto.createPattern = orig;  // 无论成败都还原原型
+        }
     }
 };

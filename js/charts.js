@@ -904,39 +904,21 @@ const ChartsModule = {
         attachModifierZoom(this.charts['nupl'], { yAxes: ['y', 'yPrice'] });
     },
 
-    // R/R 序列取点：过去用 `s.rr > 0` 过滤，但顶部狂热期 price 会高于 bullCeiling，
-    // 使 upReward 为负 → rr<0（如周期2顶 2017-12-17 当日 rr≈−0.35）。这些天被整条丢弃，
-    // 连同一行的 BTC 价格点一起消失，导致顶部整段断档、周期顶竖线看起来偏离价格峰值。
-    // 现改为：只剔除无法使用的值（null/NaN/±Infinity），保留负值；
-    // rr<=0 时在对数轴上无定义，夹到 RR_LOG_FLOOR（贴轴底）继续画，语义即「价格已高于估值上沿」。
-    RR_LOG_FLOOR: 0.001,
-    rrSeries() {
-        const series = DataModule.getRiskReward();
-        if (!series) return null;
-        const pts = series.filter(s => s.price != null && isFinite(s.price));
-        if (!pts.length) return null;
-        return pts;
-    },
-    // 对数轴上把 rr<=0 夹到轴底；线性轴保留原值（负值可正常显示）。
-    rrForAxis(v, logScale) {
-        if (v == null || !isFinite(v)) return null;
-        if (logScale && v <= 0) return this.RR_LOG_FLOOR;
-        return v;
-    },
-
     // 4Y Rolling Realized Price Risk/Reward Ratio：R/R 比(对数,左轴) + 价格(对数,右轴) + 1.0 参考线
     renderRiskRewardChart(logScale = true) {
         this.destroyChart('riskreward');
         const el = document.getElementById('riskreward-chart');
         if (!el) return;
-        const pts = this.rrSeries();
-        if (!pts) return;
+        const series = DataModule.getRiskReward();
+        if (!series) return;
+        const pts = series.filter(s => s.rr != null && s.rr > 0);
+        if (!pts.length) return;
         this.charts['riskreward'] = new Chart(el.getContext('2d'), {
             data: {
                 labels: pts.map(s => s.date),
                 datasets: [
                     { type: 'line', label: 'BTC 价格', yAxisID: 'yPrice', data: pts.map(s => s.price), borderColor: 'rgba(247,147,26,0.5)', borderWidth: 1, pointRadius: 0 },
-                    { type: 'line', label: 'R/R 比', yAxisID: 'y', data: pts.map(s => this.rrForAxis(s.rr, logScale)), borderColor: '#7c5cff', borderWidth: 1.4, pointRadius: 0 },
+                    { type: 'line', label: 'R/R 比', yAxisID: 'y', data: pts.map(s => s.rr), borderColor: '#7c5cff', borderWidth: 1.4, pointRadius: 0 },
                 ]
             },
             options: {
@@ -1848,10 +1830,12 @@ const ChartsModule = {
                 options: common({ x: { type: 'time', time: { unit: 'year' }, ticks: { color: c.tick }, grid: { color: c.grid } },
                     y: { ticks: { color: c.tick }, grid: { color: c.grid } } }) };
         } else if (key === 'riskreward') {
-            const pts = this.rrSeries();
-            if (!pts) return false;
+            const series = DataModule.getRiskReward();
+            if (!series) return false;
+            const pts = series.filter(s => s.rr != null && s.rr > 0);
+            if (!pts.length) return false;
             cfg = { type: 'line', data: { labels: pts.map(s => s.date), datasets: [
-                { label: 'R/R', data: pts.map(s => this.rrForAxis(s.rr, true)), borderColor: '#7c5cff', borderWidth: 1.3, pointRadius: 0 } ] },
+                { label: 'R/R', data: pts.map(s => s.rr), borderColor: '#7c5cff', borderWidth: 1.3, pointRadius: 0 } ] },
                 options: common({ x: { type: 'time', time: { unit: 'year' }, ticks: { color: c.tick }, grid: { color: c.grid } },
                     y: { type: 'logarithmic', ticks: { color: c.tick, callback: v => v >= 1 ? v.toFixed(0) : v.toFixed(2) }, grid: { color: c.grid } } }) };
         } else if (key === 'rsi') {
@@ -2028,14 +2012,16 @@ const ChartsModule = {
 
     // R/R 离屏图（周报用，深色）
     reportRiskRewardImage(crop) {
-        const pts = this.rrSeries();
-        if (!pts) return null;
+        const series = DataModule.getRiskReward();
+        if (!series) return null;
+        const pts = series.filter(s => s.rr != null && s.rr > 0);
+        if (!pts.length) return null;
         return this._offscreenChart({
             data: {
                 labels: pts.map(s => s.date),
                 datasets: [
                     { type: 'line', label: 'BTC', yAxisID: 'yP', data: pts.map(s => s.price), borderColor: 'rgba(247,147,26,0.5)', borderWidth: 1, pointRadius: 0 },
-                    { type: 'line', label: 'R/R', yAxisID: 'y', data: pts.map(s => this.rrForAxis(s.rr, true)), borderColor: '#7c5cff', borderWidth: 1.4, pointRadius: 0 },
+                    { type: 'line', label: 'R/R', yAxisID: 'y', data: pts.map(s => s.rr), borderColor: '#7c5cff', borderWidth: 1.4, pointRadius: 0 },
                 ]
             },
             options: {

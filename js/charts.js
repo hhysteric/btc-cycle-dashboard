@@ -247,6 +247,12 @@ const ChartsModule = {
         if (!chart || !chart.options.scales[axis]) return null;
         const cur = chart.options.scales[axis].type;
         const next = cur === 'logarithmic' ? 'linear' : 'logarithmic';
+        // R/R 图的数据取决于坐标轴模式（线性走 symlog 变换、对数用原始值），
+        // 光翻轴类型不够，必须整图重绘；其余图就地翻类型即可。
+        if (id === 'riskreward') {
+            this.renderRiskRewardChart(next === 'logarithmic');
+            return next;
+        }
         chart.options.scales[axis].type = next;
         chart.update();
         return next;
@@ -904,27 +910,38 @@ const ChartsModule = {
         attachModifierZoom(this.charts['nupl'], { yAxes: ['y', 'yPrice'] });
     },
 
-    // 4Y Rolling Realized Price Risk/Reward Ratio：R/R 比(对数,左轴) + 价格(对数,右轴) + 1.0 参考线
-    renderRiskRewardChart(logScale = true) {
+    // 对称对数（symlog）变换：tt(v)=sign(v)·log10(1+|v|)。
+    // R/R 线性轴下会变负（顶部狂热期 price 高于 bullCeiling → upReward<0 → rr<0），
+    // 且极端值跨 −232914…+12391，直接线性会让主带（0.2~30）被压成零附近一条平线。
+    // symlog 近零处近似线性（负值、主带都能看清），远端对数压缩（±几千不再称霸）。
+    // 轴仍是 linear，只是喂给它的数据做了变换、刻度回调做逆变换显示真实 R/R 值。
+    _rrSymlog(v) { return v == null || !isFinite(v) ? null : Math.sign(v) * Math.log10(1 + Math.abs(v)); },
+    _rrSymlogInv(t) { return Math.sign(t) * (Math.pow(10, Math.abs(t)) - 1); },
+
+    // 4Y Rolling Realized Price Risk/Reward Ratio：R/R 比(左轴) + 价格(右轴对数) + 1.0 参考线
+    // 默认 symlog（对称对数）轴：负值可显示、主带可辨、极端值被压缩，R/R 原始值全部保留。
+    // 右上角「对数」切换：纯对数轴，主带更精细但 y≤0 无定义，负值那几天由 Chart.js 自动跳过断开。
+    renderRiskRewardChart(logScale = false) {
         this.destroyChart('riskreward');
         const el = document.getElementById('riskreward-chart');
         if (!el) return;
         const series = DataModule.getRiskReward();
         if (!series) return;
         // 价格线与 R/R 线分开取点：过去两条线共用 `rr>0` 过滤后的 pts，顶部狂热期
-        // （price 高于 bullCeiling → upReward<0 → rr<0）那些天被整条丢弃，连 BTC 价格点
-        // 一起消失，价格线在峰值前断档、周期顶竖线看起来偏离峰值。
-        // 现在：价格线用全部有效点（连续不断档），R/R 线仍维持 rr>0 过滤——被剔除的天
-        // 记 null，R/R 线在该处断开（行为与修复前一致），不动 rr 值本身。
+        // （rr<0）那些天被整条丢弃，连 BTC 价格点一起消失，价格线在峰值前断档、
+        // 周期顶竖线看起来偏离峰值。现在价格线取全部有效点（连续不断档）；
+        // R/R 线用原始值（含负值，不再过滤）。
         const pts = series.filter(s => s.price != null && isFinite(s.price));
         if (!pts.length) return;
-        const rrOf = s => (s.rr != null && s.rr > 0) ? s.rr : null;
+        // 线性（默认）模式：R/R 走 symlog 变换；对数模式：R/R 用原始值（负值自动跳过）。
+        const rrData = logScale ? pts.map(s => s.rr) : pts.map(s => this._rrSymlog(s.rr));
+        const rrY = (v) => logScale ? v : this._rrSymlog(v);   // 参考线 y 位置
         this.charts['riskreward'] = new Chart(el.getContext('2d'), {
             data: {
                 labels: pts.map(s => s.date),
                 datasets: [
                     { type: 'line', label: 'BTC 价格', yAxisID: 'yPrice', data: pts.map(s => s.price), borderColor: 'rgba(247,147,26,0.5)', borderWidth: 1, pointRadius: 0 },
-                    { type: 'line', label: 'R/R 比', yAxisID: 'y', data: pts.map(rrOf), borderColor: '#7c5cff', borderWidth: 1.4, pointRadius: 0 },
+                    { type: 'line', label: 'R/R 比', yAxisID: 'y', data: rrData, borderColor: '#7c5cff', borderWidth: 1.4, pointRadius: 0, spanGaps: false },
                 ]
             },
             options: {
@@ -932,15 +949,21 @@ const ChartsModule = {
                 plugins: {
                     ...this.defaults().plugins,
                     annotation: { annotations: {
-                        one: { type: 'line', yMin: 1, yMax: 1, yScaleID: 'y', borderColor: 'rgba(107,114,128,0.7)', borderDash: [4, 4], borderWidth: 1, label: { display: true, content: '1.0', position: 'start', color: '#9ca3af', backgroundColor: 'rgba(0,0,0,0)', font: { size: 9 } } },
-                        three: { type: 'line', yMin: 3, yMax: 3, yScaleID: 'y', borderColor: 'rgba(0,211,149,0.4)', borderDash: [3, 3], borderWidth: 1, label: { display: true, content: '3（价值区）', position: 'end', color: '#00d395', backgroundColor: 'rgba(0,0,0,0)', font: { size: 9 } } },
+                        one: { type: 'line', yMin: rrY(1), yMax: rrY(1), yScaleID: 'y', borderColor: 'rgba(107,114,128,0.7)', borderDash: [4, 4], borderWidth: 1, label: { display: true, content: '1.0', position: 'start', color: '#9ca3af', backgroundColor: 'rgba(0,0,0,0)', font: { size: 9 } } },
+                        three: { type: 'line', yMin: rrY(3), yMax: rrY(3), yScaleID: 'y', borderColor: 'rgba(0,211,149,0.4)', borderDash: [3, 3], borderWidth: 1, label: { display: true, content: '3（价值区）', position: 'end', color: '#00d395', backgroundColor: 'rgba(0,0,0,0)', font: { size: 9 } } },
                         ...this.cycleBottomAnnotations('start'), ...this.cycleTopAnnotations('start')
                     } },
                     zoom: makeZoomConfig()
                 },
                 scales: {
                     x: { type: 'time', time: { unit: 'year' }, ticks: { color: this.t().tick }, grid: { color: this.t().grid } },
-                    y: { position: 'left', type: logScale ? 'logarithmic' : 'linear', title: { display: true, text: 'R/R 比', color: '#7c5cff' }, ticks: { color: '#7c5cff', callback: v => v >= 1 ? v.toFixed(0) : v.toFixed(2) }, grid: { color: this.t().grid } },
+                    y: logScale
+                        ? { position: 'left', type: 'logarithmic', title: { display: true, text: 'R/R 比', color: '#7c5cff' }, ticks: { color: '#7c5cff', callback: v => v >= 1 ? v.toFixed(0) : v.toFixed(2) }, grid: { color: this.t().grid } }
+                        : { position: 'left', type: 'linear', title: { display: true, text: 'R/R 比', color: '#7c5cff' },
+                            // 固定刻度在真实 R/R 值 {…,-3,-1,0,1,3,10,100,…} 处，位置用 symlog 变换，标签用真实值。
+                            afterBuildTicks: (axis) => { axis.ticks = [-1000, -100, -10, -3, -1, 0, 1, 3, 10, 100, 1000].map(v => ({ value: this._rrSymlog(v) })); },
+                            ticks: { color: '#7c5cff', callback: v => { const r = this._rrSymlogInv(v); return Math.abs(r) >= 1 ? r.toFixed(0) : r.toFixed(1); } },
+                            grid: { color: this.t().grid } },
                     yPrice: { position: 'right', type: 'logarithmic', title: { display: true, text: 'BTC', color: '#f7931a' }, ticks: { color: '#f7931a', callback: v => this._fmtPrice(v) }, grid: { drawOnChartArea: false } }
                 }
             }
@@ -2020,16 +2043,16 @@ const ChartsModule = {
     reportRiskRewardImage(crop) {
         const series = DataModule.getRiskReward();
         if (!series) return null;
-        // 同 renderRiskRewardChart：价格线取全部有效点（顶部不停断），R/R 线维持 rr>0 过滤（剔除日记 null 断开）。
+        // 同 renderRiskRewardChart：价格线取全部有效点（顶部不停断），R/R 线用原始值（含负值）。
+        // 周报图沿用对数轴（图小、主带 0.2~30 更清晰）；对数轴下负值由 Chart.js 自动跳过、该处断开。
         const pts = series.filter(s => s.price != null && isFinite(s.price));
         if (!pts.length) return null;
-        const rrOf = s => (s.rr != null && s.rr > 0) ? s.rr : null;
         return this._offscreenChart({
             data: {
                 labels: pts.map(s => s.date),
                 datasets: [
                     { type: 'line', label: 'BTC', yAxisID: 'yP', data: pts.map(s => s.price), borderColor: 'rgba(247,147,26,0.5)', borderWidth: 1, pointRadius: 0 },
-                    { type: 'line', label: 'R/R', yAxisID: 'y', data: pts.map(rrOf), borderColor: '#7c5cff', borderWidth: 1.4, pointRadius: 0 },
+                    { type: 'line', label: 'R/R', yAxisID: 'y', data: pts.map(s => s.rr), borderColor: '#7c5cff', borderWidth: 1.4, pointRadius: 0, spanGaps: false },
                 ]
             },
             options: {

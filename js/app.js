@@ -202,7 +202,7 @@ function renderPriceCharts(data) {
     ChartsModule.renderMayerChart(data);
     ChartsModule.renderMvrvChart(true);
     ChartsModule.renderNuplChart();
-    ChartsModule.renderRiskRewardChart(true);
+    ChartsModule.renderRiskRewardChart(false);
     ChartsModule.renderSellerExhaustionChart();
     ChartsModule.renderEtfChart();
     ChartsModule.renderEtfSlopeChart();

@@ -83,10 +83,12 @@ function zoomOneAxis(chart, id, factor, pos) {
     chart.zoomScale(id, { min: lo, max: hi }, 'none');
 }
 
-// 给某张图挂原生滚轮缩放。yAxes：该图所有 y 轴 id（按上→下顺序），支持多面板各自缩放。
+// 给某张图挂原生滚轮缩放。yAxes：该图所有 y 轴 id（按左→右 / 上→下顺序）。
 //   无修饰键 = 缩「光标所在面板的 y 轴」+ 横轴（单面板即普通 xy）；
-//   Shift = 只缩光标所在 y 轴；Ctrl = 只缩横轴。
-// 单轴图传 ['y']；多面板图（MVRV/ETF）传各栏 y 轴 id，即可各自独立缩放。
+//   Shift = 只缩左轴（并排双轴图）或光标所在栏（堆叠多栏图）；
+//   Alt   = 只缩右轴（并排双轴图的 BTC 价格等；堆叠多栏图取最后一栏）；
+//   Ctrl  = 只缩横轴。
+// 单轴图传 ['y']；并排双轴图传 ['y','yPrice']；堆叠多栏图（MVRV/ETF）传各栏 y 轴 id。
 function attachModifierZoom(chart, axes) {
     const canvas = chart.canvas;
     if (!canvas) return;
@@ -113,6 +115,13 @@ function attachModifierZoom(chart, axes) {
         }
         return yAxes[0];
     };
+    // 该图是否为「并排」布局——即多条 y 轴纵向区间完全相同（如左右双轴图）。
+    // 堆叠多栏图各栏 top/bottom 互不重叠，返回 false，此时左/右的概念不适用。
+    const isSideBySide = (chart, yAxes) => {
+        const boxes = yAxes.map(id => chart.scales[id]).filter(Boolean)
+            .map(sc => Math.round(sc.top) + ':' + Math.round(sc.bottom));
+        return boxes.length > 1 && boxes.every(b => b === boxes[0]);
+    };
     canvas.addEventListener('wheel', (e) => {
         const chart = canvas._modZoomChart;
         const yAxes = canvas._modZoomAxes;
@@ -127,6 +136,12 @@ function attachModifierZoom(chart, axes) {
         const px = e.clientX - rect.left, py = e.clientY - rect.top;
         if (e.ctrlKey) { zoomOneAxis(chart, 'x', factor, px); return; }      // Ctrl：只缩横轴
         const yid = axisAtY(chart, yAxes, py);                              // 光标所在面板的 y 轴
+        if (e.altKey) {
+            // Alt：只缩右轴。并排双轴图取 yAxes 末位（右侧那条）；堆叠多栏图仍按光标所在栏。
+            const rid = isSideBySide(chart, yAxes) ? yAxes[yAxes.length - 1] : yid;
+            zoomOneAxis(chart, rid, factor, py);
+            return;                                                         // Alt 与 Shift 一样：不缩横轴
+        }
         zoomOneAxis(chart, yid, factor, py);
         if (!e.shiftKey) zoomOneAxis(chart, 'x', factor, px);               // 非 Shift 时同时缩横轴
     }, { passive: false });

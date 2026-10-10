@@ -911,14 +911,20 @@ const ChartsModule = {
         if (!el) return;
         const series = DataModule.getRiskReward();
         if (!series) return;
-        const pts = series.filter(s => s.rr != null && s.rr > 0);
+        // 价格线与 R/R 线分开取点：过去两条线共用 `rr>0` 过滤后的 pts，顶部狂热期
+        // （price 高于 bullCeiling → upReward<0 → rr<0）那些天被整条丢弃，连 BTC 价格点
+        // 一起消失，价格线在峰值前断档、周期顶竖线看起来偏离峰值。
+        // 现在：价格线用全部有效点（连续不断档），R/R 线仍维持 rr>0 过滤——被剔除的天
+        // 记 null，R/R 线在该处断开（行为与修复前一致），不动 rr 值本身。
+        const pts = series.filter(s => s.price != null && isFinite(s.price));
         if (!pts.length) return;
+        const rrOf = s => (s.rr != null && s.rr > 0) ? s.rr : null;
         this.charts['riskreward'] = new Chart(el.getContext('2d'), {
             data: {
                 labels: pts.map(s => s.date),
                 datasets: [
                     { type: 'line', label: 'BTC 价格', yAxisID: 'yPrice', data: pts.map(s => s.price), borderColor: 'rgba(247,147,26,0.5)', borderWidth: 1, pointRadius: 0 },
-                    { type: 'line', label: 'R/R 比', yAxisID: 'y', data: pts.map(s => s.rr), borderColor: '#7c5cff', borderWidth: 1.4, pointRadius: 0 },
+                    { type: 'line', label: 'R/R 比', yAxisID: 'y', data: pts.map(rrOf), borderColor: '#7c5cff', borderWidth: 1.4, pointRadius: 0 },
                 ]
             },
             options: {
@@ -2014,14 +2020,16 @@ const ChartsModule = {
     reportRiskRewardImage(crop) {
         const series = DataModule.getRiskReward();
         if (!series) return null;
-        const pts = series.filter(s => s.rr != null && s.rr > 0);
+        // 同 renderRiskRewardChart：价格线取全部有效点（顶部不停断），R/R 线维持 rr>0 过滤（剔除日记 null 断开）。
+        const pts = series.filter(s => s.price != null && isFinite(s.price));
         if (!pts.length) return null;
+        const rrOf = s => (s.rr != null && s.rr > 0) ? s.rr : null;
         return this._offscreenChart({
             data: {
                 labels: pts.map(s => s.date),
                 datasets: [
                     { type: 'line', label: 'BTC', yAxisID: 'yP', data: pts.map(s => s.price), borderColor: 'rgba(247,147,26,0.5)', borderWidth: 1, pointRadius: 0 },
-                    { type: 'line', label: 'R/R', yAxisID: 'y', data: pts.map(s => s.rr), borderColor: '#7c5cff', borderWidth: 1.4, pointRadius: 0 },
+                    { type: 'line', label: 'R/R', yAxisID: 'y', data: pts.map(rrOf), borderColor: '#7c5cff', borderWidth: 1.4, pointRadius: 0 },
                 ]
             },
             options: {

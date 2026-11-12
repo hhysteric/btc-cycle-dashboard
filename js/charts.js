@@ -17,11 +17,77 @@ const THEMES = {
     light: { tick: '#64748b', grid: '#e5e7eb', gridStrong: '#94a3b8', legend: '#475569', tooltipBg: '#ffffff', tooltipBorder: '#cbd5e1', crosshair: 'rgba(100,116,139,0.7)' },
 };
 
+// ===== Block Horizon Signal Timeline 常量 =====
+// 官方前端配色常量（4 档）：<25 底部、25-50 偏熊、50-75 偏牛、>=75 顶部。
+const BH_SIGNAL_PHASES = [
+    { label: '接近底部', color: '#225EA8', max: 25 },
+    { label: '偏熊', color: '#92B8E5', max: 50 },
+    { label: '偏牛', color: '#F0A6B8', max: 75 },
+    { label: '接近顶部', color: '#C51B46', max: Infinity },
+];
+const bhSignalPhase = v => BH_SIGNAL_PHASES.find(p => v < p.max) || BH_SIGNAL_PHASES[3];
+
+// 16 个官方信号指标的键 → 行标签（键与 data/blockhorizon_signals.csv 列名一致）。
+// cycle_index（综合行）单独排最顶，其余渲染时按最新值降序（与官方页面一致）。
+const BH_SIGNAL_ROWS = [
+    { key: 'nupl', short: 'NUPL', full: 'NUPL (Net Unrealized Profit/Loss)' },
+    { key: 'thermocap_ratio', short: 'Market Cap / Thermocap', full: 'Market Cap to Thermocap Ratio' },
+    { key: 'nupl_lts', short: 'NUPL LTS', full: 'NUPL Long Term Supply (LTS)' },
+    { key: 'utxos_in_profit', short: 'UTXOs in Profit (%)', full: 'UTXOs in Profit (%)' },
+    { key: 'rp_sts', short: 'Realized Price - STS', full: 'Realized Price - Short Term Supply (STS)' },
+    { key: 'nupl_sts', short: 'NUPL STS', full: 'NUPL Short Term Supply (STS)' },
+    { key: 'delta_price', short: 'Delta Price', full: 'Delta Price' },
+    { key: 'realized_price', short: 'Realized Price', full: 'Realized Price' },
+    { key: 'mvrv', short: 'MVRV', full: 'MVRV (Market Value to Realized Value Ratio)' },
+    { key: 'balanced_price', short: 'Balanced Price', full: 'Balanced Price' },
+    { key: 'mvrv_sts', short: 'MVRV STS', full: 'MVRV Short Term Supply (STS)' },
+    { key: 'top_price', short: 'Top Price', full: 'Top Price' },
+    { key: 'mvrv_z', short: 'MVRV Z-Score', full: 'MVRV Z-Score' },
+    { key: 'mvrv_lts', short: 'MVRV LTS', full: 'MVRV Long Term Supply (LTS)' },
+    { key: 'rp_lts', short: 'Realized Price - LTS', full: 'Realized Price - Long Term Supply (LTS)' },
+    { key: 'supply_in_profit', short: 'Supply in Profit (%)', full: 'Supply in Profit (%)' },
+];
+
+// 在热力图上叠加 BTC 价格：对数映射铺满绘图区高度（只示意走势，不标绝对价位）。
+// 数据放 chart.options.$bhPrice（[{t, p}]）；先画深色描边再画橙线，保证各种底色上都可见。
+const bhPriceOverlayPlugin = {
+    id: 'bhPriceOverlay',
+    afterDatasetsDraw(chart) {
+        const pts = chart.options.$bhPrice;
+        const area = chart.chartArea;
+        if (!pts || pts.length < 2 || !area) return;
+        const xs = chart.scales.x;
+        const logs = pts.map(p => Math.log10(p.p));
+        const lo = Math.min(...logs), hi = Math.max(...logs);
+        const span = hi - lo || 1;
+        const pad = 3;
+        const stroke = (color, width) => {
+            const ctx = chart.ctx;
+            ctx.save();
+            ctx.beginPath();
+            pts.forEach((p, i) => {
+                const px = xs.getPixelForValue(p.t);
+                const py = area.bottom - pad - ((Math.log10(p.p) - lo) / span) * (area.height - pad * 2);
+                i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+            });
+            ctx.lineJoin = 'round';
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = color;
+            ctx.lineWidth = width;
+            ctx.stroke();
+            ctx.restore();
+        };
+        stroke('rgba(0,0,0,0.45)', 3.5);
+        stroke('#ffb347', 1.6);
+    },
+};
+
 // 十字准线插件：鼠标在图表区域内移动时，画跟随光标的横线+竖线。
 // 仅对交互图启用（options.plugins.crosshair.enabled=true）；离屏周报图不启用。
 const crosshairPlugin = {
     id: 'crosshair',
-    afterEvent(chart, args) {
+    afterEvent(chart, args, opts) {
+        if (!opts || !opts.enabled) return;   // 未启用的图（如热力图）不做整图重绘
         const e = args.event;
         const area = chart.chartArea;
         if (!area) return;
@@ -952,6 +1018,97 @@ const ChartsModule = {
             }
         });
         attachModifierZoom(this.charts['blockhorizon'], { yAxes: ['y', 'yPrice'] });
+    },
+
+    // Block Horizon「Signal Timeline」热力图：17 行 × 月度时间轴，行 = Cycle Index
+    //（综合行）+ 官方 16 个信号指标；每格 = 官方归一化值 0-100 的所在分档。
+    // 配色/分档直接取自官方前端常量：
+    //   0-25 底部 #225EA8 / 25-50 偏熊 #92B8E5 / 50-75 偏牛 #F0A6B8 / 75-100 顶部 #C51B46
+    // 数据 = 官方 signal_metric_history 的 normalized_value（guest 可读），
+    // 采样同官方「All history」：最新日往回每 30 天一点。行序同官方：综合行在顶，
+    // 其余按最新一期数值降序。BTC 价格以对数映射叠加为橙线（仅示意走势）。
+    renderBlockHorizonSignalsChart() {
+        this.destroyChart('blockhorizonsignals');
+        const el = document.getElementById('blockhorizonsignals-chart');
+        if (!el) return;
+        const rows0 = DataModule.blockHorizonSignals;
+        if (!rows0 || !rows0.length) return;
+        const latest = rows0[rows0.length - 1].values;
+        const order = [
+            { key: 'cycle_index', short: 'Cycle Index', full: 'Cycle Index（综合周期指数）', strong: true },
+            ...BH_SIGNAL_ROWS.filter(r => r.key !== 'cycle_index')
+                .sort((a, b) => (latest[b.key] ?? -1) - (latest[a.key] ?? -1)),
+        ];
+        const labels = order.map(r => r.short);
+        const dates = rows0.map(d => d.date);
+        const points = [];
+        for (const d of rows0) {
+            for (const r of order) {
+                const v = d.values[r.key];
+                if (v == null) continue;
+                points.push({ x: d.date, y: r.short, v, full: r.full });
+            }
+        }
+        // BTC 价格：每个热力图日期取不晚于该日的最近价格（允许 40 天回看，覆盖本地数据滞后）
+        const priceByDay = DataModule.processedData.map(d => ({ t: d.date.getTime(), p: d.close }));
+        const price = [];
+        let j = 0;
+        for (const day of dates) {
+            const t = day.getTime();
+            while (j + 1 < priceByDay.length && priceByDay[j + 1].t <= t) j++;
+            const p = priceByDay[j];
+            if (p && t - p.t <= 40 * 86400000 && p.p > 0) price.push({ t: day.getTime(), p: p.p });
+        }
+        const DAY = 86400000;
+        this.charts['blockhorizonsignals'] = new Chart(el.getContext('2d'), {
+            type: 'matrix',
+            data: {
+                datasets: [{
+                    label: 'Signal Timeline',
+                    data: points,
+                    backgroundColor: ctx => bhSignalPhase(ctx.raw.v).color,
+                    width: ({ chart }) => (chart.chartArea ? chart.chartArea.width / dates.length : 6) - 0.6,
+                    height: ({ chart }) => (chart.chartArea ? chart.chartArea.height / labels.length : 12) - 0.6,
+                    borderWidth: 0,
+                }]
+            },
+            options: {
+                ...this.defaults(),
+                animation: false,   // 3千+ 热力图格子，动画会明显卡顿
+                $bhPrice: price,   // 供 bhPriceOverlayPlugin 叠加橙线
+                plugins: {
+                    ...this.defaults().plugins,
+                    legend: { display: false },
+                    crosshair: { enabled: false },
+                    tooltip: {
+                        ...this.defaults().plugins.tooltip,
+                        callbacks: {
+                            title: items => items.length ? new Date(items[0].raw.x).toISOString().slice(0, 10) : '',
+                            label: item => `${item.raw.full}: ${item.raw.v}（${bhSignalPhase(item.raw.v).label}）`,
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        type: 'time', offset: false,
+                        min: dates[0].getTime() - 15 * DAY,
+                        max: dates[dates.length - 1].getTime() + 15 * DAY,
+                        time: { unit: 'year' },
+                        ticks: { color: this.t().tick, maxTicksLimit: 16 },
+                        grid: { display: false },
+                    },
+                    y: {
+                        type: 'category', labels, reverse: true,
+                        ticks: {
+                            color: this.t().tick, autoSkip: false,
+                            font: ctx => ({ size: 10, weight: ctx.index === 0 ? '700' : '400' }),
+                        },
+                        grid: { display: false },
+                    }
+                }
+            },
+            plugins: [bhPriceOverlayPlugin],
+        });
     },
 
     // 对称对数（symlog）变换：tt(v)=sign(v)·log10(1+|v|)。

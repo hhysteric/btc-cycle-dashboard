@@ -82,7 +82,7 @@ async function init() {
         return;
     }
     // 链上 CSV + ETF 资金流 CSV + BTC/AAPL + Dominance + URPD + BlockHorizon 与行情并行加载；失败不阻塞主看板
-    await Promise.all([DataModule.loadOnchainCSV(), DataModule.loadEtfCSV(), DataModule.loadBtcAaplCSV(), DataModule.loadDominanceCSV(), DataModule.loadUrpdCSV(), DataModule.loadBlockHorizonCSV()]);
+    await Promise.all([DataModule.loadOnchainCSV(), DataModule.loadEtfCSV(), DataModule.loadBtcAaplCSV(), DataModule.loadDominanceCSV(), DataModule.loadUrpdCSV(), DataModule.loadBlockHorizonCSV(), DataModule.loadBlockHorizonSignalsCSV()]);
 
     // 先用 CSV 数据（本地即可得）立即渲染，不被外部 API 阻塞
     const latest = DataModule.getLatest();
@@ -204,6 +204,7 @@ function renderPriceCharts(data) {
     ChartsModule.renderNuplChart();
     ChartsModule.renderRiskRewardChart(false);
     ChartsModule.renderBlockHorizonChart();
+    ChartsModule.renderBlockHorizonSignalsChart();
     ChartsModule.renderSellerExhaustionChart();
     ChartsModule.renderEtfChart();
     ChartsModule.renderEtfSlopeChart();

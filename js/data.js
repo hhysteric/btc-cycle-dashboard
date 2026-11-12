@@ -24,6 +24,7 @@ const DataModule = {
     btcAaplData: [],   // [{date, aapl, btc, ratio}] 升序
     dominanceData: [], // [{date, btcD, usdtD}] 升序，百分比值
     blockHorizonData: [], // [{date, cycleIndex, localIndex}] 升序，周频 0-100 整数
+    blockHorizonSignals: [], // [{date, values:{列名: 0-100}}] 升序，月度 Signal Timeline
     _mvrvBands: null,
 
     // 每日缓存击穿参数：让浏览器每天重新拉一次 CSV，确保拿到当天 Actions 更新后的最新数据
@@ -185,6 +186,36 @@ const DataModule = {
         } catch (e) {
             console.warn('Failed to load BlockHorizon CSV:', e.message);
             this.blockHorizonData = [];
+            return [];
+        }
+    },
+
+    // 加载 Block Horizon Signal Timeline CSV（data/blockhorizon_signals.csv，
+    // 官方 signal_metric_history 的 normalized_value 0-100，月度采样）。
+    // 宽表：Datetime,cycle_index + 16 个指标列（列名由表头决定）。
+    async loadBlockHorizonSignalsCSV() {
+        try {
+            const text = await fetch('data/blockhorizon_signals.csv' + this._cacheBust()).then(r => r.text());
+            const lines = text.trim().split('\n');
+            const keys = lines[0].split(',').slice(1).map(k => k.trim());
+            const rows = [];
+            for (let i = 1; i < lines.length; i++) {
+                const cols = lines[i].split(',');
+                if (cols.length < keys.length + 1) continue;
+                const day = cols[0].trim().slice(0, 10);
+                if (!day) continue;
+                const values = {};
+                keys.forEach((k, j) => {
+                    const v = parseInt(cols[j + 1], 10);
+                    values[k] = isNaN(v) ? null : v;
+                });
+                rows.push({ date: new Date(day), values });
+            }
+            this.blockHorizonSignals = rows.sort((a, b) => a.date - b.date);
+            return this.blockHorizonSignals;
+        } catch (e) {
+            console.warn('Failed to load BlockHorizon signals CSV:', e.message);
+            this.blockHorizonSignals = [];
             return [];
         }
     },

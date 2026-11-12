@@ -1,20 +1,22 @@
 #!/usr/bin/env python3
-"""生成 data/blockhorizon_index.csv —— Block Horizon Cycle Index（官方值 + 本地复算对照）。
+"""生成 Block Horizon 数据文件（官方数据，guest 可读）：
 
-数据源：charts.blockhorizon.io 的公开 Supabase bundle 接口（guest 可读）。
-  https://<project>.supabase.co/functions/v1/bundle_handler/serve?resolution=downsampled_v2
-bundle 为 176 个指标的数组，每个 series[0].pd 是 {d:[步长天数], n:点数, v:[值],
-t0:起始毫秒时间戳} 的紧凑编码：日期 = t0 + cumsum(d)*86400000，即周频（d=7）。
+1. data/blockhorizon_index.csv —— Cycle Index（官方值 + 本地复算对照）。
+   数据源：charts.blockhorizon.io 的公开 Supabase bundle 接口（guest 可读）。
+   https://<project>.supabase.co/functions/v1/bundle_handler/serve?resolution=downsampled_v2
+   bundle 为 176 个指标的数组，每个 series[0].pd 是 {d:[步长天数], n:点数, v:[值],
+   t0:起始毫秒时间戳} 的紧凑编码：日期 = t0 + cumsum(d)*86400000，即周频（d=7）。
+   官方 Cycle Index = floor(mean(6 个子指标) + 0.5)，0-100 整数（已对 776/776 验证）。
+   本地复算 local_index = floor(mean(4 个子指标) + 0.5)：本地只有 TopPrice / Delta /
+   MVRV-Z / NUPL 四个子指标的数据，缺 LTH-MVRV、LTS-NUPL 两个长持者子指标，
+   故仅为 4/6 的近似对照，偏差可见。子指标 → 0-100 的线性区间为反推所得
+   （0.65 / 1-5 / 0-5 / -0.25-0.8），与官方子指标中位偏差 3-13。
 
-官方 Cycle Index = floor(mean(6 个子指标) + 0.5)，0-100 整数（已对 776/776 验证）。
-
-本地复算 local_index = floor(mean(4 个子指标) + 0.5)：本地只有 TopPrice / Delta /
-MVRV-Z / NUPL 四个子指标的数据（TopPrice=35×历史均值市值/流通量、Delta=(市值/
-MVRV−均值市值)/流通量、Z=(市值−实现市值)/市值 expanding 标准差、NUPL 直读），
-缺 LTH-MVRV、LTS-NUPL 两个长持者子指标，故仅为 4/6 的近似对照，偏差可见。
-
-子指标 → 0-100 的线性区间为反推所得（0.65 / 1-5 / 0-5 / -0.25-0.8），与官方子
-指标中位偏差 3-13。
+2. data/blockhorizon_signals.csv —— Signal Timeline 热力图数据。
+   数据源：Supabase REST 表 signal_metric_info / signal_metric_history
+   （公开可见度 public 的 16 个指标，官方 normalized_value 0-100）。
+   采样与官方 /signals 页「All history」一致：从最新日期往回每 30 天一个点，
+   起点 2012-01-01。cycle_index 列取官方周频序列在对应日期的最近值。
 
 用法:
     python scripts/make_blockhorizon_index.py            # 优先读本地 bh-bundle.json
@@ -23,12 +25,14 @@ MVRV−均值市值)/流通量、Z=(市值−实现市值)/市值 expanding 标�
 下载走 BH_PROXY（默认试 http://127.0.0.1:7897 再直连）。bundle 原始 JSON 约 4.9MB，
 只作临时输入，不提交进仓库。
 """
+import bisect
 import csv
 import datetime
 import json
 import math
 import os
 import sys
+import urllib.parse
 import urllib.request
 
 sys.stdout.reconfigure(encoding="utf-8")
@@ -36,10 +40,32 @@ sys.stdout.reconfigure(encoding="utf-8")
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(ROOT, "data")
 BUNDLE_PATH = os.path.join(ROOT, "bh-bundle.json")
+SUPABASE = "https://zbvrubdalcojapjygbcz.supabase.co"
+PUBLISHABLE_KEY = "sb_publishable_RYSDy8FrvWsClNWT9WWg8A_Mb9eCdp9"
 BUNDLE_URL = (
-    "https://zbvrubdalcojapjygbcz.supabase.co/functions/v1/"
+    f"{SUPABASE}/functions/v1/"
     "bundle_handler/serve?resolution=downsampled_v2"
 )
+
+# Signal Timeline 的 16 个公开指标：chart_id -> CSV 列名（短名，charts.js 里映射显示名）
+SIGNAL_METRICS = {
+    14: "realized_price",
+    29: "utxos_in_profit",
+    36: "thermocap_ratio",
+    63: "supply_in_profit",
+    115: "rp_sts",
+    116: "rp_lts",
+    120: "nupl",
+    133: "mvrv",
+    135: "mvrv_sts",
+    136: "mvrv_lts",
+    141: "balanced_price",
+    143: "top_price",
+    144: "delta_price",
+    145: "mvrv_z",
+    146: "nupl_sts",
+    147: "nupl_lts",
+}
 PROXY = os.environ.get("BH_PROXY", "http://127.0.0.1:7897")
 
 INDEX_SLUGS = [
@@ -163,7 +189,89 @@ def main():
             )
     n_local = sum(1 for d in days if d in local)
     print(f"wrote {len(days)} rows {days[0]} -> {days[-1]} (local recompute {n_local})")
+    return official
+
+
+# ===== Signal Timeline（官方 16 指标归一化值，月度采样） =====
+def supabase_get(path, params):
+    """GET Supabase REST，自动分页（每页 1000 行）。"""
+    rows = []
+    offset = 0
+    while True:
+        q = dict(params, limit="1000", offset=str(offset))
+        url = f"{SUPABASE}/rest/v1/{path}?{urllib.parse.urlencode(q)}"
+        req = urllib.request.Request(url, headers={
+            "apikey": PUBLISHABLE_KEY,
+            "Authorization": f"Bearer {PUBLISHABLE_KEY}",
+        })
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        try:
+            with opener.open(req, timeout=60) as r:
+                page = json.load(r)
+        except Exception:
+            # 直连失败时退回本机代理
+            opener = urllib.request.build_opener(
+                urllib.request.ProxyHandler({"http": PROXY, "https": PROXY})
+            )
+            with opener.open(req, timeout=60) as r:
+                page = json.load(r)
+        rows.extend(page)
+        if len(page) < 1000:
+            return rows
+        offset += 1000
+
+
+def add_days(day, n):
+    d = datetime.date.fromisoformat(day) + datetime.timedelta(days=n)
+    return d.isoformat()
+
+
+def month_grid(end_day, start_day="2012-01-01", step=30):
+    """与官方 Native 一致：从最新日往回每 step 天取一个点，返回升序。"""
+    out, d = [], end_day
+    while d >= start_day:
+        out.append(d)
+        d = add_days(d, -step)
+    return list(reversed(out))
+
+
+def write_signals_csv(official_cycle):
+    latest = supabase_get(
+        "signal_metric_history", {"select": "date", "order": "date.desc", "limit": "1"}
+    )
+    end_day = latest[0]["date"]
+    dates = month_grid(end_day)
+    ids = list(SIGNAL_METRICS)
+    hist = supabase_get("signal_metric_history", {
+        "select": "chart_id,date,normalized_value",
+        "chart_id": f"in.({','.join(map(str, ids))})",
+        "date": f"in.({','.join(dates)})",
+        "order": "chart_id,date",
+    })
+    by_day = {}  # {date: {chart_id: value}}
+    for r in hist:
+        by_day.setdefault(r["date"], {})[r["chart_id"]] = r["normalized_value"]
+    # 官方 Cycle Index（周频）在月度网格上的最近值（取不晚于该日的最近一条）
+    cycle_days = sorted(official_cycle, key=lambda s: s)
+    def cycle_at(day):
+        i = bisect.bisect_right(cycle_days, day) - 1
+        return official_cycle[cycle_days[i]] if i >= 0 else ""
+    cols = list(SIGNAL_METRICS.values())
+    out_path = os.path.join(DATA_DIR, "blockhorizon_signals.csv")
+    with open(out_path, "w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(["Datetime", "cycle_index"] + cols)
+        for day in dates:
+            row = by_day.get(day, {})
+            w.writerow(
+                [day, cycle_at(day)]
+                + [row.get(cid, "") for cid in ids]
+            )
+    n_cells = sum(1 for r in hist)
+    print(f"wrote {len(dates)} rows {dates[0]} -> {dates[-1]} "
+          f"({n_cells} cells, {len(ids)} metrics)")
 
 
 if __name__ == "__main__":
-    main()
+    official = main()
+    write_signals_csv(official["cycle_index"])

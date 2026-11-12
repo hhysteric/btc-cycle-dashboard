@@ -10,6 +10,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@2.0.1/dist/chartjs-chart-matrix.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.2/dist/lightweight-charts.standalone.production.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -465,6 +466,27 @@
                 </div>
             </div>
 
+            <!-- Block Horizon Signal Timeline（官方 16 指标归一化值热力图 + BTC 走势叠加） -->
+            <div id="card-blockhorizon-signals" class="chart-card bg-white dark:bg-dark-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
+                <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                    <h2 class="text-lg font-semibold">Block Horizon Signal Timeline</h2>
+                    <div class="flex gap-2 items-center">
+                        <button class="chart-tool-btn fullscreen-btn px-3 py-1 rounded text-sm" data-target="card-blockhorizon-signals">全屏</button>
+                    </div>
+                </div>
+                <p class="text-gray-500 dark:text-gray-400 text-sm mb-2">官方 16 个信号指标的归一化值（0-100）热力图，行序 = 综合 Cycle Index + 按最新数值降序；<a href="https://charts.blockhorizon.io/signals" target="_blank" rel="noopener noreferrer" class="underline hover:text-accent-gold">来源</a>。橙线 = BTC 价格走势（对数映射，仅示意相对高度）。</p>
+                <p class="text-gray-500 dark:text-gray-400 text-sm mb-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span class="inline-flex items-center gap-1"><span class="inline-block w-3 h-3 rounded-sm" style="background:#225EA8"></span>接近底部 &lt;25</span>
+                    <span class="inline-flex items-center gap-1"><span class="inline-block w-3 h-3 rounded-sm" style="background:#92B8E5"></span>偏熊 25-50</span>
+                    <span class="inline-flex items-center gap-1"><span class="inline-block w-3 h-3 rounded-sm" style="background:#F0A6B8"></span>偏牛 50-75</span>
+                    <span class="inline-flex items-center gap-1"><span class="inline-block w-3 h-3 rounded-sm" style="background:#C51B46"></span>接近顶部 &ge;75</span>
+                    <span class="inline-flex items-center gap-1"><span class="inline-block w-3 h-0.5" style="background:#ffb347"></span>BTC 价格</span>
+                </p>
+                <div class="chart-canvas-wrap h-96">
+                    <canvas id="blockhorizonsignals-chart"></canvas>
+                </div>
+            </div>
+
             <!-- 卖方衰竭指数 (Seller Exhaustion Index) -->
             <div id="card-seller-exhaustion" class="chart-card bg-white dark:bg-dark-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
                 <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
@@ -710,8 +732,8 @@
     </footer>
 
     <!-- ?v 版本号：改代码时手动 +1，强制浏览器拉最新 JS，避免看到旧缓存版本 -->
-    <script src="js/data.js?v=20261112a"></script>
-    <script src="js/charts.js?v=20261112a"></script>
+    <script src="js/data.js?v=20261112b"></script>
+    <script src="js/charts.js?v=20261112b"></script>
     <script src="js/cryptoquant.js?v=20260831e"></script>
     <script src="js/smm.js?v=20260821"></script>
     <script src="js/jlst.js?v=20260821"></script>
@@ -721,6 +743,6 @@
     <script src="js/mvrv-cycle.js?v=20260814c"></script>
     <script src="js/tv-chart.js?v=20260831"></script>
     <script src="js/report.js?v=20261009a"></script>
-    <script src="js/app.js?v=20261112a"></script>
+    <script src="js/app.js?v=20261112b"></script>
 </body>
 </html>

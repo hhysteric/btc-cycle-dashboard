@@ -23,6 +23,7 @@ const DataModule = {
     etfData: [],       // [{date, flow, cumulative}] 升序，flow 单位百万美元
     btcAaplData: [],   // [{date, aapl, btc, ratio}] 升序
     dominanceData: [], // [{date, btcD, usdtD}] 升序，百分比值
+    blockHorizonData: [], // [{date, cycleIndex, localIndex}] 升序，周频 0-100 整数
     _mvrvBands: null,
 
     // 每日缓存击穿参数：让浏览器每天重新拉一次 CSV，确保拿到当天 Actions 更新后的最新数据
@@ -157,6 +158,33 @@ const DataModule = {
         } catch (e) {
             console.warn('Failed to load dominance CSV:', e.message);
             this.dominanceData = [];
+            return [];
+        }
+    },
+
+    // 加载 Block Horizon Cycle Index CSV（data/blockhorizon_index.csv，由
+    // scripts/make_blockhorizon_index.py 生成：官方 bundle 解码 + 本地 4/6 子指标复算）。
+    // 格式：Datetime,local_index,cycle_index,top_index,delta_index,nupl_index,
+    //       mvrv_z_index,lth_mvrv_index,lts_nupl_index。周频、升序、0-100 整数。
+    async loadBlockHorizonCSV() {
+        try {
+            const text = await fetch('data/blockhorizon_index.csv' + this._cacheBust()).then(r => r.text());
+            const lines = text.trim().split('\n');
+            const rows = [];
+            for (let i = 1; i < lines.length; i++) {
+                const cols = lines[i].split(',');
+                if (cols.length < 9) continue;
+                const day = cols[0].trim().slice(0, 10);
+                const cycle = parseInt(cols[2], 10);
+                if (!day || isNaN(cycle)) continue;
+                const num = (c) => { const v = parseInt(c, 10); return isNaN(v) ? null : v; };
+                rows.push({ date: new Date(day), cycleIndex: cycle, localIndex: num(cols[1]) });
+            }
+            this.blockHorizonData = rows.sort((a, b) => a.date - b.date);
+            return this.blockHorizonData;
+        } catch (e) {
+            console.warn('Failed to load BlockHorizon CSV:', e.message);
+            this.blockHorizonData = [];
             return [];
         }
     },

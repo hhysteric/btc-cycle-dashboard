@@ -448,6 +448,23 @@
                 </div>
             </div>
 
+            <!-- Block Horizon Cycle Index（官方 bundle 解码 + 本地 4/6 子指标复算对照） -->
+            <div id="card-blockhorizon-local" class="chart-card bg-white dark:bg-dark-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
+                <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                    <h2 class="text-lg font-semibold">Block Horizon Cycle Index</h2>
+                    <div class="flex gap-2 items-center">
+                        <span id="blockhorizon-current" class="text-sm text-accent-gold font-semibold">--</span>
+                        <span class="w-px h-5 bg-gray-400 dark:bg-gray-600 mx-1"></span>
+                        <button class="zoom-reset-btn px-3 py-1 rounded text-sm" data-chart="blockhorizon">重置</button>
+                        <button class="chart-tool-btn fullscreen-btn px-3 py-1 rounded text-sm" data-target="card-blockhorizon-local">全屏</button>
+                    </div>
+                </div>
+                <p class="text-gray-500 dark:text-gray-400 text-sm mb-3">Block Horizon 综合周期指数（0-100，官方 6 子指标均值取整）：<a href="https://charts.blockhorizon.io/signals" target="_blank" rel="noopener noreferrer" class="underline hover:text-accent-gold">官方数值</a>。灰虚线为本地复算对照——仅复算顶价/Delta/MVRV-Z/NUPL 四个子指标（缺两个长持者子指标），故会有可见偏差。< 25 接近周期底、25-50 熊市、50-75 牛市、> 75 接近周期顶。</p>
+                <div class="chart-canvas-wrap h-80">
+                    <canvas id="blockhorizon-chart"></canvas>
+                </div>
+            </div>
+
             <!-- 卖方衰竭指数 (Seller Exhaustion Index) -->
             <div id="card-seller-exhaustion" class="chart-card bg-white dark:bg-dark-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
                 <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
@@ -693,8 +710,8 @@
     </footer>
 
     <!-- ?v 版本号：改代码时手动 +1，强制浏览器拉最新 JS，避免看到旧缓存版本 -->
-    <script src="js/data.js?v=20260831f"></script>
-    <script src="js/charts.js?v=20261010e"></script>
+    <script src="js/data.js?v=20261112a"></script>
+    <script src="js/charts.js?v=20261112a"></script>
     <script src="js/cryptoquant.js?v=20260831e"></script>
     <script src="js/smm.js?v=20260821"></script>
     <script src="js/jlst.js?v=20260821"></script>
@@ -704,6 +721,6 @@
     <script src="js/mvrv-cycle.js?v=20260814c"></script>
     <script src="js/tv-chart.js?v=20260831"></script>
     <script src="js/report.js?v=20261009a"></script>
-    <script src="js/app.js?v=20260831h"></script>
+    <script src="js/app.js?v=20261112a"></script>
 </body>
 </html>

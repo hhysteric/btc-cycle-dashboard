@@ -81,8 +81,8 @@ async function init() {
         console.error('数据加载失败，请确保 data/btc_historical.csv 文件存在');
         return;
     }
-    // 链上 CSV + ETF 资金流 CSV + BTC/AAPL + Dominance + URPD 与行情并行加载；失败不阻塞主看板
-    await Promise.all([DataModule.loadOnchainCSV(), DataModule.loadEtfCSV(), DataModule.loadBtcAaplCSV(), DataModule.loadDominanceCSV(), DataModule.loadUrpdCSV()]);
+    // 链上 CSV + ETF 资金流 CSV + BTC/AAPL + Dominance + URPD + BlockHorizon 与行情并行加载；失败不阻塞主看板
+    await Promise.all([DataModule.loadOnchainCSV(), DataModule.loadEtfCSV(), DataModule.loadBtcAaplCSV(), DataModule.loadDominanceCSV(), DataModule.loadUrpdCSV(), DataModule.loadBlockHorizonCSV()]);
 
     // 先用 CSV 数据（本地即可得）立即渲染，不被外部 API 阻塞
     const latest = DataModule.getLatest();
@@ -203,6 +203,7 @@ function renderPriceCharts(data) {
     ChartsModule.renderMvrvChart(true);
     ChartsModule.renderNuplChart();
     ChartsModule.renderRiskRewardChart(false);
+    ChartsModule.renderBlockHorizonChart();
     ChartsModule.renderSellerExhaustionChart();
     ChartsModule.renderEtfChart();
     ChartsModule.renderEtfSlopeChart();
@@ -268,6 +269,17 @@ function renderPriceCharts(data) {
         rrEl.style.color = rrCur.rr >= 3 ? '#00d395' : rrCur.rr <= 0.3 ? '#ff4757' : '#f7931a';
     } else if (rrEl) {
         rrEl.textContent = '链上数据未加载';
+    }
+
+    const bhData = DataModule.blockHorizonData;
+    const bhEl = document.getElementById('blockhorizon-current');
+    if (bhData && bhData.length && bhEl) {
+        const last = bhData[bhData.length - 1];
+        const m = last.date.toISOString().slice(0, 10);
+        bhEl.textContent = 'BH ' + last.cycleIndex + '（' + m + '）';
+        bhEl.style.color = last.cycleIndex < 25 ? '#00d395' : last.cycleIndex >= 75 ? '#ff4757' : '#f7931a';
+    } else if (bhEl) {
+        bhEl.textContent = '数据未加载';
     }
 
     const secCur = DataModule.getSellerExhaustionCurrent();

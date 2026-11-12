@@ -910,6 +910,50 @@ const ChartsModule = {
         attachModifierZoom(this.charts['nupl'], { yAxes: ['y', 'yPrice'] });
     },
 
+    // Block Horizon Cycle Index（官方 0-100 综合周期指数，周频）：
+    //   紫实线 = 官方值（6 子指标均值取整）；灰虚线 = 本地复算对照（仅 4/6 子指标，
+    //   缺 LTH-MVRV / LTS-NUPL 两个长持者子指标，且本地数据滞后数周，仅供对照）。
+    //   右轴 BTC 价格。0-25 接近周期底、25-50 熊市、50-75 牛市、75-100 接近周期顶。
+    renderBlockHorizonChart() {
+        this.destroyChart('blockhorizon');
+        const el = document.getElementById('blockhorizon-chart');
+        if (!el) return;
+        const bh = DataModule.blockHorizonData.filter(d => d.cycleIndex != null);
+        if (!bh.length) return;
+        const priceByDay = new Map();
+        for (const d of DataModule.processedData) priceByDay.set(d.date.toISOString().slice(0, 10), d.close);
+        const labels = bh.map(d => d.date);
+        this.charts['blockhorizon'] = new Chart(el.getContext('2d'), {
+            data: {
+                labels,
+                datasets: [
+                    { type: 'line', label: 'BTC 价格', yAxisID: 'yPrice', data: bh.map(d => { const p = priceByDay.get(d.date.toISOString().slice(0, 10)); return p != null ? p : null; }), borderColor: 'rgba(247,147,26,0.5)', borderWidth: 1, pointRadius: 0 },
+                    { type: 'line', label: 'Cycle Index（本地复算 4/6）', yAxisID: 'y', data: bh.map(d => d.localIndex), borderColor: 'rgba(148,163,184,0.75)', borderDash: [5, 4], borderWidth: 1.2, pointRadius: 0, spanGaps: false },
+                    { type: 'line', label: 'Cycle Index（官方）', yAxisID: 'y', data: bh.map(d => d.cycleIndex), borderColor: '#7c5cff', borderWidth: 1.4, pointRadius: 0 },
+                ]
+            },
+            options: {
+                ...this.defaults(),
+                plugins: {
+                    ...this.defaults().plugins,
+                    annotation: { annotations: {
+                        bottom: { type: 'line', yMin: 25, yMax: 25, yScaleID: 'y', borderColor: 'rgba(16,185,129,0.5)', borderDash: [4, 4], borderWidth: 1, label: { display: true, content: '25', position: 'start', color: '#10b981', backgroundColor: 'rgba(0,0,0,0)', font: { size: 9 } } },
+                        mid: { type: 'line', yMin: 50, yMax: 50, yScaleID: 'y', borderColor: 'rgba(107,114,128,0.5)', borderDash: [4, 4], borderWidth: 1, label: { display: true, content: '50', position: 'start', color: '#9ca3af', backgroundColor: 'rgba(0,0,0,0)', font: { size: 9 } } },
+                        top: { type: 'line', yMin: 75, yMax: 75, yScaleID: 'y', borderColor: 'rgba(236,72,153,0.5)', borderDash: [4, 4], borderWidth: 1, label: { display: true, content: '75', position: 'start', color: '#ec4899', backgroundColor: 'rgba(0,0,0,0)', font: { size: 9 } } },
+                        ...this.cycleBottomAnnotations('start'), ...this.cycleTopAnnotations('start')
+                    } },
+                    zoom: makeZoomConfig()
+                },
+                scales: {
+                    x: { type: 'time', time: { unit: 'year' }, ticks: { color: this.t().tick }, grid: { color: this.t().grid } },
+                    y: { position: 'left', min: 0, max: 100, title: { display: true, text: 'Cycle Index', color: '#7c5cff' }, ticks: { color: '#7c5cff', stepSize: 25 }, grid: { color: this.t().grid } },
+                    yPrice: { position: 'right', type: 'logarithmic', title: { display: true, text: 'BTC', color: '#f7931a' }, ticks: { color: '#f7931a', callback: v => this._fmtPrice(v) }, grid: { drawOnChartArea: false } }
+                }
+            }
+        });
+        attachModifierZoom(this.charts['blockhorizon'], { yAxes: ['y', 'yPrice'] });
+    },
+
     // 对称对数（symlog）变换：tt(v)=sign(v)·log10(1+|v|)。
     // R/R 线性轴下会变负（顶部狂热期 price 高于 bullCeiling → upReward<0 → rr<0），
     // 且极端值跨 −232914…+12391，直接线性会让主带（0.2~30）被压成零附近一条平线。

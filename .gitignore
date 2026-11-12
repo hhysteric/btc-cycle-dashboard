@@ -1,1 +1,7 @@
 .playwright-mcp/
+
+# 本地临时工作区（make_blockhorizon_index.py 的中间产物等）
+.claude-tmp/
+# BlockHorizon bundle 原始 JSON（~4.9MB，仅作生成器输入，不入库）
+bh-bundle.json
+__pycache__/

@@ -22,6 +22,8 @@ DataModule.getCycleDataFromHalving = function () {
         const data = inRange.map(d => ({
             day: Math.floor((d.date - start) / (1000 * 60 * 60 * 24)),
             normalized: d.close / startPrice,
+            // 日内最低价相对减半日的倍数：「最低点」标注按日内极值口径定位（与周期竖线标注一致）
+            lowNorm: Number.isFinite(d.low) ? d.low / startPrice : null
         }));
         cycles.push({
             label: `减半${c + 1} (${start.getFullYear()})`,
@@ -37,9 +39,13 @@ DataModule.analyzeCycleHalving = function () {
     const cycles = this.getCycleDataFromHalving();
     if (!cycles || cycles.length < 2) return null;
     const stat = c => {
-        let high = c.data[0], low = c.data[0];
-        for (const p of c.data) { if (p.normalized > high.normalized) high = p; if (p.normalized < low.normalized) low = p; }
-        return { gain: high.normalized, gainDay: high.day, low: low.normalized, lowDay: low.day };
+        let high = c.data[0], low = c.data[0], lowVal = low.lowNorm ?? low.normalized;
+        for (const p of c.data) {
+            if (p.normalized > high.normalized) high = p;
+            const v = p.lowNorm ?? p.normalized;   // 最低按日内极值口径
+            if (v < lowVal) { low = p; lowVal = v; }
+        }
+        return { gain: high.normalized, gainDay: high.day, low: lowVal, lowDay: low.day };
     };
     const past = cycles.slice(0, 3).map(stat);
     const cur = stat(cycles[cycles.length - 1]);
@@ -67,11 +73,12 @@ ChartsModule.renderCycleHalvingChart = function (cycles) {
     const annotations = {};
     cycles.forEach((cycle, i) => {
         const color = CHART_COLORS.cycleColors[i];
-        // 先找该轮原始（相对减半日）最高/最低点
-        let high = cycle.data[0], low = cycle.data[0];
+        // 先找该轮原始（相对减半日）最高/最低点；最低按日内极值口径（lowNorm）
+        let high = cycle.data[0], low = cycle.data[0], lowVal = low.lowNorm ?? low.normalized;
         for (const p of cycle.data) {
             if (p.normalized > high.normalized) high = p;
-            if (p.normalized < low.normalized) low = p;
+            const v = p.lowNorm ?? p.normalized;
+            if (v < lowVal) { low = p; lowVal = v; }
         }
         const base = cycle.data[0].normalized;   // 减半日值（=1.0）
         const peakVal = high.normalized || 1;
@@ -102,15 +109,15 @@ ChartsModule.renderCycleHalvingChart = function (cycles) {
             xAdjust: -40, yAdjust: 8 + i * 16, backgroundColor: color, borderRadius: 3, padding: 3,
         };
 
-        // 最低点：圆点散点 + 标签
+        // 最低点：圆点散点 + 标签（日内最低价口径，散点落在收盘曲线下方 = 当日下影线）
         datasets.push({
-            label: cycle.label + ' 最低点', data: [{ x: low.day, y: yOf(low.normalized) }],
+            label: cycle.label + ' 最低点', data: [{ x: low.day, y: yOf(lowVal) }],
             borderColor: '#fff', backgroundColor: color, pointRadius: 5, pointStyle: 'circle',
             borderWidth: 1.5, showLine: false, pointHoverRadius: 7,
         });
         annotations['low' + i] = {
-            type: 'label', xValue: low.day, yValue: yOf(low.normalized),
-            content: peakMode ? `${name} 底: ${yOf(low.normalized).toFixed(2)} (第${low.day}天)` : `${name} 底: ${low.normalized.toFixed(2)}x (第${low.day}天)`,
+            type: 'label', xValue: low.day, yValue: yOf(lowVal),
+            content: peakMode ? `${name} 底: ${yOf(lowVal).toFixed(2)} (第${low.day}天)` : `${name} 底: ${lowVal.toFixed(2)}x (第${low.day}天)`,
             color: '#fff', font: { size: 9, weight: 'bold' }, position: 'center',
             xAdjust: 44, yAdjust: 8 + i * 14, backgroundColor: color, borderRadius: 3, padding: 3,
         };
@@ -169,20 +176,20 @@ ChartsModule.reportCycleHalvingImage = function (crop) {
     const ann = {};
     cycles.forEach((cy, i) => {
         const color = CHART_COLORS.cycleColors[i];
-        let high = cy.data[0], low = cy.data[0];
-        for (const p of cy.data) { if (p.normalized > high.normalized) high = p; if (p.normalized < low.normalized) low = p; }
+        let high = cy.data[0], low = cy.data[0], lowVal = low.lowNorm ?? low.normalized;
+        for (const p of cy.data) { if (p.normalized > high.normalized) high = p; const v = p.lowNorm ?? p.normalized; if (v < lowVal) { low = p; lowVal = v; } }
         const base = cy.data[0].normalized, peakVal = high.normalized || 1, span = (peakVal - base) || 1;
         const yOf = v => peakMode ? (v - base) / span : v;
         const name = cy.label.replace(/ .*/, '');
         datasets.push({ label: cy.label, data: cy.data.map(d => ({ x: d.day, y: yOf(d.normalized) })),
             borderColor: color, borderWidth: 1.4, pointRadius: 0, tension: 0.1 });
         datasets.push({ label: cy.label + ' 顶', data: [{ x: high.day, y: yOf(high.normalized) }], borderColor: color, backgroundColor: color, pointRadius: 6, pointStyle: 'triangle', showLine: false });
-        datasets.push({ label: cy.label + ' 底', data: [{ x: low.day, y: yOf(low.normalized) }], borderColor: '#fff', backgroundColor: color, pointRadius: 5, pointStyle: 'circle', borderWidth: 1.5, showLine: false });
+        datasets.push({ label: cy.label + ' 底', data: [{ x: low.day, y: yOf(lowVal) }], borderColor: '#fff', backgroundColor: color, pointRadius: 5, pointStyle: 'circle', borderWidth: 1.5, showLine: false });
         ann['h' + i] = { type: 'label', xValue: high.day, yValue: yOf(high.normalized),
             content: peakMode ? `${name} 顶: 1.00 (第${high.day}天)` : `${name} 顶: ${high.normalized.toFixed(1)}x (第${high.day}天)`,
             color: '#fff', font: { size: 11, weight: 'bold' }, xAdjust: -40, yAdjust: 8 + i * 16, backgroundColor: color, borderRadius: 3, padding: 3 };
-        ann['l' + i] = { type: 'label', xValue: low.day, yValue: yOf(low.normalized),
-            content: peakMode ? `${name} 底: ${yOf(low.normalized).toFixed(2)} (第${low.day}天)` : `${name} 底: ${low.normalized.toFixed(2)}x (第${low.day}天)`,
+        ann['l' + i] = { type: 'label', xValue: low.day, yValue: yOf(lowVal),
+            content: peakMode ? `${name} 底: ${yOf(lowVal).toFixed(2)} (第${low.day}天)` : `${name} 底: ${lowVal.toFixed(2)}x (第${low.day}天)`,
             color: '#fff', font: { size: 9, weight: 'bold' }, xAdjust: 44, yAdjust: 8 + i * 14, backgroundColor: color, borderRadius: 3, padding: 3 };
     });
     return this._offscreenChart({

@@ -428,13 +428,18 @@ const ChartsModule = {
                 tension: 0.1
             });
 
-            // 找该轮最低点并用散点+标签标注（标注显示"从最高点的跌幅"）
-            let low = cycle.data[0];
-            for (const p of cycle.data) if (p.normalized < low.normalized) low = p;
-            const drawdown = (1 - low.normalized) * 100; // 跌幅%
+            // 找该轮最低点并用散点+标签标注（标注显示"从最高点的跌幅"）。
+            // 最低点按「日内最低价」口径（lowNorm，与周期竖线标注一致），
+            // 散点画在日内低点的相对位置（可能略低于收盘曲线，即插针低点）。
+            let low = cycle.data[0], lowVal = low.lowNorm ?? low.normalized;
+            for (const p of cycle.data) {
+                const v = p.lowNorm ?? p.normalized;
+                if (v < lowVal) { low = p; lowVal = v; }
+            }
+            const drawdown = (1 - lowVal) * 100; // 跌幅%
             datasets.push({
                 label: cycle.label + ' 最低点',
-                data: [{ x: low.day, y: low.normalized }],
+                data: [{ x: low.day, y: lowVal }],
                 borderColor: color,
                 backgroundColor: color,
                 pointRadius: 6,
@@ -446,7 +451,7 @@ const ChartsModule = {
             lowAnnotations['low' + i] = {
                 type: 'label',
                 xValue: low.day,
-                yValue: low.normalized,
+                yValue: lowVal,
                 content: `${cycle.label.replace(/ .*/, '')}: -${drawdown.toFixed(1)}% (第${low.day}天)`,
                 color: '#fff',
                 font: { size: 10, weight: 'bold' },
@@ -1790,10 +1795,13 @@ const ChartsModule = {
             const color = CHART_COLORS.cycleColors[i];
             datasets.push({ label: cy.label, data: cy.data.map(d => ({ x: d.day, y: d.normalized })),
                 borderColor: color, borderWidth: 1.4, pointRadius: 0, tension: 0.1 });
-            let low = cy.data[0];
-            for (const p of cy.data) if (p.normalized < low.normalized) low = p;
-            const dd = (1 - low.normalized) * 100;
-            ann['l' + i] = { type: 'label', xValue: low.day, yValue: low.normalized,
+            let low = cy.data[0], lowVal = low.lowNorm ?? low.normalized;
+            for (const p of cy.data) {
+                const v = p.lowNorm ?? p.normalized;
+                if (v < lowVal) { low = p; lowVal = v; }
+            }
+            const dd = (1 - lowVal) * 100;
+            ann['l' + i] = { type: 'label', xValue: low.day, yValue: lowVal,
                 content: `${cy.label.replace(/ .*/, '')}: -${dd.toFixed(1)}% (第${low.day}天)`,
                 color: '#fff', font: { size: 12, weight: 'bold' }, xAdjust: 46, yAdjust: -8 - i * 18,
                 backgroundColor: color, borderRadius: 3, padding: 4 };

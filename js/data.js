@@ -889,7 +889,10 @@ const DataModule = {
                 data: fromPeak
                     .map(d => ({
                         day: Math.floor((d.date - peakDate) / (1000 * 60 * 60 * 24)),
-                        normalized: d.close / peakPrice
+                        normalized: d.close / peakPrice,
+                        // 日内最低价相对峰值的倍数：「最低点」标注按日内极值口径定位
+                        // （与周期顶/底竖线同口径），normalized 仍是收盘口径、供曲线绘制。
+                        lowNorm: Number.isFinite(d.low) ? d.low / peakPrice : null
                     }))
                     .filter(p => p.day <= maxDays)
             });
@@ -966,22 +969,26 @@ const DataModule = {
         if (cycles.length < 2) return null;
         const latest = this.getLatest();
 
+        // 最低点 = 日内最低价所在点（与周期竖线标注同口径）；收盘口径的 normalized 仅用于曲线
+        const lowOf = c => {
+            let low = c.data[0], lowVal = low.lowNorm ?? low.normalized;
+            for (const p of c.data) {
+                const v = p.lowNorm ?? p.normalized;
+                if (v < lowVal) { low = p; lowVal = v; }
+            }
+            return { day: low.day, drawdown: (1 - lowVal) * 100 };
+        };
         // 前 3 轮（已完成）的最低点：天数 + 跌幅
-        const past = cycles.slice(0, 3).map(c => {
-            let low = c.data[0];
-            for (const p of c.data) if (p.normalized < low.normalized) low = p;
-            return { day: low.day, drawdown: (1 - low.normalized) * 100 };
-        });
+        const past = cycles.slice(0, 3).map(lowOf);
         const cur = cycles[cycles.length - 1];
-        let curLow = cur.data[0];
-        for (const p of cur.data) if (p.normalized < curLow.normalized) curLow = p;
         const curDay = cur.data[cur.data.length - 1].day; // 距高点已过天数
-        const curDrawdown = (1 - curLow.normalized) * 100;
+        const curDrawdown = lowOf(cur).drawdown;
 
         // 本轮高点日期与价格
         const peakDate = this.addDays(latest.date, -curDay);
-        // 峰值价：curLow.normalized 是相对峰值，反推峰值
-        const peakPrice = curLow.normalized > 0 ? (latest.close / (cur.data[cur.data.length - 1].normalized)) : null;
+        // 峰值价：由最新一点的相对峰值倍数反推
+        const lastNorm = cur.data[cur.data.length - 1].normalized;
+        const peakPrice = lastNorm > 0 ? (latest.close / lastNorm) : null;
 
         const dayMin = Math.min(...past.map(p => p.day));
         const dayMax = Math.max(...past.map(p => p.day));

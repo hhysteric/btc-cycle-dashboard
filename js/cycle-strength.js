@@ -4,7 +4,9 @@
 //   过高点后曲线继续画进入回落段，跌破 0 = 跌回甚至低于本轮起始低点。
 //   因各轮顶点都对齐在 y=1，从顶点往右下的回落曲线可直接叠比，一眼看出哪轮跌得更深/更狠。
 // 复用 charts.js 全局 helper：CHART_COLORS / makeZoomConfig / attachModifierZoom；
-//   数据复用 DataModule.getCycleDataFromTrough（已优雅处理进行中的周期4，且从低点向后延伸含回落段）。
+//   数据复用 DataModule.getCycleDataFromTrough（从低点向后延伸含回落段）。
+//   周期4 若「新低晚于本轮顶点」（底在顶后，如 2026-11-21 新低），低→高涨幅过小、归一化无意义，
+//   标记 degenerate：图与周报均跳过该轮并在周报文字中说明，待其走出新的低→高段再纳入。
 // 本文件在 index.html 中于 charts.js、cycle-trough.js 之后引入。
 
 // ===== 数据：低点→高点两端归一化 + 回落 =====
@@ -18,6 +20,10 @@ DataModule.getCycleStrengthData = function () {
         for (const p of cy.data) if (p.normalized > peak.normalized) peak = p;
         const base = cy.data[0].normalized;          // 最低点值（=1.0）
         const span = (peak.normalized - base) || 1;  // 低→高 涨幅跨度
+        // 底在顶后（低→高涨幅 < 15%）：归一化会把不足 15% 的波动放大成 0→1，误导性大，跳过
+        if (peak.normalized / base - 1 < 0.15) {
+            return { label: cy.label, degenerate: true, data: [] };
+        }
         return {
             label: cy.label,
             peakDay: peak.day,
@@ -31,6 +37,8 @@ ChartsModule.renderCycleStrengthChart = function (cycles) {
     this.destroyChart('cycle-strength');
     const el = document.getElementById('cycle-strength-chart');
     if (!el) return;
+    cycles = (cycles || []).filter(c => !c.degenerate);   // 跳过退化的「底在顶后」周期
+    if (!cycles.length) return;
     const ctx = el.getContext('2d');
 
     const datasets = [];
@@ -116,7 +124,10 @@ ChartsModule.renderCycleStrengthChart = function (cycles) {
 DataModule.analyzeCycleStrength = function () {
     const cycles = this.getCycleStrengthData();
     if (!cycles || cycles.length < 2) return null;
-    const info = cycles.map(cy => {
+    const valid = cycles.filter(cy => !cy.degenerate);
+    const degenerate = cycles.find(cy => cy.degenerate);
+    if (!valid.length) return null;
+    const info = valid.map(cy => {
         const high = cy.data.find(d => d.day === cy.peakDay) || cy.data[0];
         let fallLow = high;
         for (const d of cy.data) if (d.day > high.day && d.y < fallLow.y) fallLow = d;
@@ -127,14 +138,18 @@ DataModule.analyzeCycleStrength = function () {
     const dropList = past.map(p => `${p.name} -${p.drop.toFixed(0)}%（顶后${p.fallDays}天）`).join('、');
     let text = `本图把各轮「最低点→最高点」归一化为 低=0、高=1，各轮顶点对齐在 1.0，从顶点往右下的回落曲线可直接叠比下跌强弱（曲线越陡/越低=跌得越快越深；跌破 0 = 已低于本轮起始低点）。`;
     if (past.length) text += `此前几轮见顶后的最深回落：${dropList}。`;
-    if (cur && cur.hasFall) text += `本轮见顶后至今最深回落约 -${cur.drop.toFixed(0)}%（顶后 ${cur.fallDays} 天），可与历史区间横比当前下跌处于偏强或偏弱（历史类比，非预测）。`;
+    if (degenerate) {
+        text += `本轮（${degenerate.label}）新低出现在本轮顶点之后（底在顶后），尚无可归一的「低→高」段，暂不纳入本图，待其自新低走出新的上涨段再纳入。`;
+    } else if (cur && cur.hasFall) {
+        text += `本轮见顶后至今最深回落约 -${cur.drop.toFixed(0)}%（顶后 ${cur.fallDays} 天），可与历史区间横比当前下跌处于偏强或偏弱（历史类比，非预测）。`;
+    }
     return { key: 'cyclestrength', title: '涨跌强弱对比（低→高对齐，看回落深度）', text };
 };
 
 // ===== 周报离屏图（深色）=====
 ChartsModule.reportCycleStrengthImage = function (crop) {
-    const cycles = DataModule.getCycleStrengthData();
-    if (!cycles || !cycles.length) return null;
+    const cycles = (DataModule.getCycleStrengthData() || []).filter(cy => !cy.degenerate);
+    if (!cycles.length) return null;
     const datasets = [];
     const ann = {};
     cycles.forEach((cy, i) => {

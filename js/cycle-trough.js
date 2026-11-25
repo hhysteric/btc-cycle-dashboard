@@ -5,9 +5,10 @@
 // 该文件在 index.html 中于 charts.js 之后引入，因此可安全扩展 DataModule / ChartsModule。
 
 // ===== 数据：从各轮"熊市大底"对齐 =====
-// 关键：先在减半周期区间内定位最高点(牛市顶)，再取"最高点之后"的最低收盘价作为该轮大底。
+// 关键：先在减半周期区间内定位最高点(牛市顶)，再取"最高点之后"的最低日内价作为该轮大底
+//（与周期顶/底竖线标注同口径；1.0 = 该轮最低日内价，曲线本身仍画收盘价）。
 //   - 周期1/2/3 → 各自熊市大底（2015初 / 2018末 / 2022末，均已在 CSV 中经数据核对）；
-//   - 周期4    → 熊市大底尚未形成（2026=熊年），"见顶后至今的最低收盘"即"当下可看到的最低点"，
+//   - 周期4    → 熊市大底尚未形成（2026=熊年），"见顶后至今的最低价"即"当下可看到的最低点"，
 //                随每日数据自动推进，绝不预设/编造未来底部。
 DataModule.getCycleDataFromTrough = function () {
     // 区间右界较顶部对齐图后移半年，确保能覆盖到跨年的熊市大底（如 2015-01、2018-12、2022-11）
@@ -29,13 +30,13 @@ DataModule.getCycleDataFromTrough = function () {
         for (let i = 1; i < inRange.length; i++) {
             if (inRange[i].close > inRange[peakIdx].close) peakIdx = i;
         }
-        // 在"最高点之后"的数据里找最低收盘价 = 该轮熊市大底（周期4=见顶后至今最低点）
+        // 在"最高点之后"的数据里找最低日内价 = 该轮熊市大底（周期4=见顶后至今最低点）
         let troughIdx = peakIdx;
         for (let i = peakIdx + 1; i < inRange.length; i++) {
-            if (inRange[i].close < inRange[troughIdx].close) troughIdx = i;
+            if (inRange[i].low < inRange[troughIdx].low) troughIdx = i;
         }
         const troughDate = inRange[troughIdx].date;
-        const troughPrice = inRange[troughIdx].close;
+        const troughPrice = inRange[troughIdx].low;   // 日内最低价：曲线的 1.0 基准
 
         // 从最低点开始向后取全部数据（跨到下一区间也继续），展示复苏，最多约 1600 天
         const fromTrough = this.processedData.filter(d => d.date >= troughDate);

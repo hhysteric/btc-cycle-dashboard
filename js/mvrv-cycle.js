@@ -46,9 +46,10 @@ DataModule.getMvrvCycleData = function (mode) {
             if (mode === 'peak') {
                 anchors.push({ date: inRange[peakIdx].date, label: r.label });
             } else {
-                // trough：最高点之后的最低收盘价 = 该轮熊市大底（周期4=见顶后至今最低）
+                // trough：最高点之后的最低日内价 = 该轮熊市大底（周期4=见顶后至今最低，
+                // 与周期底竖线标注同口径）
                 let troughIdx = peakIdx;
-                for (let i = peakIdx + 1; i < inRange.length; i++) if (inRange[i].close < inRange[troughIdx].close) troughIdx = i;
+                for (let i = peakIdx + 1; i < inRange.length; i++) if (inRange[i].low < inRange[troughIdx].low) troughIdx = i;
                 anchors.push({ date: inRange[troughIdx].date, label: r.label });
             }
         }
